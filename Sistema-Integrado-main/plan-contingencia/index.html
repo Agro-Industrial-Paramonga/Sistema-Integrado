@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan de Contingencia - Huayco</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4">
+</head>
+<body>
+
+    <!-- ============ HEADER ============ -->
+    <header class="top-bar" id="main-header" style="display:none">
+        <div class="logo-area">
+            <img src="assets/logo.png" alt="Logo" class="logo-img">
+            <div class="logo-text">
+                <span>CENTRO DE OPERACIONES</span>
+                <strong>Plan de Contingencia</strong>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="user-pill" id="user-pill">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-name">—</span>
+                <button class="logout-btn" onclick="cerrarSesion()" title="Cerrar sesión">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ============ PANTALLA: LOGIN ============ -->
+    <section id="screen-login" class="screen active">
+        <div class="login-bg">
+            <div class="login-card">
+                <div class="login-logo">
+                    <img src="assets/logo.png" alt="Logo">
+                </div>
+                <h1 class="login-title">Plan de Contingencia</h1>
+                <p class="login-sub">Accede con tus credenciales de área</p>
+
+                <form id="login-form" onsubmit="event.preventDefault(); iniciarSesion();">
+                    <label class="login-label">ÁREA / GERENCIA</label>
+                    <div class="custom-select" id="custom-area-select">
+                        <button type="button" class="custom-select-trigger" id="custom-select-trigger">
+                            <span class="custom-select-value" id="custom-select-value">Selecciona tu área…</span>
+                            <i class="fas fa-chevron-down custom-select-arrow"></i>
+                        </button>
+                        <div class="custom-select-menu" id="custom-select-menu"></div>
+                        <input type="hidden" id="login-area" required>
+                    </div>
+
+                    <label class="login-label">CONTRASEÑA</label>
+                    <input type="password" id="login-password" class="login-input"
+                           placeholder="••••••••" required autocomplete="current-password">
+
+                    <div id="login-error" class="login-error"></div>
+
+                    <button type="submit" class="login-btn">Ingresar</button>
+                </form>
+
+                <p class="login-footer">
+                    ¿Problemas para acceder? Contacta al Área de Seguridad Industrial.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ PANTALLA 1: INICIO ============ -->
+    <section id="screen-home" class="screen">
+        <div class="home-container">
+            <div class="home-hero">
+                <div class="home-hero-badge">
+                    <span class="home-hero-badge-dot"></span>
+                    Centro de operaciones
+                </div>
+                <h1>Plan de <span>Contingencia</span></h1>
+                <p>Protocolos de respuesta ante emergencias en zonas agrícolas. Selecciona un plan para ver su flujo y medidas.</p>
+            </div>
+
+            <div class="plans-grid">
+                <button class="plan-card" onclick="abrirPlan()">
+                    <div class="plan-card-media">
+                        <img src="assets/huayco.png" alt="Huayco">
+                        <div class="plan-card-overlay"></div>
+                        <div class="plan-card-code">
+                            <i class="fas fa-mountain"></i>
+                            PC - 001
+                        </div>
+                    </div>
+
+                    <div class="plan-card-body">
+                        <div class="plan-card-header">
+                            <h3>Plan de Contingencia en caso de Huayco</h3>
+                            <span class="plan-card-arrow">
+                                <i class="fas fa-arrow-right"></i>
+                            </span>
+                        </div>
+
+                        <p class="plan-card-desc">
+                            Protocolo de respuesta ante aluviones y desbordes en las cuencas de operación.
+                        </p>
+
+                        <div class="plan-card-meta">
+                            <span class="plan-meta-chip">
+                                <i class="fas fa-list-check"></i> 24 medidas
+                            </span>
+                            <span class="plan-meta-chip">
+                                <i class="fas fa-users"></i> 15 áreas
+                            </span>
+                            <span class="plan-meta-chip plan-meta-chip-live">
+                                <span class="live-dot"></span> Activo
+                            </span>
+                        </div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ PANTALLA 2: DETALLE DEL PLAN ============ -->
+    <section id="screen-plan" class="screen">
+        <div class="app-container">
+            <main class="main-content">
+
+                <!-- ===== SECCIÓN: MENÚ ===== -->
+                <div id="section-menu" class="section-view active">
+                    <div class="plan-hero">
+                        <div class="breadcrumb" id="breadcrumb-menu">
+                            <a onclick="volverInicio()"><i class="fas fa-arrow-left"></i> Volver a planes</a>
+                        </div>
+
+                        <div class="plan-hero-text">
+                            <div class="section-tag">Plan de contingencia</div>
+                            <h1>En caso de <span>huayco</span></h1>
+                            <p class="section-desc">Selecciona una sección para revisar.</p>
+                        </div>
+                        <div class="plan-hero-image">
+                            <img src="assets/huayco2.png" alt="">
+                        </div>
+                    </div>
+
+                    <div class="menu-grid">
+                        <button class="menu-card" onclick="irASeccion('flujo')">
+                            <div class="menu-icon menu-icon-img">
+                                <img src="assets/flujo.png" alt="Flujo">
+                            </div>
+                            <h3>Flujo de respuesta de emergencia</h3>
+                            <p>Ruta de decisión paso a paso</p>
+                            <i class="fas fa-arrow-right menu-arrow"></i>
+                        </button>
+
+                        <button class="menu-card" onclick="irASeccion('antes')">
+                            <div class="menu-icon menu-icon-img">
+                                <img src="assets/antes.png" alt="Antes">
+                            </div>
+                            <h3>Medidas antes</h3>
+                            <p>Actividades de preparación previas</p>
+                            <i class="fas fa-arrow-right menu-arrow"></i>
+                        </button>
+
+                        <button class="menu-card" onclick="irASeccion('durante')">
+                            <div class="menu-icon menu-icon-img">
+                                <img src="assets/durante.png" alt="Durante">
+                            </div>
+                            <h3>Medidas durante</h3>
+                            <p>Acciones durante la emergencia</p>
+                            <i class="fas fa-arrow-right menu-arrow"></i>
+                        </button>
+
+                        <button class="menu-card" onclick="irASeccion('despues')">
+                            <div class="menu-icon menu-icon-img">
+                                <img src="assets/despues.png" alt="Después">
+                            </div>
+                            <h3>Medidas después</h3>
+                            <p>Acciones de recuperación</p>
+                            <i class="fas fa-arrow-right menu-arrow"></i>
+                        </button>
+                    </div>
+                </div>
+
+                       <!-- ===== SECCIÓN: FLUJO ===== -->
+                <div id="section-flujo" class="section-view">
+                    <a class="section-back" onclick="volverAlMenuPlan()">
+                        <i class="fas fa-arrow-left"></i> Atrás
+                    </a>
+                    <div class="section-header">
+                        <h1>Flujo de respuesta<br><span>de emergencia</span></h1>
+                    </div>
+
+                    <div class="flowchart-wrapper">
+                        <!-- Indicador para deslizar en móvil -->
+                        <div class="swipe-hint">
+                            <i class="fas fa-hand-point-right"></i> Desliza para ver más
+                        </div>
+
+                        <div class="label-si" style="top: 78px; left: 650px; transform: translateX(-50%);">SI</div>
+                        <div class="label-si" style="top: 366px; left: 182px;">SI</div>
+
+                        <svg class="connectors" width="1650" height="850">
+                            <defs>
+                                <!-- markerWidth 18 para tamaño normal. refX 9 oculta la línea dentro del triángulo -->
+                                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="18" markerHeight="18" orient="auto" markerUnits="userSpaceOnUse">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#0B6B44" />
+                                </marker>
+                            </defs>
+                            
+                            <!-- Flecha Jefe Seguridad -> Rombo (Toca la punta superior en Y=166) -->
+                            <path d="M 170 140 L 170 166" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            
+                            <!-- Flecha Rombo -> Monitoreo diario (Toca la punta inferior en Y=364) -->
+                            <path d="M 170 364 L 170 390" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            
+                            <!-- Flecha Rombo -> Condición agua (Toca la punta derecha en X=269) -->
+                            <path d="M 269 265 L 320 265 L 320 100 L 360 100" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            
+                            <path d="M 580 100 L 720 100" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 880 140 L 880 180" stroke="#0B6B44" stroke-width="3" fill="none"/>
+                            <path d="M 460 180 L 1300 180" stroke="#0B6B44" stroke-width="3" fill="none"/>
+                            <path d="M 460 180 L 460 220" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 880 180 L 880 220" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1300 180 L 1300 220" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 460 300 L 460 340" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 460 420 L 460 460" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 460 540 L 460 580" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 880 300 L 880 340" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 880 420 L 880 460" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1300 300 L 1300 340" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1400 260 L 1440 260" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1300 410 L 1300 425" stroke="#0B6B44" stroke-width="3" fill="none"/>
+                            <path d="M 1300 425 L 1520 425" stroke="#0B6B44" stroke-width="3" fill="none"/>
+                            <path d="M 1300 425 L 1300 460" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1520 425 L 1520 460" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1300 540 L 1300 580" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                            <path d="M 1520 540 L 1520 580" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+                        </svg>
+
+                        <div class="grey-box" style="top: 323px; left: 1120px; width: 500px; height: 362px;"></div>
+
+                        <div class="node node-dark" style="top: 60px; left: 60px; width: 220px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-user"></i></div>
+                            <div class="node-content">
+                                <h4>Jefe de seguridad Patrimonial</h4>
+                                <p>994640338 -> Rebeca (Minera Castor 924823461)</p>
+                            </div>
+                        </div>
+
+                        <div class="node node-condition" style="top: 60px; left: 360px; width: 220px; height: 80px;">
+                            <div class="node-icon red-icon"><i class="fas fa-tint"></i></div>
+                            <div class="node-content"><h4>¿Está cargada de abundante agua?</h4></div>
+                        </div>
+
+                        <div class="node node-dark" style="top: 60px; left: 720px; width: 320px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-shield-alt"></i></div>
+                            <div class="node-content"><h4>Jefe de Seguridad Patrimonial comunica</h4></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 220px; left: 1440px; width: 180px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-phone-alt"></i></div>
+                            <div class="node-content">
+                                <h4>GERENCIA D.O.</h4>
+                                <p>PNP: 980121822<br>BOMBEROS: 989431896<br>INDECI: 931095079</p>
+                            </div>
+                        </div>
+
+                        <div class="node node-dark" style="top: 220px; left: 380px; width: 160px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-user"></i></div>
+                            <div class="node-content"><h4>Administración 1</h4><p>989201476</p></div>
+                        </div>
+
+                        <div class="node node-dark" style="top: 220px; left: 770px; width: 220px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-cog"></i></div>
+                            <div class="node-content"><h4>JEFE DE INGENIERÍA AGRÍCOLA</h4><p>986645803</p></div>
+                        </div>
+
+                        <div class="node node-dark" style="top: 220px; left: 1200px; width: 200px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-building"></i></div>
+                            <div class="node-content"><h4>GERENCIA GENERAL</h4></div>
+                        </div>
+
+                        <div class="diamond-wrapper" style="top: 195px; left: 100px;">
+                            <div class="diamond-content">
+                                <i class="fas fa-cloud-showers-heavy"></i>
+                                <strong>¿Hay lluvias intensas?</strong>
+                            </div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 340px; left: 330px; width: 260px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="node-content"><p>Abrir compuertas: Santa Beatriz, Muñoz, Pampa Grande, Molle y Menacho</p></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 340px; left: 750px; width: 260px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="node-content"><h4>JUNTA DEL VALLE PATIVILCA:</h4><p>Delgado 920512239</p></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 340px; left: 1140px; width: 320px; height: 70px; z-index: 2;">
+                            <div class="node-icon"><i class="fas fa-mountain"></i></div>
+                            <div class="node-content"><h4>Si el huayco está a la altura de Churlin Alto</h4></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 460px; left: 330px; width: 260px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="node-content"><h4>SAN MIGUEL OTOPONGO</h4><p>Maldonado 989788389</p></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 460px; left: 750px; width: 260px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="node-content"><h4>CIERRE DE BOCATOMAS:</h4><p>Alpas, Las Vegas, Otopongo, Huayto y Paramonga</p></div>
+                        </div>
+
+                        <div class="node node-dark" style="top: 460px; left: 1210px; width: 180px; height: 80px; z-index: 2;">
+                            <div class="node-icon"><i class="fas fa-tractor"></i></div>
+                            <div class="node-content"><h4>OPERACIONES AGRÍCOLAS:</h4><p>987803991</p></div>
+                        </div>
+
+                        <div class="node node-dark" style="top: 460px; left: 1440px; width: 160px; height: 80px; z-index: 2;">
+                            <div class="node-icon"><i class="fas fa-wrench"></i></div>
+                            <div class="node-content"><h4>APT: 940387152</h4></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 580px; left: 330px; width: 260px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="node-content"><h4>SAN MATEO DE CHURLIN</h4><p>Domingo 991862559</p></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 580px; left: 1210px; width: 180px; height: 90px; z-index: 2;">
+                            <div class="node-icon"><i class="fas fa-tractor"></i></div>
+                            <div class="node-content"><p>Movilizar tierra: puerta 1 hasta la 3 y reubicar maquinarias de los campos. Retiro en chilcal</p></div>
+                        </div>
+
+                        <div class="node node-light-green-border" style="top: 580px; left: 1440px; width: 160px; height: 90px; z-index: 2;">
+                            <div class="node-icon"><i class="fas fa-home"></i></div>
+                            <div class="node-content"><p>Detener despacho y proteger almacenes</p></div>
+                        </div>
+
+                        <div class="node node-light" style="top: 390px; left: 40px; width: 260px; height: 80px;">
+                            <div class="node-icon"><i class="fas fa-calendar-alt"></i></div>
+                            <div class="node-content">
+                                <h4>Monitoreo diario: Quebrada Rinconada-Choque</h4>
+                                <p>(Seguridad Patrimonial y Adm.1)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== SECCIÓN: MEDIDAS ANTES ===== -->
+                <div id="section-antes" class="section-view">
+                    <div class="sticky-header-block">
+                        <a class="section-back" onclick="volverAlMenuPlan()">
+                            <i class="fas fa-arrow-left"></i> Atrás
+                        </a>
+                        <div class="section-header">
+                            <h1>Medidas <span>antes</span></h1>
+                        </div>
+
+                        <div class="progress-panel">
+                            <div class="progress-info">
+                                <span class="progress-label">Avance del plan</span>
+                                <span class="progress-count" id="antes-progress-count">— / —</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="antes-progress-fill" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="filters-bar">
+                            <div class="filters-left">
+                                <button class="filter-btn active" data-filter="all" data-tooltip="Ver todas las medidas sin filtrar">Todas</button>
+                                <button class="filter-btn" data-filter="no-iniciado" data-tooltip="Aún no se ha comenzado a trabajar en esta medida.">No iniciado</button>
+                                <button class="filter-btn" data-filter="en-ejecucion" data-tooltip="El área responsable está trabajando en ella.">En ejecución</button>
+                                <button class="filter-btn" data-filter="finalizado" data-tooltip="La medida fue completada.">Finalizado</button>
+                            </div>
+                            <div class="filters-right">
+                                <select class="filter-area-select btn-solo-gerente" id="filtro-area-antes">
+                                    <option value="all">Todas las áreas</option>
+                                </select>
+                                <button class="btn-historial btn-solo-gerente" onclick="abrirModalHistorial()">
+                                    <i class="fas fa-clock-rotate-left"></i> Historial
+                                </button>
+                                <button class="btn-agregar btn-solo-area" onclick="abrirModalAgregar('antes')">
+                                    <i class="fas fa-plus"></i> Agregar medida
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:32%">Actividad</th>
+                                    <th style="width:18%">Período de Ejecución</th>
+                                    <th style="width:16%">Área Responsable</th>
+                                    <th style="width:10%">Costos</th>
+                                    <th style="width:10%">Estado</th>
+                                    <th style="width:8%">Fotos</th>
+                                    <th style="width:6%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-antes-body">
+                                <tr><td colspan="7" class="loading-cell">Cargando actividades…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="total-panel">
+                        <span class="total-panel-label">Total de costos</span>
+                        <span class="total-panel-value" id="total-antes">S/ 0.00</span>
+                    </div>
+                </div>
+
+                <!-- ===== SECCIÓN: MEDIDAS DURANTE ===== -->
+                <div id="section-durante" class="section-view">
+                    <div class="sticky-header-block">
+                        <a class="section-back" onclick="volverAlMenuPlan()">
+                            <i class="fas fa-arrow-left"></i> Atrás
+                        </a>
+                        <div class="section-header">
+                            <h1>Medidas <span>durante</span></h1>
+                        </div>
+
+                        <div class="progress-panel">
+                            <div class="progress-info">
+                                <span class="progress-label">Avance del plan</span>
+                                <span class="progress-count" id="durante-progress-count">— / —</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="durante-progress-fill" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="filters-bar">
+                            <div class="filters-left">
+                                <button class="filter-btn active" data-filter="all" data-tabla="durante" data-tooltip="Ver todas las medidas sin filtrar">Todas</button>
+                                <button class="filter-btn" data-filter="bloqueado" data-tabla="durante" data-tooltip="Aún no ha sido activada por Gerencia General.">Bloqueado</button>
+                                <button class="filter-btn" data-filter="iniciado" data-tabla="durante" data-tooltip="Gerencia General la activó. El área puede comenzar a ejecutarla.">Autorizado</button>
+                                <button class="filter-btn" data-filter="en-ejecucion" data-tabla="durante" data-tooltip="El área responsable está ejecutando la medida.">En ejecución</button>
+                                <button class="filter-btn" data-filter="finalizado" data-tabla="durante" data-tooltip="La medida fue completada.">Finalizado</button>
+                            </div>
+                            <div class="filters-right">
+                                <select class="filter-area-select btn-solo-gerente" id="filtro-area-durante">
+                                    <option value="all">Todas las áreas</option>
+                                </select>
+                                <button class="btn-historial btn-solo-gerente" onclick="abrirModalHistorial()">
+                                    <i class="fas fa-clock-rotate-left"></i> Historial
+                                </button>
+                                <button class="btn-planes btn-solo-gerente-real" id="btn-planes-accion" onclick="togglePlanesAccion()">
+                                    <i class="fas fa-play"></i> Iniciar planes de acción
+                                </button>
+                                <button class="btn-agregar btn-solo-area" onclick="abrirModalAgregar('durante')">
+                                    <i class="fas fa-plus"></i> Agregar medida
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40%">Actividad</th>
+                                    <th style="width:18%">Período de Ejecución</th>
+                                    <th style="width:18%">Área Responsable</th>
+                                    <th style="width:10%">Estado</th>
+                                    <th style="width:8%">Fotos</th>
+                                    <th style="width:6%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-durante-body">
+                                <tr><td colspan="6" class="loading-cell">Cargando actividades…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ===== SECCIÓN: MEDIDAS DESPUÉS ===== -->
+                <div id="section-despues" class="section-view">
+                    <div class="sticky-header-block">
+                        <a class="section-back" onclick="volverAlMenuPlan()">
+                            <i class="fas fa-arrow-left"></i> Atrás
+                        </a>
+                        <div class="section-header">
+                            <h1>Medidas <span>después</span></h1>
+                        </div>
+
+                        <div class="progress-panel">
+                            <div class="progress-info">
+                                <span class="progress-label">Avance del plan</span>
+                                <span class="progress-count" id="despues-progress-count">— / —</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="despues-progress-fill" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="filters-bar">
+                            <div class="filters-left">
+                                <button class="filter-btn active" data-filter="all" data-tabla="despues" data-tooltip="Ver todas las medidas sin filtrar">Todas</button>
+                                <button class="filter-btn" data-filter="no-iniciado" data-tabla="despues" data-tooltip="Aún no se ha comenzado a trabajar en esta medida.">No iniciado</button>
+                                <button class="filter-btn" data-filter="en-ejecucion" data-tabla="despues" data-tooltip="El área responsable está trabajando en ella.">En ejecución</button>
+                                <button class="filter-btn" data-filter="finalizado" data-tabla="despues" data-tooltip="La medida fue completada.">Finalizado</button>
+                            </div>
+                            <div class="filters-right">
+                                <select class="filter-area-select btn-solo-gerente" id="filtro-area-despues">
+                                    <option value="all">Todas las áreas</option>
+                                </select>
+                                <button class="btn-historial btn-solo-gerente" onclick="abrirModalHistorial()">
+                                    <i class="fas fa-clock-rotate-left"></i> Historial
+                                </button>
+                                <button class="btn-agregar btn-solo-area" onclick="abrirModalAgregar('despues')">
+                                    <i class="fas fa-plus"></i> Agregar medida
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40%">Actividad</th>
+                                    <th style="width:18%">Período de Ejecución</th>
+                                    <th style="width:18%">Área Responsable</th>
+                                    <th style="width:10%">Estado</th>
+                                    <th style="width:8%">Fotos</th>
+                                    <th style="width:6%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-despues-body">
+                                <tr><td colspan="6" class="loading-cell">Cargando actividades…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </section>
+
+    <!-- ============ MODAL: AGREGAR MEDIDA ============ -->
+    <div id="modal-agregar" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="modal-agregar-title">Agregar medida</h3>
+                <button class="modal-close" onclick="cerrarModalAgregar()">×</button>
+            </div>
+            <div class="modal-body">
+                <label>Actividad *</label>
+                <textarea id="agregar-actividad" rows="3" placeholder="Descripción de la actividad"></textarea>
+
+                <div class="solo-antes">
+                    <label>Período de ejecución (dd/mm/aaaa)</label>
+                    <input type="text" id="agregar-periodo" placeholder="Ej: 25/11/2026">
+                </div>
+
+                <label>Área responsable *</label>
+                <div class="areas-responsable-container">
+                    <div id="areas-lista" class="areas-lista"></div>
+                    <button type="button" class="btn-add-area" id="btn-add-area" onclick="agregarAreaExtra()">
+                        <i class="fas fa-plus"></i> Sumar otra área
+                    </button>
+                </div>
+
+                <div class="solo-antes">
+                    <label>Costo</label>
+                    <input type="text" id="agregar-costo" placeholder="S/ 0.00">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="cerrarModalAgregar()">Cancelar</button>
+                <button class="btn-primary" onclick="guardarNuevaMedida()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MODAL: HISTORIAL ============ -->
+    <div id="modal-historial" class="modal-overlay">
+        <div class="modal-box modal-box-lg">
+            <div class="modal-header">
+                <h3>Historial de movimientos</h3>
+                <button class="modal-close" onclick="cerrarModalHistorial()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="lista-historial"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="cerrarModalHistorial()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MODAL: FOTOS ============ -->
+    <div id="modal-fotos" class="modal-overlay">
+        <div class="modal-box modal-box-lg">
+            <div class="modal-header">
+                <h3 id="modal-fotos-title">Fotos de la medida</h3>
+                <button class="modal-close" onclick="cerrarModalFotos()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="fotos-toolbar" id="fotos-toolbar">
+                    <button type="button" class="btn-subir-foto btn-solo-area" onclick="document.getElementById('foto-input').click()">
+                        <i class="fas fa-cloud-upload-alt"></i> Subir foto
+                    </button>
+                    <input type="file" id="foto-input" accept="image/*" style="display:none" onchange="subirFotoSeleccionada(event)">
+                    <span class="fotos-info" id="fotos-info"></span>
+                </div>
+                <div id="fotos-grid" class="fotos-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="cerrarModalFotos()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ LIGHTBOX ============ -->
+    <div id="lightbox" class="lightbox" onclick="cerrarLightbox()">
+        <img id="lightbox-img" src="" alt="">
+    </div>
+
+    <!-- ============ MODAL DE ALERTAS / CONFIRMACIONES ============ -->
+    <div id="app-modal" class="app-modal-overlay">
+        <div class="app-modal-box">
+            <div class="app-modal-icon" id="app-modal-icon">
+                <i class="fas fa-info-circle"></i>
+            </div>
+            <h3 id="app-modal-title">Aviso</h3>
+            <p id="app-modal-message">Mensaje</p>
+            <div class="app-modal-actions">
+                <button type="button" class="app-modal-btn app-modal-btn-cancel" id="app-modal-cancel">Cancelar</button>
+                <button type="button" class="app-modal-btn app-modal-btn-ok" id="app-modal-ok">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+     <script src="script.js?v=5"></script>
+</body>
+</html>

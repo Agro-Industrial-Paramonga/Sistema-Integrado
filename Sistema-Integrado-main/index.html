@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Integrado - Centro de Operaciones</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background: #F4F6F4;
+            color: #334155;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .top-bar {
+            background: #FFFFFF;
+            height: 68px;
+            display: flex;
+            align-items: center;
+            padding: 0 28px;
+            border-bottom: 1px solid #E2E8F0;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            background: linear-gradient(135deg, #10A35E, #0D3A24);
+            color: white;
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
+
+        .logo-text span {
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748B;
+            letter-spacing: 1.4px;
+        }
+
+        .logo-text strong {
+            font-size: 16px;
+            color: #0F172A;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 60px 32px 80px;
+            width: 100%;
+            flex: 1;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            color: #0A2618;
+            background: #ECFDF5;
+            border: 1px solid #BBF7D0;
+            padding: 6px 14px;
+            border-radius: 999px;
+            margin-bottom: 22px;
+        }
+
+        .hero-badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10A35E;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(16, 163, 94, 0.18); }
+            50% { box-shadow: 0 0 0 6px rgba(16, 163, 94, 0.06); }
+        }
+
+        .hero h1 {
+            font-size: 42px;
+            color: #0F172A;
+            font-weight: 800;
+            letter-spacing: -1.2px;
+            line-height: 1.08;
+            margin-bottom: 14px;
+        }
+
+        .hero h1 span {
+            color: #10A35E;
+        }
+
+        .hero p {
+            color: #64748B;
+            font-size: 15.5px;
+            max-width: 520px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 22px;
+        }
+
+        .app-card {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-top: 4px solid var(--card-accent, #10A35E);
+            border-radius: 16px;
+            padding: 28px 24px 24px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(15,23,42,0.06);
+        }
+
+        .app-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 48px rgba(16, 163, 94, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+            border-color: var(--card-accent, #10A35E);
+        }
+
+        .app-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            background: var(--card-soft, #ECFDF5);
+            color: var(--card-accent, #10A35E);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            border: 1px solid var(--card-border, #BBF7D0);
+        }
+
+        .app-card h2 {
+            font-size: 18px;
+            color: #0F172A;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            line-height: 1.3;
+        }
+
+        .app-card p {
+            font-size: 13.5px;
+            color: #64748B;
+            line-height: 1.55;
+            flex: 1;
+        }
+
+        .app-arrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--card-accent, #10A35E);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 6px;
+            transition: transform 0.2s;
+        }
+
+        .app-card:hover .app-arrow {
+            transform: translateX(4px);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #94A3B8;
+            font-size: 12.5px;
+            border-top: 1px solid #E2E8F0;
+            background: #FFFFFF;
+        }
+
+        @media (max-width: 700px) {
+            .container { padding: 40px 20px 60px; }
+            .hero h1 { font-size: 30px; letter-spacing: -0.8px; }
+            .hero p { font-size: 14px; }
+            .apps-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="top-bar">
+        <div class="logo-area">
+            <div class="logo-icon" style="background: transparent; padding: 4px;">
+            <img src="./plan-contingencia/assets/logo.png" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">
+            </div>
+            <div class="logo-text">
+                <span>CENTRO DE OPERACIONES</span>
+                <strong>Sistema Integrado</strong>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="hero">
+            <div class="hero-badge">
+                <span class="hero-badge-dot"></span>
+                Panel principal
+            </div>
+            <h1>Aplicaciones <span>Disponibles</span></h1>
+            <p>Selecciona una aplicación para acceder a sus funciones.</p>
+        </div>
+
+        <div class="apps-grid">
+
+            <a href="./plan-contingencia/" class="app-card" style="--card-accent: #10A35E; --card-soft: #ECFDF5; --card-border: #BBF7D0;">
+                <div class="app-icon" style="background: transparent; border: none; padding: 0;">
+                <img src="./plan-contingencia/assets/huayco2.png" alt="Plan de Contingencia" style="width: 100%; height: 100%; object-fit: cover; border-radius: 14px;">
+                </div>
+                <h2>Plan de Contingencia</h2>
+                <p>Protocolos de respuesta ante emergencias en zonas agrícolas. Flujo de respuesta, medidas antes, durante y después.</p>
+                <span class="app-arrow">
+                    Ingresar <i class="fas fa-arrow-right"></i>
+                </span>
+            </a>
+
+            <a href="./hallazgos/" class="app-card" style="--card-accent: #3B82F6; --card-soft: #EFF6FF; --card-border: #BFDBFE;">
+                <div class="app-icon" style="background: transparent; border: none; padding: 0;">
+                <img src="./hallazgos/assets/total.png" alt="Hallazgos" style="width: 100%; height: 100%; object-fit: cover; border-radius: 14px;">
+                </div>
+                <h2>Hallazgos AIP</h2>
+                <p>Registro y seguimiento de hallazgos detectados en las inspecciones de campo.</p>
+                <span class="app-arrow">
+                    Ingresar <i class="fas fa-arrow-right"></i>
+                </span>
+            </a>
+
+            <a href="./extintores/" class="app-card" style="--card-accent: #E11D48; --card-soft: #FFF1F5; --card-border: #FECDD3;">
+                <div class="app-icon" style="background: #FFF1F5; border: 1px solid #FECDD3; padding: 6px;">
+                <img src="./extintores/assets/extintor.png" alt="Gestión de Extintores" style="width: 100%; height: 100%; object-fit: contain;">
+                </div>
+                <h2>Gestión de Extintores</h2>
+                <p>Inventario, mantenimiento y control de extintores por área y ubicación.</p>
+                <span class="app-arrow">
+                    Ingresar <i class="fas fa-arrow-right"></i>
+                </span>
+            </a>
+
+        </div>
+    </main>
+
+    <footer class="footer">
+        Centro de Operaciones &middot; Sistema Integrado &copy; 2026
+    </footer>
+
+</body>
+</html>
