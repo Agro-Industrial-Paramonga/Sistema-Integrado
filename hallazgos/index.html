@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hallazgos AIP</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        html, body {
+        overflow-x: hidden;
+        max-width: 100vw;
+        width: 100%;
+    }
+        .kpi-card { transition: transform .2s ease, box-shadow .2s ease; }
+        .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); }
+        .filter-chip { transition: all .15s ease; }
+        .row-hover:hover { background-color: #f8fafc; }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* ============================================
+           FONDO ANIMADO — Login
+           ============================================ */
+        .fondo-animado {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            z-index: 0;
+            background: linear-gradient(180deg,
+                #ffb27a 0%,
+                #ff9d6b 25%,
+                #f4a259 45%,
+                #d98a4a 60%,
+                #8a7a3f 80%,
+                #4a5a2a 100%);
+        }
+        .sol {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 42vmin;
+            height: 42vmin;
+            border-radius: 50%;
+            background: radial-gradient(circle,
+                rgba(255, 235, 190, 0.95) 0%,
+                rgba(255, 200, 130, 0.55) 30%,
+                rgba(255, 170, 100, 0.15) 60%,
+                transparent 75%);
+            filter: blur(8px);
+            animation: pulsoSol 8s ease-in-out infinite;
+        }
+        @keyframes pulsoSol {
+            0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+            50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.05); }
+        }
+        .nubes { position: absolute; inset: 0; pointer-events: none; }
+        .nube {
+            position: absolute;
+            background: radial-gradient(ellipse at center,
+                rgba(255, 220, 190, 0.65) 0%,
+                rgba(255, 200, 170, 0.25) 40%,
+                transparent 70%);
+            border-radius: 50%;
+            filter: blur(30px);
+        }
+        .n1 { width: 60vmin; height: 18vmin; top: 15%; left: -20%; animation: deriva 90s linear infinite; }
+        .n2 { width: 45vmin; height: 14vmin; top: 28%; left: -30%; animation: deriva 120s linear infinite 15s; opacity: .7; }
+        .n3 { width: 70vmin; height: 20vmin; top: 8%;  left: -40%; animation: deriva 140s linear infinite 30s; opacity: .55; }
+        @keyframes deriva {
+            from { transform: translateX(0); }
+            to   { transform: translateX(160vw); }
+        }
+        .colina {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 45%;
+            opacity: 0.9;
+            pointer-events: none;
+        }
+        .canas {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 75%;
+            pointer-events: none;
+        }
+        .cana {
+            position: absolute;
+            bottom: 0;
+            transform-origin: bottom center;
+            will-change: transform;
+        }
+        .cana svg {
+            display: block;
+            height: 100%;
+            width: auto;
+            overflow: visible;
+            transform-origin: bottom center;
+            animation: viento var(--dur, 4s) ease-in-out infinite alternate;
+            animation-delay: var(--delay, 0s);
+        }
+        @keyframes viento {
+            0%   { transform: rotate(-1.8deg) translateX(-2px); }
+            100% { transform: rotate(2.2deg)  translateX(3px);  }
+        }
+        .hoja {
+            animation: hojaOndula var(--durHoja, 3s) ease-in-out infinite alternate;
+            animation-delay: var(--delayHoja, 0s);
+        }
+        @keyframes hojaOndula {
+            0%   { transform: rotate(-3deg); }
+            100% { transform: rotate(4deg);  }
+        }
+        .atmosfera {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse at 50% 45%,
+                    rgba(255, 220, 170, 0.25) 0%,
+                    transparent 55%),
+                radial-gradient(ellipse at center,
+                    transparent 55%,
+                    rgba(60, 40, 20, 0.35) 100%);
+            mix-blend-mode: soft-light;
+        }
+        @media (max-width: 768px) {
+            .canas { height: 55%; }
+            .sol   { width: 60vmin; height: 60vmin; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .cana svg, .hoja, .nube, .sol { animation: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- ==================== LOGIN ==================== -->
+    <div id="pantalla-login" class="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-hidden">
+        <div class="fondo-animado" aria-hidden="true">
+            <div class="cielo"></div>
+            <div class="sol"></div>
+            <div class="nubes">
+                <div class="nube n1"></div>
+                <div class="nube n2"></div>
+                <div class="nube n3"></div>
+            </div>
+            <svg class="colina" viewBox="0 0 1440 400" preserveAspectRatio="none">
+                <path d="M0,220 C300,180 500,260 720,230 C940,200 1150,270 1440,220 L1440,400 L0,400 Z"
+                      fill="url(#gradColina)"/>
+                <defs>
+                    <linearGradient id="gradColina" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#5a6b3a"/>
+                        <stop offset="100%" stop-color="#2d3a1f"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="canas" id="canas"></div>
+            <div class="atmosfera"></div>
+        </div>
+
+        <!-- Menú hamburguesa admin -->
+        <div class="absolute top-4 left-4 sm:top-6 sm:left-6 z-10">
+            <button id="btn-hamburguesa-login" class="text-slate-700 hover:text-slate-900 bg-white/70 hover:bg-white backdrop-blur p-2.5 sm:p-3 rounded-xl shadow-lg transition">
+                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+            <div id="menu-admin" class="hidden mt-3 bg-white rounded-xl shadow-2xl w-64 overflow-hidden border border-slate-100">
+                <button id="btn-modo-admin" class="w-full text-left px-4 py-3.5 hover:bg-emerald-50 flex items-center gap-3 transition">
+                    <div class="bg-emerald-100 p-2 rounded-lg">
+                        <svg class="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-sm text-slate-800">Modo Administrador</p>
+                        <p class="text-xs text-slate-500">Solo Seguridad Industrial</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario login normal -->
+        <div id="form-login-normal" class="relative z-10 bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-6 sm:p-10 w-full max-w-md border border-white/40">
+            <div class="text-center mb-8 sm:mb-10">
+                <div class="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-2xl mb-5 shadow-lg border border-slate-100 p-2">
+                    <img src="assets/logo.png" alt="AIPSA" class="w-full h-full object-contain">
+                </div>
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Hallazgos AIP</h1>
+                <p class="text-slate-500 text-sm mt-2">Accede con tus credenciales de gerencia</p>
+            </div>
+            <div class="space-y-5">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-2 block tracking-wide uppercase">Gerencia</label>
+                    <select id="login-gerencia" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                        <option value="">Selecciona tu gerencia...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-2 block tracking-wide uppercase">Contraseña</label>
+                    <input type="password" id="login-password" placeholder="••••••••"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                </div>
+                <div id="login-error" class="hidden bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3"></div>
+                <button id="btn-login" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/40">
+                    Ingresar
+                </button>
+                <p class="text-xs text-slate-400 text-center pt-2">
+                    ¿Problemas para acceder? Contacta al Área de Seguridad Industrial
+                </p>
+            </div>
+        </div>
+
+        <!-- Formulario login admin -->
+        <div id="form-login-admin" class="hidden relative z-10 bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-6 sm:p-10 w-full max-w-md border border-white/40">
+            <div class="text-center mb-8 sm:mb-10">
+                <div class="inline-flex items-center justify-center w-14 h-14 bg-slate-900 rounded-2xl mb-5 shadow-lg">
+                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Modo Administrador</h1>
+                <p class="text-slate-500 text-sm mt-2">Ingresa tu contraseña de administrador</p>
+            </div>
+            <div class="space-y-5">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 mb-2 block tracking-wide uppercase">Contraseña</label>
+                    <input type="password" id="admin-password" placeholder="••••••••"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition">
+                </div>
+                <div id="admin-error" class="hidden bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3"></div>
+                <button id="btn-login-admin" class="w-full bg-slate-900 hover:bg-black text-white font-semibold py-3 rounded-xl transition">
+                    Ingresar como Administrador
+                </button>
+                <button id="btn-volver-normal" class="w-full text-slate-500 hover:text-slate-800 text-sm py-2 transition">
+                    ← Volver al login
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div id="app-principal" class="hidden">
+
+        <!-- ✅ MÓVIL: header más compacto -->
+        <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+            <div class="max-w-[1600px] mx-auto px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-2 sm:gap-4 min-w-0">
+                    <img src="assets/logo.png" alt="AIPSA" class="h-8 sm:h-10 w-auto object-contain flex-shrink-0">
+                    <div class="border-l border-slate-200 pl-2 sm:pl-4 min-w-0">
+                        <h1 class="text-sm sm:text-lg font-bold text-slate-900 tracking-tight leading-tight truncate">Hallazgos AIP</h1>
+                        <p class="text-[10px] sm:text-xs text-slate-500 leading-tight truncate hidden xs:block">Actos y Condiciones Subestándar</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-4 relative">
+                    
+                    <!-- BOTÓN DE EXCEL (ADMIN) -->
+                    <div id="admin-excel-panel" class="hidden relative">
+                        <button id="btn-toggle-excel" class="bg-emerald-600 hover:bg-emerald-700 text-white p-2 sm:p-2.5 rounded-xl shadow-md transition-all duration-200 flex items-center justify-center hover:scale-105">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                            </svg>
+                        </button>
+
+                        <!-- ✅ MÓVIL: panel más angosto y limitado al viewport -->
+                        <div id="excel-panel-content" class="hidden absolute top-12 sm:top-14 right-0 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] z-50">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="bg-emerald-100 p-1.5 rounded-lg">
+                                        <svg class="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm font-bold text-slate-800">Actualizar Base de Datos</p>
+                                </div>
+                                <button id="btn-cerrar-excel" class="text-slate-400 hover:text-slate-600 transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <input type="file" id="inputExcel" accept=".xlsx, .xls" 
+                                class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer border border-slate-200 rounded-lg p-1">
+                            <button id="btnSubirExcel" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition shadow-lg shadow-emerald-600/20">
+                                Subir y Actualizar
+                            </button>
+                            <p class="text-[10px] text-slate-400 mt-2 text-center">Sube el Excel con la misma estructura de la tabla</p>
+                        </div>
+                    </div>
+
+                    <div class="text-right hidden md:block">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Sesión activa</p>
+                        <p id="usuario-actual" class="text-sm font-semibold text-slate-700 truncate max-w-[180px]">—</p>
+                    </div>
+                    <button id="btn-logout" class="text-slate-600 hover:text-red-600 text-sm font-medium p-2 sm:px-3 sm:py-2 rounded-lg hover:bg-red-50 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                        <span class="hidden sm:inline">Salir</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- ✅ MÓVIL: padding más pequeño -->
+        <main class="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6">
+
+            <!-- Filtros -->
+            <div class="relative bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div class="h-1 bg-gradient-to-r from-emerald-700 via-emerald-600 to-red-600"></div>
+                <div class="p-3 sm:p-5">
+                    <!-- ✅ MÓVIL: 2 cols en móvil, 3 en tablet, 5 en desktop -->
+                    <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-5 items-start">
+
+    <!-- ✅ COLUMNA IZQUIERDA EN MÓVIL: Evento + Estado -->
+    <div class="flex flex-col gap-3 md:contents min-w-0">
+        <div class="md:order-2 min-w-0">
+            <label class="text-[10px] sm:text-xs font-extrabold text-slate-900 mb-1.5 sm:mb-2 block tracking-widest uppercase">Evento</label>
+            <div id="filtro-evento-botones" class="flex flex-col gap-1.5"></div>
+        </div>
+        <div class="md:order-3">
+            <label class="text-[10px] sm:text-xs font-extrabold text-slate-900 mb-1.5 sm:mb-2 block tracking-widest uppercase">Estado</label>
+            <div id="filtro-estado-botones" class="flex flex-col gap-1.5"></div>
+        </div>
+    </div>
+
+    <!-- ✅ COLUMNA DERECHA EN MÓVIL: Año + Gerencia + Área -->
+    <div class="flex flex-col gap-3 md:contents min-w-0">
+        <div class="md:order-1">
+            <label class="text-[10px] sm:text-xs font-extrabold text-slate-900 mb-1.5 sm:mb-2 block tracking-widest uppercase">Año</label>
+            <select id="filtro-anio" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-lg px-2 sm:px-3 text-xs sm:text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition cursor-pointer hover:border-slate-300">
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <div class="md:order-4">
+            <label class="text-[10px] sm:text-xs font-extrabold text-slate-900 mb-1.5 sm:mb-2 block tracking-widest uppercase">Gerencia</label>
+            <select id="filtro-gerencia" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-lg px-2 sm:px-3 text-xs sm:text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition cursor-pointer hover:border-slate-300">
+                <option value="">Todas</option>
+            </select>
+        </div>
+        <div class="md:order-5">
+            <label class="text-[10px] sm:text-xs font-extrabold text-slate-900 mb-1.5 sm:mb-2 block tracking-widest uppercase">Área</label>
+            <select id="filtro-area" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-lg px-2 sm:px-3 text-xs sm:text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition cursor-pointer hover:border-slate-300">
+                <option value="">Todas</option>
+            </select>
+        </div>
+    </div>
+</div>
+            </div>
+
+            <!-- KPIs -->
+            <!-- ✅ MÓVIL: 2 cols en móvil, 4 en desktop -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+                <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-slate-800"></div>
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[9px] sm:text-[11px] font-extrabold text-slate-900 tracking-widest uppercase mb-2 sm:mb-4">Total Hallazgos</p>
+                            <p class="text-2xl sm:text-4xl md:text-5xl font-bold text-slate-900 tracking-tight leading-none" id="stat-total">0</p>
+                            <p class="text-[10px] sm:text-xs text-slate-400 mt-2 sm:mt-3">Registro acumulado</p>
+                        </div>
+                        <img src="assets/total.png" alt="" class="h-7 w-7 sm:h-10 sm:w-10 object-contain opacity-90 mt-1 hidden xs:block">
+                    </div>
+                </div>
+
+                <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[9px] sm:text-[11px] font-extrabold text-emerald-700 tracking-widest uppercase mb-2 sm:mb-4">Cerrados</p>
+                            <p class="text-2xl sm:text-4xl md:text-5xl font-bold text-emerald-600 tracking-tight leading-none" id="stat-cerrados">0</p>
+                            <p class="text-[10px] sm:text-xs text-emerald-600/70 mt-2 sm:mt-3 font-medium">Hallazgos resueltos</p>
+                        </div>
+                        <img src="assets/cerrados.png" alt="" class="h-7 w-7 sm:h-10 sm:w-10 object-contain opacity-90 mt-1 hidden xs:block">
+                    </div>
+                </div>
+
+                <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[9px] sm:text-[11px] font-extrabold text-red-700 tracking-widest uppercase mb-2 sm:mb-4">Pendientes</p>
+                            <p class="text-2xl sm:text-4xl md:text-5xl font-bold text-red-600 tracking-tight leading-none" id="stat-pendientes">0</p>
+                            <p class="text-[10px] sm:text-xs text-red-600/70 mt-2 sm:mt-3 font-medium">Requieren atención</p>
+                        </div>
+                        <img src="assets/pendientes.png" alt="" class="h-7 w-7 sm:h-10 sm:w-10 object-contain opacity-90 mt-1 hidden xs:block">
+                    </div>
+                </div>
+
+                <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[9px] sm:text-[11px] font-extrabold text-blue-700 tracking-widest uppercase mb-2 sm:mb-4">% Cumplimiento</p>
+                            <p id="stat-porcentaje" class="text-2xl sm:text-4xl md:text-5xl font-bold text-slate-900 tracking-tight leading-none">0%</p>
+                            <p class="text-[10px] sm:text-xs text-slate-400 mt-2 sm:mt-3">Objetivo: <span class="font-semibold text-slate-600">100%</span></p>
+                        </div>
+                        <div class="bg-blue-50 p-1.5 sm:p-2 rounded-xl mt-1 hidden xs:block">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div class="px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start gap-3 flex-wrap">
+                    <div class="min-w-0">
+                        <h2 id="titulo-grafico" class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Hallazgos</h2>
+                        <p id="subtitulo-grafico" class="text-[11px] sm:text-xs text-slate-500 mt-0.5">Selecciona filtros para ver el detalle</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div id="filtro-evento-grafico" class="flex gap-1.5"></div>
+                        <button id="btn-volver-grafico" class="hidden text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                            ← Volver
+                        </button>
+                    </div>
+                </div>
+                <!-- ✅ MÓVIL: altura adaptativa -->
+                <div class="p-2 sm:p-6 h-64 sm:h-80 md:h-96">
+                    <canvas id="grafico-area"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabla -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div class="px-3 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4">
+                    <div>
+                        <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Hallazgos Detallados</h2>
+                        <p class="text-[11px] sm:text-xs text-slate-500 mt-0.5"><span id="contador-tabla" class="font-semibold text-slate-700">0</span> hallazgos encontrados</p>
+                    </div>
+                    <!-- ✅ MÓVIL: buscador full width -->
+                    <div class="relative w-full sm:w-auto">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <input type="text" id="buscador" placeholder="Buscar en acontecimiento..."
+                            class="bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-3 py-2 text-sm w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                    </div>
+                </div>
+
+                <!-- ✅ VISTA ESCRITORIO: tabla normal (oculta en móvil) -->
+                <div class="overflow-x-auto hidden md:block">
+                    <table class="w-full text-sm" style="min-width: 1200px;">
+                        <thead>
+                            <tr class="border-b border-slate-200 bg-slate-50/50">
+                                <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Código</th>
+                                <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Año</th>
+                                <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Mes</th>
+                                <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Área</th>
+                                <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Estado</th>
+                                <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase">Acontecimiento</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-body" class="divide-y divide-slate-100">
+                            <tr><td colspan="6" class="text-center py-12 text-slate-400 text-sm">Cargando hallazgos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ✅ VISTA MÓVIL: tarjetas (oculta en desktop) -->
+                <div id="tabla-cards" class="md:hidden divide-y divide-slate-100">
+                    <div class="text-center py-12 text-slate-400 text-sm">Cargando hallazgos...</div>
+                </div>
+
+                <div class="px-3 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex justify-between items-center bg-slate-50/30">
+                    <button id="btn-prev" class="text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 sm:px-3 py-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed bg-white">← Anterior</button>
+                    <span class="text-[11px] sm:text-xs text-slate-500 font-medium">Página <span id="pagina-actual" class="text-slate-800 font-semibold">1</span> de <span id="total-paginas" class="text-slate-800 font-semibold">1</span></span>
+                    <button id="btn-next" class="text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 sm:px-3 py-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed bg-white">Siguiente →</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="app.js"></script>
+</body>
+</html>
