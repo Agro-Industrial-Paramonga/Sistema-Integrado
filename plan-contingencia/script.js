@@ -1749,56 +1749,6 @@ async function inicializarAlarmaNativa() {
     } catch (e) {
         console.error('[ALARMA] Error consultando el permiso:', e);
     }
-
-    crearBotonPruebaAlarma(Alarma);
-}
-
-function crearBotonPruebaAlarma(Alarma) {
-    if (document.getElementById('caja-prueba-alarma')) return;
-
-    const caja = document.createElement('div');
-    caja.id = 'caja-prueba-alarma';
-    caja.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;flex-direction:column;gap:8px;align-items:flex-end;';
-
-    const estilo = 'border:none;border-radius:999px;padding:11px 16px;font-size:12.5px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer;font-family:inherit;color:#fff;';
-
-    // Boton 1: prueba inmediata
-    const b1 = document.createElement('button');
-    b1.textContent = '\uD83D\uDD14 Probar alarma';
-    b1.style.cssText = estilo + 'background:#B91C1C;';
-    b1.addEventListener('click', async () => {
-        try {
-            await Alarma.probarAlarma({
-                titulo: '\uD83D\uDEA8 ALERTA DE HUAYCO (PRUEBA)',
-                cuerpo: 'Prueba del sistema de alarma. Pulsa DETENER para parar.'
-            });
-        } catch (e) {
-            console.error('[ALARMA] Error al probar:', e);
-            alert('No se pudo probar la alarma: ' + (e.message || e));
-        }
-    });
-
-    // Boton 2: prueba con retraso (para bloquear el celular y ver el comportamiento real)
-    const b2 = document.createElement('button');
-    b2.textContent = '\uD83D\uDD12 Probar bloqueado (10s)';
-    b2.style.cssText = estilo + 'background:#7C2D12;';
-    b2.addEventListener('click', async () => {
-        try {
-            await Alarma.probarAlarma({
-                titulo: '\uD83D\uDEA8 ALERTA DE HUAYCO (PRUEBA)',
-                cuerpo: 'Prueba con el celular bloqueado. Pulsa DETENER para parar.',
-                retraso: 10
-            });
-            alert('Listo. Bloquea el celular ahora: la alarma se disparara en 10 segundos.');
-        } catch (e) {
-            console.error('[ALARMA] Error al probar con retraso:', e);
-            alert('No se pudo probar la alarma: ' + (e.message || e));
-        }
-    });
-
-    caja.appendChild(b1);
-    caja.appendChild(b2);
-    document.body.appendChild(caja);
 }
 
 function mostrarAvisoPermisoAlarma(Alarma) {
