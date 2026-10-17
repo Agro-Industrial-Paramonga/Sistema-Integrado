@@ -1,0 +1,38 @@
+name: Recordatorio diario de actos inseguros
+
+# 15:00 UTC = 10:00 a.m. en Peru (UTC-5, sin horario de verano).
+# GitHub puede retrasar el disparo unos minutos en horas punta.
+on:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo simular (no envia alarmas)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  recordar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enviar alarmas de actos inseguros abiertos
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            node scripts/alarma-actos-inseguros.mjs --dry-run
+          else
+            node scripts/alarma-actos-inseguros.mjs
+          fi
