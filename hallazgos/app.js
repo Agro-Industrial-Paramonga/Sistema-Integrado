@@ -30,7 +30,7 @@ let rrllCasoActual = null;
 let rrllCatalogoFaltas = [];
 let rrllFaltasHallazgo = [];
 let rrllFeriados = [];
-let rrllBloqueActual = 1; // NUEVO: bloque activo del slider
+let rrllBloqueActual = 1;
 
 const RRLL_FECHA_INICIO = '2026-09-01';
 const RRLL_DESC_EVENTO  = 'Acto Subestandar';
@@ -111,8 +111,15 @@ function esAdminReal() {
 function usuarioVeTodo() {
     if (!usuarioActual) return false;
     if (usuarioActual.esAdmin) return true;
-    const nombreNorm = normalizarTexto(usuarioActual.nombre);
-    return GERENCIAS_ACCESO_TOTAL.some(g => normalizarTexto(g) === nombreNorm);
+    if (!usuarioActual.es_gerente) return false;
+    return GERENCIAS_ACCESO_TOTAL.includes(usuarioActual.gerencia_key);
+}
+
+function aplicarFiltroSeccion(q) {
+    if (usuarioActual && !usuarioActual.esAdmin && !usuarioActual.es_gerente && usuarioActual.desc_seccion) {
+        return q.eq('"DESC_SECCION"', usuarioActual.desc_seccion);
+    }
+    return q;
 }
 
 function puedeSubirExcel() {
@@ -261,27 +268,55 @@ window.addEventListener('resize', () => {
 async function cargarOpcionesLogin() {
     const { data, error } = await supabaseClient
         .from('gerencias_acceso')
-        .select('nombre')
+        .select('gerencia_key')
         .eq('es_admin', false)
-        .neq('nombre', NOMBRE_RRLL)
-        .order('nombre');
+        .eq('es_gerente', true)
+        .not('gerencia_key', 'is', null);
     if (error) { console.error(error); return; }
 
+    const gerencias = [...new Set(data.map(d => d.gerencia_key))].sort();
     const sel = document.getElementById('login-gerencia');
     sel.innerHTML = '<option value="">Selecciona tu gerencia...</option>';
-    data.forEach(g => {
-        sel.innerHTML += `<option value="${g.nombre}">${embellecer(g.nombre)}</option>`;
+    gerencias.forEach(g => {
+        sel.innerHTML += `<option value="${g}">${embellecer(g)}</option>`;
+    });
+}
+
+async function cargarPersonasDeGerencia(gerenciaKey) {
+    const selPersona = document.getElementById('login-persona');
+    selPersona.innerHTML = '<option value="">Selecciona tu nombre...</option>';
+
+    if (!gerenciaKey) {
+        selPersona.disabled = true;
+        selPersona.innerHTML = '<option value="">Selecciona primero tu gerencia...</option>';
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('gerencias_acceso')
+        .select('nombre, es_gerente')
+        .eq('gerencia_key', gerenciaKey)
+        .eq('es_admin', false)
+        .order('es_gerente', { ascending: false })
+        .order('nombre');
+
+    if (error) { console.error(error); return; }
+
+    selPersona.disabled = false;
+    data.forEach(p => {
+        const label = p.es_gerente ? `${p.nombre} (Gerente)` : p.nombre;
+        selPersona.innerHTML += `<option value="${p.nombre}">${label}</option>`;
     });
 }
 
 async function intentarLogin() {
-    const nombre = document.getElementById('login-gerencia').value;
+    const nombre = document.getElementById('login-persona').value;
     const password = document.getElementById('login-password').value;
     const errorBox = document.getElementById('login-error');
     errorBox.classList.add('hidden');
 
     if (!nombre || !password) {
-        errorBox.textContent = 'Por favor, selecciona una gerencia e ingresa la contraseña.';
+        errorBox.textContent = 'Por favor, selecciona tu nombre e ingresa la contraseña.';
         errorBox.classList.remove('hidden');
         return;
     }
@@ -291,7 +326,7 @@ async function intentarLogin() {
     });
 
     if (error || !data || data.length === 0) {
-        errorBox.textContent = 'Credenciales incorrectas. Verifica tu gerencia y contraseña.';
+        errorBox.textContent = 'Credenciales incorrectas.';
         errorBox.classList.remove('hidden');
         return;
     }
@@ -302,7 +337,13 @@ async function intentarLogin() {
         return;
     }
 
-    usuarioActual = { nombre: data[0].nombre, esAdmin: false };
+    usuarioActual = {
+        nombre:       data[0].nombre,
+        gerencia_key: data[0].gerencia_key,
+        es_gerente:   data[0].es_gerente,
+        desc_seccion: data[0].desc_seccion,
+        esAdmin:      false
+    };
     sessionStorage.setItem('usuario', JSON.stringify(usuarioActual));
     await iniciarDashboard();
 }
@@ -405,15 +446,27 @@ async function iniciarDashboard() {
 
 async function aplicarRestriccionesUsuario() {
     const selGerencia = document.getElementById('filtro-gerencia');
+    const selArea     = document.getElementById('filtro-area');
+
     if (usuarioVeTodo()) {
         selGerencia.disabled = false;
         selGerencia.classList.remove('bg-slate-100', 'cursor-not-allowed', 'text-slate-500');
+        selArea.disabled = false;
+        selArea.classList.remove('bg-slate-100', 'cursor-not-allowed', 'text-slate-500');
         return;
     }
-    selGerencia.value = usuarioActual.nombre;
+
+    selGerencia.value = usuarioActual.gerencia_key;
     selGerencia.disabled = true;
     selGerencia.classList.add('bg-slate-100', 'cursor-not-allowed', 'text-slate-500');
+
     await actualizarFiltroAreas();
+
+    if (!usuarioActual.es_gerente && usuarioActual.desc_seccion) {
+        selArea.value = usuarioActual.desc_seccion;
+        selArea.disabled = true;
+        selArea.classList.add('bg-slate-100', 'cursor-not-allowed', 'text-slate-500');
+    }
 }
 
 // ==========================================
@@ -671,6 +724,7 @@ async function cargarDashboard() {
             if (estado) q = q.eq('"ESTADO"', estado);
             if (gerencia) q = q.eq('"DESC_AREA"', gerencia);
             if (area) q = q.eq('"DESC_SECCION"', area);
+            q = aplicarFiltroSeccion(q);
             return q;
         };
 
@@ -733,6 +787,7 @@ async function dibujarGrafico() {
         if (estado) q = q.eq('"ESTADO"', estado);
         if (gerencia) q = q.eq('"DESC_AREA"', gerencia);
         if (area) q = q.eq('"DESC_SECCION"', area);
+        q = aplicarFiltroSeccion(q);
 
         const { data, error } = await q;
         if (error) { console.error(error); return; }
@@ -773,6 +828,7 @@ async function dibujarGrafico() {
         q = excluirAnios(q);
         if (evento) q = q.eq('"DESC_EVENTO"', evento);
         if (estado) q = q.eq('"ESTADO"', estado);
+        q = aplicarFiltroSeccion(q);
 
         const { data, error } = await q;
         if (error) { console.error(error); return; }
@@ -806,6 +862,7 @@ async function dibujarGrafico() {
         q = excluirAnios(q);
         if (evento) q = q.eq('"DESC_EVENTO"', evento);
         if (estado) q = q.eq('"ESTADO"', estado);
+        q = aplicarFiltroSeccion(q);
 
         const { data, error } = await q;
         if (error) { console.error(error); return; }
@@ -842,6 +899,7 @@ async function dibujarGrafico() {
         q = excluirAnios(q);
         if (evento) q = q.eq('"DESC_EVENTO"', evento);
         if (estado) q = q.eq('"ESTADO"', estado);
+        q = aplicarFiltroSeccion(q);
 
         const { data, error } = await q;
         if (error) { console.error(error); return; }
@@ -1034,12 +1092,22 @@ document.getElementById('btn-volver-grafico').addEventListener('click', async ()
         if (usuarioVeTodo()) document.getElementById('filtro-gerencia').value = '';
         document.getElementById('filtro-area').value = '';
         await actualizarFiltroAreas();
-        if (!usuarioVeTodo()) document.getElementById('filtro-gerencia').value = usuarioActual.nombre;
+        if (!usuarioVeTodo()) {
+            document.getElementById('filtro-gerencia').value = usuarioActual.gerencia_key;
+            if (!usuarioActual.es_gerente && usuarioActual.desc_seccion) {
+                document.getElementById('filtro-area').value = usuarioActual.desc_seccion;
+            }
+        }
     } else if (modoActualGrafico === 'por-gerencia') {
         document.getElementById('filtro-anio').value = '';
         if (usuarioVeTodo()) document.getElementById('filtro-gerencia').value = '';
         document.getElementById('filtro-area').value = '';
-        if (!usuarioVeTodo()) document.getElementById('filtro-gerencia').value = usuarioActual.nombre;
+        if (!usuarioVeTodo()) {
+            document.getElementById('filtro-gerencia').value = usuarioActual.gerencia_key;
+            if (!usuarioActual.es_gerente && usuarioActual.desc_seccion) {
+                document.getElementById('filtro-area').value = usuarioActual.desc_seccion;
+            }
+        }
     }
     await refrescarTodo();
 });
@@ -1069,6 +1137,7 @@ async function cargarTabla() {
         if (gerencia) q = q.eq('"DESC_AREA"', gerencia);
         if (area) q = q.eq('"DESC_SECCION"', area);
         if (searchTerm) q = q.ilike('"ACONTECIMIENTO"', `%${searchTerm}%`);
+        q = aplicarFiltroSeccion(q);
 
         const { data, count, error } = await q
             .order('"FECHA_ACONTECIMIENTO"', { ascending: false })
@@ -1191,6 +1260,10 @@ document.getElementById('filtro-anio').addEventListener('change', () => { mesSel
 document.getElementById('filtro-gerencia').addEventListener('change', async () => { mesSeleccionado = ''; await actualizarFiltroAreas(); refrescarTodo(); });
 document.getElementById('filtro-area').addEventListener('change', () => { mesSeleccionado = ''; refrescarTodo(); });
 
+document.getElementById('login-gerencia').addEventListener('change', (e) => {
+    cargarPersonasDeGerencia(e.target.value);
+});
+
 document.getElementById('btn-login').addEventListener('click', intentarLogin);
 document.getElementById('login-password').addEventListener('keypress', (e) => { if (e.key === 'Enter') intentarLogin(); });
 
@@ -1266,8 +1339,13 @@ async function init() {
     const guardado = sessionStorage.getItem('usuario');
     const guardadoRRLL = sessionStorage.getItem('usuarioRRLL');
     if (guardado) {
-        usuarioActual = JSON.parse(guardado);
-        await iniciarDashboard();
+        const parsed = JSON.parse(guardado);
+        if (parsed && parsed.gerencia_key !== undefined) {
+            usuarioActual = parsed;
+            await iniciarDashboard();
+        } else {
+            sessionStorage.removeItem('usuario');
+        }
     } else if (guardadoRRLL) {
         usuarioRRLL = JSON.parse(guardadoRRLL);
         await iniciarPanelRRLL();
@@ -2482,6 +2560,7 @@ function suscribirRealtimeMedidaFotos() {
             })
         .subscribe();
 }
+
 // ==========================================
 // 20. MÓDULO RRLL (Relaciones Laborales)
 // ==========================================
@@ -2769,19 +2848,9 @@ async function cargarPanelAvisos() {
 function obtenerInfoCartas(caso) {
     const extras = Array.isArray(caso.cartas_adicionales) ? caso.cartas_adicionales : [];
     const cartas = [];
-    if (caso.fecha_emision_2) {
-        cartas.push({
-            numero: 2,
-            emision: caso.fecha_emision_2,
-            recepcion: caso.fecha_recepcion_2,
-            destinatario: caso.cargo_2_destinatario,
-            url: caso.cargo_2_url,
-            tipo: 'segunda'
-        });
-    }
     extras.forEach((e, idx) => {
         cartas.push({
-            numero: e.numero,
+            numero: e.numero || (2 + idx),
             emision: e.fecha_emision,
             recepcion: e.fecha_recepcion || null,
             destinatario: e.destinatario,
@@ -2867,7 +2936,7 @@ function formatearFecha(iso) {
 }
 
 // ==========================================
-// DRAWER RRLL - SLIDER DE BLOQUES (NUEVO)
+// DRAWER RRLL - SLIDER DE BLOQUES
 // ==========================================
 async function abrirDrawerRRLL(codHallazgo) {
     rrllBloqueActual = 1;
@@ -2938,45 +3007,51 @@ function calcularBloquesRRLL(caso) {
         tipo: 'primera'
     });
 
-    if (caso.fecha_emision_2) {
-        bloques.push({
-            numero: 2,
-            titulo: 'Segunda carta',
-            emision: caso.fecha_emision_2,
-            recepcion: caso.fecha_recepcion_2 || null,
-            descargo: null,
-            descargo_url: null,
-            carta_url: caso.cargo_2_url || null,
-            destinatario: caso.cargo_2_destinatario || null,
-            tipo: 'segunda'
-        });
-    }
-
     const extras = Array.isArray(caso.cartas_adicionales) ? caso.cartas_adicionales : [];
     extras.forEach((e, idx) => {
         bloques.push({
-            numero: 3 + idx,
-            titulo: `Carta ${3 + idx}`,
+            numero: 2 + idx,
+            titulo: `Carta ${2 + idx}`,
             emision: e.fecha_emision,
             recepcion: e.fecha_recepcion || null,
-            descargo: null,
-            descargo_url: null,
+            descargo: e.descargo || null,
+            descargo_url: e.descargo_url || null,
             carta_url: e.url || null,
+            carta_firmada_url: e.carta_firmada_url || null,
             destinatario: e.destinatario || null,
             tipo: 'adicional',
             idx
         });
     });
 
+    const casoCerrado = !!caso.fecha_cierre || caso.paso_actual >= 8 || !!caso.medida_disciplinaria;
+    const ultimo = bloques[bloques.length - 1];
+    const ultimoConDescargo = ultimo.descargo !== null && ultimo.descargo !== undefined;
+
+    if (!casoCerrado && ultimoConDescargo) {
+        const siguienteNum = bloques.length + 1;
+        bloques.push({
+            numero: siguienteNum,
+            titulo: `Carta ${siguienteNum}`,
+            emision: null,
+            recepcion: null,
+            descargo: null,
+            descargo_url: null,
+            carta_url: null,
+            destinatario: null,
+            tipo: 'virtual',
+            esVirtual: true
+        });
+    }
+
     return bloques;
 }
 
 function bloqueActivoRRLL(bloques, caso) {
-    const paso = caso.paso_actual;
-    if (paso >= 8 || caso.medida_disciplinaria) return bloques.length;
+    if (caso.paso_actual >= 8 || caso.medida_disciplinaria) return bloques.length;
     const ultimo = bloques[bloques.length - 1];
-    if (!ultimo.recepcion) return ultimo.numero;
-    return Math.min(bloques.length, Math.max(1, bloques.length));
+    if (ultimo.esVirtual) return ultimo.numero;
+    return ultimo.numero;
 }
 
 function renderizarDrawerRRLL() {
@@ -3246,7 +3321,6 @@ function bindEventosPasos() {
 
     const numBloqueActual = bloques[rrllBloqueActual - 1]?.numero || 1;
 
-    // EMISIÓN bloque 1
     document.getElementById('rrll-btn-guardar-1')?.addEventListener('click', async () => {
         const file = document.getElementById('rrll-file-1')?.files[0];
         const destinatario = h.TRABAJADOR || '';
@@ -3278,7 +3352,6 @@ function bindEventosPasos() {
         } catch (err) { console.error(err); alert('❌ Error al subir la 1.ª carta: ' + err.message); }
     });
 
-    // EMISIÓN bloques 2+
     if (numBloqueActual >= 2) {
         document.getElementById(`rrll-btn-guardar-${numBloqueActual}`)?.addEventListener('click', async () => {
             const file = document.getElementById(`rrll-file-${numBloqueActual}`)?.files[0];
@@ -3296,25 +3369,28 @@ function bindEventosPasos() {
                 const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
                 const url = urlData.publicUrl;
 
-                if (num === 2) {
-                    await guardarPaso(caso.id, {
-                        cargo_2_url: url,
-                        cargo_2_destinatario: destinatario,
-                        fecha_emision_2: new Date().toISOString(),
-                        paso_actual: 5
-                    });
-                } else {
-                    const { data: casoFresh } = await supabaseClient.from('relaciones_casos').select('cartas_adicionales').eq('id', caso.id).single();
-                    const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
-                    cartas.push({
-                        numero: num,
-                        destinatario,
-                        url,
-                        fecha_emision: new Date().toISOString(),
-                        fecha_recepcion: null
-                    });
-                    await guardarPaso(caso.id, { cartas_adicionales: cartas });
-                }
+                const { data: casoFresh } = await supabaseClient
+                    .from('relaciones_casos')
+                    .select('cartas_adicionales')
+                    .eq('id', caso.id)
+                    .single();
+                const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
+
+                const idx = num - 2;
+                cartas[idx] = {
+                    numero: num,
+                    destinatario,
+                    url,
+                    fecha_emision: new Date().toISOString(),
+                    fecha_recepcion: null,
+                    descargo: null,
+                    descargo_url: null
+                };
+
+                await guardarPaso(caso.id, {
+                    cartas_adicionales: cartas,
+                    paso_actual: 5
+                });
                 await abrirDrawerRRLL(h.COD_HALLAZGO);
                 await cargarTablaRRLL();
                 await cargarPanelAvisos();
@@ -3328,44 +3404,58 @@ function bindEventosPasos() {
         });
     }
 
-    // RECEPCIÓN
     document.getElementById(`rrll-btn-recepcion-${numBloqueActual}`)?.addEventListener('click', async () => {
-        const file = document.getElementById(`rrll-file-${numBloqueActual}-firmado`)?.files[0];
-        if (!file) { alert('⚠️ Sube el PDF del cargo firmado.'); return; }
-        if (file.type !== 'application/pdf') { alert('⚠️ El archivo debe ser PDF.'); return; }
-        try {
-            const num = numBloqueActual;
-            const path = `${h.COD_HALLAZGO}/carta_${num}_FIRMADA_${Date.now()}.pdf`;
-            const { error: upErr } = await supabaseClient.storage.from('relaciones-cargos').upload(path, file, { contentType: 'application/pdf', upsert: true });
-            if (upErr) throw upErr;
-            const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
-            const url = urlData.publicUrl;
+    const file = document.getElementById(`rrll-file-${numBloqueActual}-firmado`)?.files[0];
+    if (!file) { alert('⚠️ Sube el PDF del cargo firmado.'); return; }
+    if (file.type !== 'application/pdf') { alert('⚠️ El archivo debe ser PDF.'); return; }
+    try {
+        const num = numBloqueActual;
+        const path = `${h.COD_HALLAZGO}/carta_${num}_FIRMADA_${Date.now()}.pdf`;
+        const { error: upErr } = await supabaseClient.storage.from('relaciones-cargos').upload(path, file, { contentType: 'application/pdf', upsert: true });
+        if (upErr) throw upErr;
+        const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
+        const url = urlData.publicUrl;
 
-            if (num === 1) {
-                await guardarPaso(caso.id, {
-                    cargo_1_firmado_url: url,
-                    fecha_recepcion_1: new Date().toISOString(),
-                    paso_actual: 3
-                });
-            } else if (num === 2) {
-                await guardarPaso(caso.id, {
-                    fecha_recepcion_2: new Date().toISOString()
-                });
+        if (num === 1) {
+            await guardarPaso(caso.id, {
+                cargo_1_firmado_url: url,
+                fecha_recepcion_1: new Date().toISOString(),
+                paso_actual: 3
+            });
+        } else {
+            const { data: casoFresh } = await supabaseClient
+                .from('relaciones_casos')
+                .select('cartas_adicionales')
+                .eq('id', caso.id)
+                .single();
+            const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
+            const idx = num - 2;
+            if (cartas[idx]) {
+                cartas[idx] = {
+                    ...cartas[idx],
+                    fecha_recepcion: new Date().toISOString(),
+                    carta_firmada_url: url
+                };
             } else {
-                const { data: casoFresh } = await supabaseClient.from('relaciones_casos').select('cartas_adicionales').eq('id', caso.id).single();
-                const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
-                if (cartas[num - 3]) {
-                    cartas[num - 3] = { ...cartas[num - 3], fecha_recepcion: new Date().toISOString() };
-                    await guardarPaso(caso.id, { cartas_adicionales: cartas });
-                }
+                cartas[idx] = {
+                    numero: num,
+                    destinatario: '',
+                    url: null,
+                    fecha_emision: null,
+                    fecha_recepcion: new Date().toISOString(),
+                    carta_firmada_url: url,
+                    descargo: null,
+                    descargo_url: null
+                };
             }
-            await abrirDrawerRRLL(h.COD_HALLAZGO);
-            await cargarTablaRRLL();
-            await cargarPanelAvisos();
-        } catch (err) { alert('Error: ' + err.message); }
-    });
+            await guardarPaso(caso.id, { cartas_adicionales: cartas });
+        }
+        await abrirDrawerRRLL(h.COD_HALLAZGO);
+        await cargarTablaRRLL();
+        await cargarPanelAvisos();
+    } catch (err) { alert('Error: ' + err.message); }
+});
 
-    // DESCARGO bloque 1
     document.getElementById('rrll-btn-descargo-subir')?.addEventListener('click', async () => {
         const file = document.getElementById('rrll-file-descargo')?.files[0];
         if (!file) { alert('⚠️ Sube el PDF del descargo.'); return; }
@@ -3383,7 +3473,6 @@ function bindEventosPasos() {
         } catch (err) { alert('Error: ' + err.message); }
     });
 
-    // DECISIÓN bloques 2+
     document.getElementById(`rrll-btn-elegir-descargo-${numBloqueActual}`)?.addEventListener('click', () => {
         document.getElementById(`rrll-panel-medida-${numBloqueActual}`)?.classList.add('hidden');
         document.getElementById(`rrll-panel-descargo-${numBloqueActual}`)?.classList.remove('hidden');
@@ -3406,20 +3495,27 @@ function bindEventosPasos() {
             const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
             const url = urlData.publicUrl;
 
-            if (num === 2) {
-                await guardarPaso(caso.id, {
-                    descargo: 'con',
-                    descargo_url: url,
-                    paso_actual: 4
-                });
+            const { data: casoFresh } = await supabaseClient
+                .from('relaciones_casos')
+                .select('cartas_adicionales')
+                .eq('id', caso.id)
+                .single();
+            const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
+            const idx = num - 2;
+            if (cartas[idx]) {
+                cartas[idx] = { ...cartas[idx], descargo: 'con', descargo_url: url };
             } else {
-                const { data: casoFresh } = await supabaseClient.from('relaciones_casos').select('cartas_adicionales').eq('id', caso.id).single();
-                const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
-                if (cartas[num - 3]) {
-                    cartas[num - 3] = { ...cartas[num - 3], descargo: 'con', descargo_url: url };
-                    await guardarPaso(caso.id, { cartas_adicionales: cartas });
-                }
+                cartas[idx] = {
+                    numero: num,
+                    destinatario: '',
+                    url: null,
+                    fecha_emision: null,
+                    fecha_recepcion: null,
+                    descargo: 'con',
+                    descargo_url: url
+                };
             }
+            await guardarPaso(caso.id, { cartas_adicionales: cartas });
             await abrirDrawerRRLL(h.COD_HALLAZGO);
             await cargarTablaRRLL();
         } catch (err) { alert('Error: ' + err.message); }
