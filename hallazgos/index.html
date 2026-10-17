@@ -111,6 +111,34 @@
         .btn-campana:disabled { opacity: .5; cursor: default; }
         .btn-campana.enviada { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
 
+        /* Carta RRLL: previsualizacion editable tipo A4 */
+        .carta-pagina {
+            background: #fff;
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            aspect-ratio: 210 / 297;
+            padding: 9% 8.5%;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11pt;
+            line-height: 1.55;
+            color: #111827;
+            box-shadow: 0 8px 30px rgba(15,23,42,.18);
+            border-radius: 4px;
+            overflow-y: auto;
+        }
+        .carta-pagina .carta-logo { width: 124px; height: auto; display: block; margin-bottom: 22px; }
+        .carta-bloque {
+            white-space: pre-wrap;
+            outline: none;
+            border-radius: 3px;
+            padding: 1px 2px;
+            transition: background .12s, box-shadow .12s;
+        }
+        .carta-bloque:hover { background: #f1f5f9; }
+        .carta-bloque:focus { background: #eef6ff; box-shadow: 0 0 0 2px #bfdbfe; }
+        .carta-espacio { margin-top: 14px; }
+
         .foto-destacada-star {
             position: absolute; top: 8px; left: 8px;
             width: 30px; height: 30px; border-radius: 50%;
@@ -674,14 +702,14 @@
                             <p id="ranking-subtitulo" class="text-[11px] sm:text-xs text-slate-500 mt-0.5">—</p>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-sm" style="min-width: 600px;">
+                            <table class="w-full text-sm">
                                 <thead>
                                     <tr class="border-b border-slate-200 bg-slate-50/50">
-                                        <th class="text-left px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-12">#</th>
-                                        <th class="text-left px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase">Falta</th>
-                                        <th class="text-center px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-24">Cantidad</th>
-                                        <th class="text-center px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-20">%</th>
-                                        <th class="text-left px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-1/3">Distribución</th>
+                                        <th class="text-left px-2 sm:px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-8 sm:w-12">#</th>
+                                        <th class="text-left px-2 sm:px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase">Falta</th>
+                                        <th class="text-center px-2 sm:px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-16 sm:w-24">Cantidad</th>
+                                        <th class="hidden sm:table-cell text-center px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-20">%</th>
+                                        <th class="hidden sm:table-cell text-left px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-1/3">Distribución</th>
                                     </tr>
                                 </thead>
                                 <tbody id="ranking-faltas-body" class="divide-y divide-slate-100">
@@ -769,7 +797,7 @@
                     </div>
                 </div>
 
-                <div id="rrll-table-wrapper">
+                <div id="rrll-table-wrapper" class="hidden md:block">
                     <table class="w-full text-sm" style="min-width: 1400px;">
                         <thead>
                             <tr class="bg-slate-50/70 border-b border-slate-100">
@@ -790,7 +818,11 @@
                     </table>
                 </div>
 
-                <div id="rrll-hscroll">
+                <div id="rrll-cards" class="md:hidden divide-y divide-slate-100">
+                    <div class="text-center py-12 text-slate-400 text-sm">Cargando casos...</div>
+                </div>
+
+                <div id="rrll-hscroll" class="hidden md:block">
                     <div id="rrll-hscroll-thumb"></div>
                 </div>
 
@@ -830,6 +862,39 @@
         </div>
         <div id="relaciones-drawer-content" class="p-6 space-y-4">
             <p class="text-sm text-slate-500">Selecciona un caso de la tabla para ver el detalle.</p>
+        </div>
+    </div>
+
+    <!-- MODAL PRIMERA CARTA (Relaciones Laborales) -->
+    <div id="modal-carta" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] hidden overflow-y-auto">
+        <div class="min-h-full flex items-start justify-center p-3 sm:p-6">
+            <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden my-4">
+                <div class="px-5 py-4 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800">Primera carta</h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Haz clic sobre cualquier texto para corregirlo antes de emitir.</p>
+                    </div>
+                    <button id="carta-cerrar" class="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1">&times;</button>
+                </div>
+
+                <div class="p-3 sm:p-6 bg-slate-100">
+                    <div id="carta-pagina" class="carta-pagina">
+                        <img src="assets/logo-carta.png" alt="Logo" class="carta-logo">
+                        <div class="carta-bloque" contenteditable="true" data-campo="fecha"></div>
+                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="destinatario"></div>
+                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="saludo"></div>
+                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="cuerpo"></div>
+                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="plazo"></div>
+                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="cierre"></div>
+                        <div class="carta-bloque" contenteditable="true" data-campo="firma"></div>
+                    </div>
+                </div>
+
+                <div class="px-5 py-4 border-t border-slate-200 bg-white flex justify-end gap-2">
+                    <button id="carta-cancelar" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition">Cancelar</button>
+                    <button id="carta-guardar" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold transition">Guardar y emitir</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -969,7 +1034,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-    <script src="app.js?v=22"></script>
-    <script src="push-jefe.js?v=1"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="app.js?v=24"></script>
+    <script src="push-jefe.js?v=2"></script>
+    <script src="carta-rrll.js?v=4"></script>
 </body>
 </html>

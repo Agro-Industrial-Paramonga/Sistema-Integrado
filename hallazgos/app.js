@@ -2387,11 +2387,11 @@ function renderRankingFaltas(ranking) {
                 data-falta-id="${r.falta_id}"
                 data-falta-nombre="${escaparAttr(r.nombre)}"
                 data-falta-cant="${r.cantidad}">
-                <td class="px-4 py-3 text-slate-500 font-semibold">${i + 1}</td>
-                <td class="px-4 py-3 text-slate-800 font-medium">${escaparHTML(r.nombre)}</td>
-                <td class="px-4 py-3 text-center font-bold text-slate-900">${r.cantidad}</td>
-                <td class="px-4 py-3 text-center text-slate-600 text-xs">${pct.toFixed(1)}%</td>
-                <td class="px-4 py-3">
+                <td class="px-2 sm:px-4 py-3 text-slate-500 font-semibold">${i + 1}</td>
+                <td class="px-2 sm:px-4 py-3 text-slate-800 font-medium">${escaparHTML(r.nombre)}</td>
+                <td class="px-2 sm:px-4 py-3 text-center font-bold text-slate-900">${r.cantidad}</td>
+                <td class="hidden sm:table-cell px-4 py-3 text-center text-slate-600 text-xs">${pct.toFixed(1)}%</td>
+                <td class="hidden sm:table-cell px-4 py-3">
                     <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div class="h-full bg-emerald-500 rounded-full" style="width:${pct}%"></div>
                     </div>
@@ -2813,6 +2813,40 @@ async function cargarTablaRRLL() {
     <td class="px-4 py-3 whitespace-nowrap">${diasHtml}</td>
 </tr>`;
         }).join('');
+
+        // ---- Vista movil: tarjetas en lugar de la tabla ancha ----
+        const cardsCont = document.getElementById('rrll-cards');
+        if (cardsCont) {
+            cardsCont.innerHTML = data.map(h => {
+                const casoC = casosMap[h.COD_HALLAZGO] || null;
+                const faltasArrC = faltasMap[h.COD_HALLAZGO] || [];
+                const estadoC = casoC ? obtenerNombrePaso(casoC) : 'Sin iniciar';
+                const diasC = calcularDiasHabilesRestantes(casoC);
+                const vencido = !!(diasC && diasC.vence);
+                const diasTxt = (diasC && !diasC.cerrado && diasC.restantes > 0)
+                    ? (vencido ? 'Vencido' : diasC.restantes + ' dias habiles')
+                    : '';
+                const textoC = (h.ACONTECIMIENTO || '-');
+
+                return `
+                <button type="button" class="w-full text-left p-4 hover:bg-slate-50 active:bg-slate-100 transition border-l-4 ${vencido ? 'border-red-400' : 'border-blue-400'}" data-hallazgo-card="${escaparAttr(h.COD_HALLAZGO)}">
+                    <div class="flex items-start justify-between gap-2">
+                        <span class="text-[11px] text-slate-500">${escaparHTML(h.FECHA_ACONTECIMIENTO) || '-'}</span>
+                        <span class="inline-flex items-center bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap">${escaparHTML(estadoC)}</span>
+                    </div>
+                    <p class="text-sm font-bold text-slate-800 mt-1 leading-tight">${escaparHTML(h.TRABAJADOR) || '-'}</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">DNI ${escaparHTML(h.NRO_DOC) || '-'} &middot; ${escaparHTML(embellecer(h.DESC_SECCION)) || '-'}</p>
+                    <p class="text-[11px] text-slate-600 mt-2 leading-relaxed">${escaparHTML(textoC.substring(0, 120))}${textoC.length > 120 ? '...' : ''}</p>
+                    ${faltasArrC.length ? `<div class="flex flex-wrap gap-1 mt-2">${faltasArrC.map(f => `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">${escaparHTML(f)}</span>`).join('')}</div>` : ''}
+                    ${diasTxt ? `<p class="text-[11px] font-bold mt-2 ${vencido ? 'text-red-600' : 'text-slate-500'}">${diasTxt}</p>` : ''}
+                </button>`;
+            }).join('');
+
+            cardsCont.querySelectorAll('[data-hallazgo-card]').forEach(el => {
+                el.addEventListener('click', () => abrirDrawerRRLL(el.dataset.hallazgoCard));
+            });
+        }
+
         requestAnimationFrame(sincronizarScrollHorizontalRRLL);
     } catch (error) { console.error('❌ Error tabla RRLL:', error.message); }
 }
@@ -3250,9 +3284,8 @@ function renderBloqueRRLL(bloque, caso, h, bloques) {
                 <div class="step-item active border-2 rounded-xl p-4">
                     <p class="text-sm font-bold text-slate-800 mb-1">Emisión 1.ª carta</p>
                     <p class="text-xs text-slate-500 mb-3">Dirigida al colaborador: <span class="font-semibold text-slate-700">${escaparHTML(h.TRABAJADOR) || '—'}</span></p>
-                    <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Subir PDF</label>
-                    <input type="file" id="rrll-file-1" accept="application/pdf" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 rounded-lg p-1 mb-3">
-                    <button id="rrll-btn-guardar-1" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Guardar y emitir</button>
+                    <p class="text-[11px] text-slate-500 mb-3">La carta se redacta automáticamente con los datos del hallazgo. Podrás corregir cualquier texto antes de emitirla.</p>
+                    <button id="rrll-btn-generar-1" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Generar primera carta</button>
                 </div>
             `;
         } else {
@@ -3279,6 +3312,7 @@ function renderBloqueRRLL(bloque, caso, h, bloques) {
                 <p class="text-xs text-slate-500 mb-1">📅 ${formatearFecha(bloque.emision)}</p>
                 ${bloque.destinatario ? `<p class="text-xs text-slate-700"><span class="font-semibold">Destinatario:</span> ${escaparHTML(bloque.destinatario)}</p>` : ''}
                 ${bloque.carta_url ? `<a href="${escaparAttr(bloque.carta_url)}" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold mt-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Ver PDF</a>` : ''}
+                ${numero === 1 ? `<div class="mt-3"><button id="rrll-btn-editar-carta-1" class="w-full bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 text-xs font-semibold py-2 rounded-lg transition">Editar carta</button></div>` : ''}
             </div>
         `;
     }
@@ -3412,35 +3446,15 @@ function bindEventosPasos() {
 
     const numBloqueActual = bloques[rrllBloqueActual - 1]?.numero || 1;
 
-    document.getElementById('rrll-btn-guardar-1')?.addEventListener('click', async () => {
-        const file = document.getElementById('rrll-file-1')?.files[0];
-        const destinatario = h.TRABAJADOR || '';
-        if (!destinatario) { alert('⚠️ El hallazgo no tiene trabajador asignado.'); return; }
-        if (!file) { alert('⚠️ Selecciona el PDF de la 1.ª carta.'); return; }
-        if (file.type !== 'application/pdf') { alert('⚠️ El archivo debe ser PDF.'); return; }
-        try {
-            const path = `${h.COD_HALLAZGO}/1era_carta_${Date.now()}.pdf`;
-            const { error: upErr } = await supabaseClient.storage.from('relaciones-cargos').upload(path, file, { contentType: 'application/pdf', upsert: true });
-            if (upErr) throw upErr;
-            const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
-            const url = urlData.publicUrl;
-            const fechaEmision = new Date();
-            const fechaLimite = new Date(fechaEmision);
-            let contados = 0;
-            while (contados < RRLL_DIAS_DESCARGO) {
-                fechaLimite.setDate(fechaLimite.getDate() + 1);
-                if (esDiaHabil(fechaLimite)) contados++;
-            }
-            await guardarPaso(caso.id, {
-                cargo_1_url: url, cargo_1_destinatario: destinatario,
-                fecha_emision_1: fechaEmision.toISOString(),
-                fecha_limite_descargo: fechaLimite.toISOString(),
-                paso_actual: 2
-            });
-            await abrirDrawerRRLL(h.COD_HALLAZGO);
-            await cargarTablaRRLL();
-            await cargarPanelAvisos();
-        } catch (err) { console.error(err); alert('❌ Error al subir la 1.ª carta: ' + err.message); }
+    // La 1.ª carta se genera con el modelo de la empresa (ver carta-rrll.js)
+    document.getElementById('rrll-btn-generar-1')?.addEventListener('click', () => {
+        if (window.CartaRRLL) window.CartaRRLL.abrir();
+        else alert('❌ No se cargó el generador de cartas. Recarga la página.');
+    });
+
+    document.getElementById('rrll-btn-editar-carta-1')?.addEventListener('click', () => {
+        if (window.CartaRRLL) window.CartaRRLL.abrir();
+        else alert('❌ No se cargó el generador de cartas. Recarga la página.');
     });
 
     if (numBloqueActual >= 2) {
@@ -3776,10 +3790,6 @@ async function abrirModalHistorialTrabajador(nombre, dni) {
                 ? faltas.map(f => `<span class="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-semibold px-2 py-0.5 rounded-full mr-1 mb-1">${escaparHTML(f)}</span>`).join('')
                 : '<span class="text-xs text-slate-400 italic">Sin faltas etiquetadas</span>';
 
-            const badge = h.ESTADO === 'Cerrado'
-                ? '<span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">Cerrado</span>'
-                : '<span class="bg-red-50 text-red-700 px-2 py-0.5 rounded text-[10px] font-semibold">Abierto</span>';
-
             const fotoPath = fotoPorHallazgo[h.COD_HALLAZGO];
             const fotoUrl = fotoPath ? urlFotoHallazgo(fotoPath) : null;
 
@@ -3803,7 +3813,6 @@ async function abrirModalHistorialTrabajador(nombre, dni) {
                                 <p class="text-xs font-bold text-slate-800">${escaparHTML(h.COD_HALLAZGO)}</p>
                                 <p class="text-[11px] text-slate-500">${escaparHTML(h.FECHA_ACONTECIMIENTO) || '-'}</p>
                             </div>
-                            ${badge}
                         </div>
                         <div class="mb-2">${faltasHtml}</div>
                         <p class="text-[11px] text-slate-600 leading-relaxed">${escaparHTML((h.ACONTECIMIENTO || '').substring(0, 140))}${(h.ACONTECIMIENTO || '').length > 140 ? '...' : ''}</p>
