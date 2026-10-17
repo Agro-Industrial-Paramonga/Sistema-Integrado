@@ -91,6 +91,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/* Base de notificaciones push (proyecto Supabase de Plan de Contingencia).
+   Los dispositivos de los jefes se guardan ahí como "jefe:<DESC_SECCION>". */
+const PUSH_URL_FN = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
+
 const MESES_NOMBRES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -1115,6 +1119,23 @@ document.getElementById('btn-volver-grafico').addEventListener('click', async ()
 // ==========================================
 // 11. TABLA PRINCIPAL
 // ==========================================
+/* Campana de aviso al jefe: solo para admin y hallazgos abiertos. */
+function botonCampanaHTML(h) {
+    if (!esAdminReal()) return '';
+    if (h.ESTADO !== 'Abierto') return '';
+    const seccion = escaparAttr(h.DESC_SECCION || '');
+    const codigo = escaparAttr(h.COD_HALLAZGO || '');
+    const texto = escaparAttr(h.ACONTECIMIENTO || '');
+    return `<button type="button" class="btn-campana" data-notificar="1"
+                data-codigo="${codigo}" data-seccion="${seccion}" data-texto="${texto}"
+                title="Notificar al jefe de ${seccion}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                </svg>
+            </button>`;
+}
+
 async function cargarTabla() {
     try {
         const { anio, evento, estado, gerencia, area } = obtenerFiltros();
@@ -1161,7 +1182,7 @@ async function cargarTabla() {
         const cardsContainer = document.getElementById('tabla-cards');
 
         if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-400 text-sm">No se encontraron hallazgos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-slate-400 text-sm">No se encontraron hallazgos</td></tr>`;
             cardsContainer.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm">No se encontraron hallazgos</div>`;
             return;
         }
@@ -1189,6 +1210,7 @@ async function cargarTabla() {
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">${generarBadge(h.ESTADO)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-center">${botonFotosHallazgoHTML(h.COD_HALLAZGO)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">${botonCampanaHTML(h)}</td>
                     <td class="px-6 py-4 text-slate-600 text-xs">${h.ACONTECIMIENTO || '-'}</td>
                 </tr>
             `;
@@ -1218,11 +1240,21 @@ async function cargarTabla() {
                     </p>
                     <div class="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
                         <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fotos</span>
-                        ${botonFotosHallazgoHTML(h.COD_HALLAZGO)}
+                        <div class="flex items-center gap-2">
+                            ${botonFotosHallazgoHTML(h.COD_HALLAZGO)}
+                            ${botonCampanaHTML(h)}
+                        </div>
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Campanas de aviso (solo admin, solo hallazgos abiertos)
+        document.querySelectorAll('#tabla-body button[data-notificar], #tabla-cards button[data-notificar]')
+            .forEach(btn => btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notificarHallazgoAlJefe(btn, btn.dataset.codigo, btn.dataset.seccion, btn.dataset.texto);
+            }));
 
     } catch (error) {
         console.error('❌ Error tabla:', error.message);
@@ -1997,8 +2029,67 @@ function renderGridActos() {
             pTexto.addEventListener('click', () => abrirModalEditarActo(codigo, texto));
         }
 
+        const btnNotificar = card.querySelector('[data-action="notificar"]');
+        if (btnNotificar) {
+            btnNotificar.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notificarHallazgoAlJefe(btnNotificar, codigo, acto.DESC_SECCION, acto.descripcion_acto || acto.ACONTECIMIENTO);
+            });
+        }
+
         cont.appendChild(card);
     });
+}
+
+/* ==========================================================
+   NOTIFICAR AL JEFE (solo admin)
+   Envía la alarma push al jefe del departamento del hallazgo.
+   El jefe recibe en los celulares donde haya iniciado sesión.
+   ========================================================== */
+async function notificarHallazgoAlJefe(boton, codigo, seccionRaw, textoRaw) {
+    if (!esAdminReal()) return;
+
+    const seccion = String(seccionRaw || '').replace(/\s+/g, ' ').trim();
+    if (!seccion) {
+        alert('Este hallazgo no tiene departamento (DESC_SECCION). No se puede notificar a nadie.');
+        return;
+    }
+
+    if (!confirm(`¿Enviar la alarma al jefe de "${seccion}"?\n\nHallazgo: ${codigo}`)) return;
+
+    const texto = String(textoRaw || '').substring(0, 140);
+    const contenidoOriginal = boton.innerHTML;
+    boton.disabled = true;
+    boton.textContent = '...';
+
+    try {
+        const resp = await fetch(PUSH_URL_FN, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: '⚠️ ACTO INSEGURO ABIERTO',
+                body: `${seccion} · ${codigo}${texto ? '\n' + texto : ''}`,
+                userId: 'jefe:' + seccion
+            })
+        });
+
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+        if (!data.total_subs) {
+            alert(`No se pudo entregar.\n\nNingún jefe de "${seccion}" tiene la app registrada todavía.\nPídele que abra Hallazgos e inicie sesión una vez con su usuario.`);
+        } else {
+            boton.classList.add('enviada');
+            setTimeout(() => boton.classList.remove('enviada'), 3000);
+            alert(`✅ Alarma enviada al jefe de "${seccion}".\n\nDispositivos notificados: ${data.fcm_enviados || 0}`);
+        }
+    } catch (err) {
+        console.error('[notificar]', err);
+        alert('❌ No se pudo enviar la alarma: ' + (err.message || err));
+    } finally {
+        boton.disabled = false;
+        boton.innerHTML = contenidoOriginal;
+    }
 }
 
 function obtenerFotoDestacada(hallazgoId) {

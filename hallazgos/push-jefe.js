@@ -33,7 +33,7 @@
         if (!u) return null;
         if (u.es_gerente === true || u.esAdmin === true || u.es_admin === true) return null;
         if (!u.desc_seccion) return null;
-        var seccion = String(u.desc_seccion).trim();
+        var seccion = String(u.desc_seccion).replace(/\s+/g, ' ').trim();
         if (!seccion) return null;
         return PREFIJO + seccion;
     }

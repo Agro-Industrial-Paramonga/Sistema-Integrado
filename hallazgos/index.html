@@ -101,6 +101,16 @@
         .acto-card-hint-editable { cursor: text; transition: background .15s; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; }
         .acto-card-hint-editable:hover { background: #ecfdf5; }
 
+        .btn-campana {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;
+            cursor: pointer; transition: all .15s;
+        }
+        .btn-campana:hover:not(:disabled) { background: #059669; color: #fff; border-color: #059669; }
+        .btn-campana:disabled { opacity: .5; cursor: default; }
+        .btn-campana.enviada { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+
         .foto-destacada-star {
             position: absolute; top: 8px; left: 8px;
             width: 30px; height: 30px; border-radius: 50%;
@@ -520,11 +530,12 @@
                                     <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Área</th>
                                     <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Estado</th>
                                     <th class="text-center px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Fotos</th>
+                                    <th class="text-center px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase whitespace-nowrap">Aviso</th>
                                     <th class="text-left px-6 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase">Acontecimiento</th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-body" class="divide-y divide-slate-100">
-                                <tr><td colspan="7" class="text-center py-12 text-slate-400 text-sm">Cargando hallazgos...</td></tr>
+                                <tr><td colspan="8" class="text-center py-12 text-slate-400 text-sm">Cargando hallazgos...</td></tr>
                             </tbody>
                         </table>
                     </div>
