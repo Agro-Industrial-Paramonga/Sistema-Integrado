@@ -1579,6 +1579,13 @@ async function activarNotificacionesPush() {
     const user = obtenerSesion();
     if (!user) return;
 
+    // ── Si estamos DENTRO DE LA APP (Capacitor), usar el camino nativo ──
+    // El WebView de Android no tiene el sistema de notificaciones web,
+    // por eso dentro de la APK hay que usar el plugin nativo.
+    if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) {
+        return activarNotificacionesPushNativo(user);
+    }
+
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
         console.log('Este navegador no soporta notificaciones push.');
         return;
@@ -1613,11 +1620,23 @@ async function activarNotificacionesPush() {
 
         console.log('[FCM] Token obtenido:', token.slice(0, 20) + '...');
 
-        // 4. Verificar si ya está guardado
+        // 4-5. Guardar token en Supabase
+        await guardarTokenPush(user.area, token);
+    } catch (err) {
+        console.error('[FCM] Error al activar notificaciones:', err);
+    }
+}
+
+/* ------------------------------------------------------------
+   Guarda el token FCM en Supabase.
+   Lo usan tanto la web como la app nativa (es la misma tabla).
+   ------------------------------------------------------------ */
+async function guardarTokenPush(userId, token) {
+    try {
         const { data: existente } = await db
             .from('push_subscriptions')
             .select('id')
-            .eq('user_id', user.area)
+            .eq('user_id', userId)
             .eq('token', token)
             .maybeSingle();
 
@@ -1626,9 +1645,8 @@ async function activarNotificacionesPush() {
             return;
         }
 
-        // 5. Guardar token en Supabase
         const { error } = await db.from('push_subscriptions').insert({
-            user_id: user.area,
+            user_id: userId,
             token: token
         });
 
@@ -1638,8 +1656,171 @@ async function activarNotificacionesPush() {
             console.log('[FCM] Token guardado en Supabase.');
         }
     } catch (err) {
-        console.error('[FCM] Error al activar notificaciones:', err);
+        console.error('[FCM] Error al guardar token:', err);
     }
+}
+
+/* ============================================================
+   NOTIFICACIONES PUSH NATIVAS (dentro de la APP Android)
+   Usa el plugin de Capacitor porque el WebView no tiene
+   el sistema de notificaciones web del navegador.
+   ============================================================ */
+async function activarNotificacionesPushNativo(user) {
+    const esNativo = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    console.log('[PUSH] Entorno nativo:', esNativo);
+
+    // El plugin puede llegar por dos vias segun como se cargue; aceptamos ambas
+    const PN = (window.capacitorPushNotifications && window.capacitorPushNotifications.PushNotifications)
+        || (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications)
+        || null;
+
+    if (!PN) {
+        console.log('[PUSH] Plugin nativo de notificaciones no disponible. capacitorExports:', typeof window.capacitorExports);
+        return;
+    }
+    console.log('[PUSH] Plugin nativo encontrado OK');
+
+    try {
+        // 1. Pedir permiso (Android 13+ muestra el dialogo en pantalla)
+        let perm = await PN.checkPermissions();
+        if (perm.receive !== 'granted') {
+            perm = await PN.requestPermissions();
+        }
+        if (perm.receive !== 'granted') {
+            console.log('[PUSH] Permiso de notificaciones denegado.');
+            return;
+        }
+
+        // Preparar el sistema de ALARMA nativa (pantalla completa + sonido)
+        inicializarAlarmaNativa();
+
+        // 2. Token nativo -> guardarlo en Supabase
+        PN.addListener('registration', async (token) => {
+            console.log('[PUSH] Token nativo obtenido:', String(token.value).slice(0, 20) + '...');
+            await guardarTokenPush(user.area, token.value);
+        });
+
+        PN.addListener('registrationError', (err) => {
+            console.error('[PUSH] Error al registrar el dispositivo:', err);
+        });
+
+        // 3. Notificacion recibida con la app abierta
+        PN.addListener('pushNotificationReceived', (n) => {
+            console.log('[PUSH] Recibida en primer plano:', n);
+            if (typeof mostrarAlerta === 'function') {
+                mostrarAlerta(n.body || '', n.title || 'Aviso', 'info');
+            }
+        });
+
+        // 4. Notificacion tocada por el usuario
+        PN.addListener('pushNotificationActionPerformed', (a) => {
+            console.log('[PUSH] Notificacion abierta:', a);
+        });
+
+        await PN.register();
+    } catch (err) {
+        console.error('[PUSH] Error al activar notificaciones nativas:', err);
+    }
+}
+
+/* ============================================================
+   ALARMA NATIVA (pantalla completa + sonido en bucle + vibracion)
+   ============================================================ */
+function obtenerPluginAlarma() {
+    return (window.alarmaExports && window.alarmaExports.Alarma)
+        || (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Alarma)
+        || null;
+}
+
+async function inicializarAlarmaNativa() {
+    const Alarma = obtenerPluginAlarma();
+    if (!Alarma) {
+        console.log('[ALARMA] Plugin nativo no disponible.');
+        return;
+    }
+    console.log('[ALARMA] Plugin nativo encontrado OK');
+
+    try {
+        const estado = await Alarma.puedePantallaCompleta();
+        console.log('[ALARMA] Puede pantalla completa:', estado.puede, '| Android API:', estado.android);
+        if (!estado.puede) {
+            mostrarAvisoPermisoAlarma(Alarma);
+        }
+    } catch (e) {
+        console.error('[ALARMA] Error consultando el permiso:', e);
+    }
+
+    crearBotonPruebaAlarma(Alarma);
+}
+
+function crearBotonPruebaAlarma(Alarma) {
+    if (document.getElementById('caja-prueba-alarma')) return;
+
+    const caja = document.createElement('div');
+    caja.id = 'caja-prueba-alarma';
+    caja.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;flex-direction:column;gap:8px;align-items:flex-end;';
+
+    const estilo = 'border:none;border-radius:999px;padding:11px 16px;font-size:12.5px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer;font-family:inherit;color:#fff;';
+
+    // Boton 1: prueba inmediata
+    const b1 = document.createElement('button');
+    b1.textContent = '\uD83D\uDD14 Probar alarma';
+    b1.style.cssText = estilo + 'background:#B91C1C;';
+    b1.addEventListener('click', async () => {
+        try {
+            await Alarma.probarAlarma({
+                titulo: '\uD83D\uDEA8 ALERTA DE HUAYCO (PRUEBA)',
+                cuerpo: 'Prueba del sistema de alarma. Pulsa DETENER para parar.'
+            });
+        } catch (e) {
+            console.error('[ALARMA] Error al probar:', e);
+            alert('No se pudo probar la alarma: ' + (e.message || e));
+        }
+    });
+
+    // Boton 2: prueba con retraso (para bloquear el celular y ver el comportamiento real)
+    const b2 = document.createElement('button');
+    b2.textContent = '\uD83D\uDD12 Probar bloqueado (10s)';
+    b2.style.cssText = estilo + 'background:#7C2D12;';
+    b2.addEventListener('click', async () => {
+        try {
+            await Alarma.probarAlarma({
+                titulo: '\uD83D\uDEA8 ALERTA DE HUAYCO (PRUEBA)',
+                cuerpo: 'Prueba con el celular bloqueado. Pulsa DETENER para parar.',
+                retraso: 10
+            });
+            alert('Listo. Bloquea el celular ahora: la alarma se disparara en 10 segundos.');
+        } catch (e) {
+            console.error('[ALARMA] Error al probar con retraso:', e);
+            alert('No se pudo probar la alarma: ' + (e.message || e));
+        }
+    });
+
+    caja.appendChild(b1);
+    caja.appendChild(b2);
+    document.body.appendChild(caja);
+}
+
+function mostrarAvisoPermisoAlarma(Alarma) {
+    if (document.getElementById('aviso-permiso-alarma')) return;
+    const d = document.createElement('div');
+    d.id = 'aviso-permiso-alarma';
+    d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#B45309;color:#fff;padding:12px 16px;font-size:13px;font-family:inherit;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.25);';
+    const txt = document.createElement('span');
+    txt.innerHTML = '\u26A0\uFE0F Falta activar <b>\u201CPantalla completa\u201D</b> para que la alarma se abra sola.';
+    const btn = document.createElement('button');
+    btn.textContent = 'Activar ahora';
+    btn.style.cssText = 'background:#fff;color:#B45309;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-family:inherit;';
+    btn.addEventListener('click', async () => {
+        try {
+            await Alarma.abrirAjustesPantallaCompleta();
+        } catch (e) {
+            console.error('[ALARMA] No se pudieron abrir los ajustes:', e);
+        }
+    });
+    d.appendChild(txt);
+    d.appendChild(btn);
+    document.body.appendChild(d);
 }
 
 // Notificaciones en primer plano (cuando la app está abierta)

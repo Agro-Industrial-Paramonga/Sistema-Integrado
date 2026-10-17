@@ -1,0 +1,27 @@
+# ============================================
+#  Archivos que NO deben subirse a GitHub
+#  (pesan mucho o se generan solos)
+# ============================================
+
+# Dependencias de Node (se reinstalan con "npm install")
+node_modules/
+
+# Carpeta generada: copia de la web para la app
+# Se regenera con el script de preparacion
+www/
+
+# Archivos generados por la compilacion de Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/capacitor-cordova-android-plugins/
+
+# Llaves y binarios (NUNCA subir esto)
+*.keystore
+*.jks
+*.apk
+*.aab

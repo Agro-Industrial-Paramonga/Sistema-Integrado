@@ -1,0 +1,9 @@
+{
+  "appId": "com.aipsa.sistema",
+  "appName": "Sistema Integrado",
+  "webDir": "www",
+  "backgroundColor": "#F4F6F4",
+  "android": {
+    "allowMixedContent": false
+  }
+}

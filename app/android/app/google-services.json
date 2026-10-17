@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "557548438329",
+    "project_id": "cotingencia-1eead",
+    "storage_bucket": "cotingencia-1eead.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:557548438329:android:003c1fb9227e769417dee8",
+        "android_client_info": {
+          "package_name": "com.aipsa.sistema"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcZMdNN3Zk9cr01g2Fgko64Lihn4TrNQc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

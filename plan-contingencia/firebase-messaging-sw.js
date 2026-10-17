@@ -19,9 +19,15 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Notificación en segundo plano:', payload);
 
-  const notificationTitle = payload.notification?.title || '🚨 ALERTA DE HUAYCO';
+  // Acepta los DOS formatos de mensaje:
+  //   - "notification" ... formato antiguo
+  //   - "data" ......... formato nuevo "urgente" (lo necesita la alarma de Android)
+  const d = payload.data || {};
+  const n = payload.notification || {};
+
+  const notificationTitle = d.titulo || d.title || n.title || '🚨 ALERTA DE HUAYCO';
   const notificationOptions = {
-    body: payload.notification?.body || 'Revisa tu plan de contingencia.',
+    body: d.cuerpo || d.body || n.body || 'Revisa tu plan de contingencia.',
     icon: './assets/logo.png',
     badge: './assets/logo.png',
     vibrate: [300, 100, 300, 100, 300, 100, 300],
