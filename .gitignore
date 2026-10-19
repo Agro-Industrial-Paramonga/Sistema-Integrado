@@ -1,0 +1,10 @@
+# Configuración del editor (no forma parte del proyecto)
+.vscode/
+.idea/
+
+# Basura del sistema
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
