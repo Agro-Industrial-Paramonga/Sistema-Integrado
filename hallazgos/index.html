@@ -113,11 +113,13 @@
 
         /* Carta RRLL: previsualizacion editable tipo A4 */
         .carta-pagina {
+            position: relative;
+            box-sizing: border-box;
             background: #fff;
             width: 100%;
             max-width: 720px;
+            min-height: 1018px;
             margin: 0 auto;
-            aspect-ratio: 210 / 297;
             padding: 9% 8.5%;
             font-family: Arial, Helvetica, sans-serif;
             font-size: 11pt;
@@ -125,8 +127,14 @@
             color: #111827;
             box-shadow: 0 8px 30px rgba(15,23,42,.18);
             border-radius: 4px;
-            overflow-y: auto;
         }
+        .carta-doc {
+            position: relative;
+            min-height: 820px;
+            outline: none;
+        }
+        .carta-doc p { margin: 0 0 10px; white-space: pre-wrap; }
+        .carta-doc img { max-width: none; }
         .carta-pagina .carta-logo { width: 124px; height: auto; display: block; margin-bottom: 22px; }
         .carta-bloque {
             white-space: pre-wrap;
@@ -702,7 +710,7 @@
                             <p id="ranking-subtitulo" class="text-[11px] sm:text-xs text-slate-500 mt-0.5">—</p>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
+                            <table class="w-full text-sm" style="min-width: 500px;">
                                 <thead>
                                     <tr class="border-b border-slate-200 bg-slate-50/50">
                                         <th class="text-left px-2 sm:px-4 py-3 font-semibold text-[11px] text-slate-500 tracking-widest uppercase w-8 sm:w-12">#</th>
@@ -788,6 +796,12 @@
                             <span class="text-[15px] text-slate-500 whitespace-nowrap hidden sm:inline">hallazgos</span>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+                        <select id="rrll-filtro-anio" title="Año"
+                            class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"></select>
+                        <select id="rrll-filtro-mes" title="Mes"
+                            class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"></select>
+                    </div>
                     <div class="relative w-full sm:w-80 max-w-full flex-shrink-0">
                         <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -818,7 +832,7 @@
                     </table>
                 </div>
 
-                <div id="rrll-cards" class="md:hidden divide-y divide-slate-100">
+                <div id="rrll-cards" class="md:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100">
                     <div class="text-center py-12 text-slate-400 text-sm">Cargando casos...</div>
                 </div>
 
@@ -877,19 +891,39 @@
                     <button id="carta-cerrar" class="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1">&times;</button>
                 </div>
 
-                <div class="p-3 sm:p-6 bg-slate-100">
-                    <div id="carta-pagina" class="carta-pagina">
-                        <img src="assets/logo-carta.png" alt="Logo" class="carta-logo">
-                        <div class="carta-bloque" contenteditable="true" data-campo="fecha"></div>
-                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="destinatario"></div>
-                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="saludo"></div>
-                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="cuerpo"></div>
-                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="plazo"></div>
-                        <div class="carta-bloque carta-espacio" contenteditable="true" data-campo="cierre"></div>
-                        <div class="carta-bloque" contenteditable="true" data-campo="firma"></div>
+                <div id="carta-toolbar" class="flex flex-wrap items-center gap-1 px-3 sm:px-5 py-2 border-b border-slate-200 bg-white">
+                    <button type="button" data-cmd="bold" title="Negrita"
+                            class="px-2.5 py-1.5 rounded-md text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">B</button>
+                    <button type="button" data-cmd="italic" title="Cursiva"
+                            class="px-2.5 py-1.5 rounded-md text-xs font-semibold italic text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">I</button>
+                    <span class="w-px h-5 bg-slate-200 mx-1"></span>
+                    <button type="button" data-cmd="menos" title="Reducir tamaño de letra"
+                            class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">A&minus;</button>
+                    <button type="button" data-cmd="mas" title="Aumentar tamaño de letra"
+                            class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">A+</button>
+                    <span class="w-px h-5 bg-slate-200 mx-1"></span>
+                    <button type="button" data-cmd="imagen" title="Insertar imagen"
+                            class="px-2.5 py-1.5 rounded-md text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">Imagen</button>
+                    <input type="file" id="carta-imagen" accept="image/*" class="hidden">
+                    <div id="carta-img-toolbar" class="hidden fixed z-[300] flex items-center gap-1 bg-slate-900 text-white rounded-xl shadow-xl px-2 py-1.5">
+                        <button type="button" data-img="menos" title="Más pequeña" class="px-2 py-1 rounded hover:bg-slate-700 text-xs font-bold">A&minus;</button>
+                        <button type="button" data-img="mas" title="Más grande" class="px-2 py-1 rounded hover:bg-slate-700 text-xs font-bold">A+</button>
+                        <span class="w-px h-4 bg-slate-600"></span>
+                        <button type="button" data-img="izq" title="Alinear a la izquierda" class="px-2 py-1 rounded hover:bg-slate-700 text-xs">Izq</button>
+                        <button type="button" data-img="centro" title="Centrar" class="px-2 py-1 rounded hover:bg-slate-700 text-xs">Centro</button>
+                        <button type="button" data-img="der" title="Alinear a la derecha" class="px-2 py-1 rounded hover:bg-slate-700 text-xs">Der</button>
+                        <span class="w-px h-4 bg-slate-600"></span>
+                        <button type="button" data-img="arriba" title="Mover arriba" class="px-2 py-1 rounded hover:bg-slate-700 text-xs">↑</button>
+                        <button type="button" data-img="abajo" title="Mover abajo" class="px-2 py-1 rounded hover:bg-slate-700 text-xs">↓</button>
+                        <span class="w-px h-4 bg-slate-600"></span>
+                        <button type="button" data-img="borrar" title="Quitar imagen" class="px-2 py-1 rounded hover:bg-red-600 text-xs">✕</button>
                     </div>
+                    <span class="ml-auto text-[10px] text-slate-400 hidden sm:inline">Selecciona texto y aplica formato</span>
                 </div>
 
+                <div class="p-3 sm:p-6 bg-slate-100">
+                    <div id="carta-pagina" class="carta-pagina"><img src="assets/logo-carta.png" alt="Logo" class="carta-logo"><div id="carta-doc" class="carta-doc" contenteditable="true"></div></div>
+                </div>
                 <div class="px-5 py-4 border-t border-slate-200 bg-white flex justify-end gap-2">
                     <button id="carta-cancelar" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition">Cancelar</button>
                     <button id="carta-guardar" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold transition">Guardar y emitir</button>
@@ -1035,8 +1069,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="app.js?v=24"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="app.js?v=28"></script>
     <script src="push-jefe.js?v=2"></script>
-    <script src="carta-rrll.js?v=4"></script>
+    <script src="carta-rrll.js?v=9"></script>
 </body>
 </html>

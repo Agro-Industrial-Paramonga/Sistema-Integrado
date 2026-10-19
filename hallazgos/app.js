@@ -31,6 +31,7 @@ let rrllCatalogoFaltas = [];
 let rrllFaltasHallazgo = [];
 let rrllFeriados = [];
 let rrllBloqueActual = 1;
+let rrllBorrador = null;
 
 const RRLL_FECHA_INICIO = '2026-09-01';
 const RRLL_DESC_EVENTO  = 'Acto Subestandar';
@@ -2388,7 +2389,7 @@ function renderRankingFaltas(ranking) {
                 data-falta-nombre="${escaparAttr(r.nombre)}"
                 data-falta-cant="${r.cantidad}">
                 <td class="px-2 sm:px-4 py-3 text-slate-500 font-semibold">${i + 1}</td>
-                <td class="px-2 sm:px-4 py-3 text-slate-800 font-medium">${escaparHTML(r.nombre)}</td>
+                <td class="px-2 sm:px-4 py-3 text-slate-800 font-medium whitespace-nowrap">${escaparHTML(r.nombre)}</td>
                 <td class="px-2 sm:px-4 py-3 text-center font-bold text-slate-900">${r.cantidad}</td>
                 <td class="hidden sm:table-cell px-4 py-3 text-center text-slate-600 text-xs">${pct.toFixed(1)}%</td>
                 <td class="hidden sm:table-cell px-4 py-3">
@@ -2667,8 +2668,72 @@ async function iniciarPanelRRLL() {
     await cargarCatalogoFaltasRRLL();
     await cargarFeriados();
     await autoAvanzarCasosVencidos();
+    inicializarFiltrosRRLL();
     await cargarTablaRRLL();
     await cargarPanelAvisos();
+}
+
+/* ==========================================
+   FILTRO POR AÑO Y MES (Relaciones Laborales)
+   Solo permite periodos desde RRLL_FECHA_INICIO
+   (setiembre 2026) hasta el mes actual.
+   ========================================== */
+let rrllFiltroAnio = '';
+let rrllFiltroMes = '';
+
+function inicializarFiltrosRRLL() {
+    const selAnio = document.getElementById('rrll-filtro-anio');
+    if (!selAnio) return;
+
+    const [anioIni] = RRLL_FECHA_INICIO.split('-').map(Number);
+    const anioHoy = new Date().getFullYear();
+    const ultimo = Math.max(anioHoy, anioIni);
+
+    selAnio.innerHTML = '';
+    for (let a = anioIni; a <= ultimo; a++) {
+        selAnio.innerHTML += `<option value="${a}">${a}</option>`;
+    }
+    selAnio.value = String(anioHoy >= anioIni ? anioHoy : anioIni);
+    rrllFiltroAnio = selAnio.value;
+
+    actualizarMesesRRLL();
+
+    selAnio.addEventListener('change', () => {
+        rrllFiltroAnio = selAnio.value;
+        actualizarMesesRRLL();
+        rrllPaginaActual = 1;
+        cargarTablaRRLL();
+    });
+
+    document.getElementById('rrll-filtro-mes')?.addEventListener('change', (e) => {
+        rrllFiltroMes = e.target.value;
+        rrllPaginaActual = 1;
+        cargarTablaRRLL();
+    });
+}
+
+function actualizarMesesRRLL() {
+    const selMes = document.getElementById('rrll-filtro-mes');
+    if (!selMes) return;
+
+    const [anioIni, mesIni] = RRLL_FECHA_INICIO.split('-').map(Number);
+    const anio = Number(rrllFiltroAnio) || anioIni;
+    const hoy = new Date();
+    const anioHoy = hoy.getFullYear();
+    const mesHoy = hoy.getMonth() + 1;
+
+    const desde = (anio === anioIni) ? mesIni : 1;
+    const hasta = (anio === anioHoy) ? mesHoy : 12;
+
+    let html = '';
+    for (let m = desde; m <= hasta; m++) {
+        html += `<option value="${m}">${nombreMes(m)}</option>`;
+    }
+    selMes.innerHTML = html;
+
+    const preferido = (anio === anioHoy && mesHoy >= desde) ? mesHoy : hasta;
+    selMes.value = String(preferido);
+    rrllFiltroMes = selMes.value;
 }
 
 async function cargarCatalogoFaltasRRLL() {
@@ -2727,7 +2792,9 @@ async function cargarTablaRRLL() {
     try {
         const offset = (rrllPaginaActual - 1) * rrllRegistrosPorPagina;
         const [anioIni, mesIni] = RRLL_FECHA_INICIO.split('-');
-        const sufijoFecha = `/${mesIni}/${anioIni}`;
+        const anioFiltro = rrllFiltroAnio || anioIni;
+        const mesFiltro = rrllFiltroMes || mesIni;
+        const sufijoFecha = `/${String(mesFiltro).padStart(2, '0')}/${anioFiltro}`;
 
         let q = supabaseClient.from('hallazgos')
             .select('"COD_HALLAZGO","FECHA_ACONTECIMIENTO","DESC_AREA","DESC_SECCION","ACONTECIMIENTO","TRABAJADOR","NRO_DOC"', { count: 'exact' })
@@ -3124,12 +3191,14 @@ function calcularBloquesRRLL(caso) {
         titulo: 'Primera carta',
         emision: caso.fecha_emision_1 || null,
         recepcion: caso.fecha_recepcion_1 || null,
+        recepcionRegistro: (caso.meta && caso.meta.recepcion_1_registro) || null,
         descargo: caso.descargo || null,
         descargo_url: caso.descargo_url || null,
         carta_url: caso.cargo_1_url || null,
         carta_firmada_url: caso.cargo_1_firmado_url || null,
         destinatario: caso.cargo_1_destinatario || null,
-        tipo: 'primera'
+        tipo: 'trabajador',
+        tipoCarta: 'primera'
     });
 
     const extras = Array.isArray(caso.cartas_adicionales) ? caso.cartas_adicionales : [];
@@ -3139,33 +3208,29 @@ function calcularBloquesRRLL(caso) {
             titulo: `Carta ${2 + idx}`,
             emision: e.fecha_emision,
             recepcion: e.fecha_recepcion || null,
+            recepcionRegistro: e.fecha_recepcion_registro || null,
             descargo: e.descargo || null,
             descargo_url: e.descargo_url || null,
             carta_url: e.url || null,
             carta_firmada_url: e.carta_firmada_url || null,
             destinatario: e.destinatario || null,
-            tipo: 'adicional',
+            tipo: e.tipo || 'trabajador',
+            tipoCarta: 'adicional',
             idx
         });
     });
 
-    const casoCerrado = !!caso.fecha_cierre || caso.paso_actual >= 8 || !!caso.medida_disciplinaria;
-    const ultimo = bloques[bloques.length - 1];
-    const ultimoConDescargo = ultimo.descargo !== null && ultimo.descargo !== undefined;
-
-    if (!casoCerrado && ultimoConDescargo) {
-        const siguienteNum = bloques.length + 1;
+    if (rrllBorrador) {
         bloques.push({
-            numero: siguienteNum,
-            titulo: `Carta ${siguienteNum}`,
+            numero: bloques.length + 1,
+            titulo: 'Nueva carta',
             emision: null,
             recepcion: null,
             descargo: null,
-            descargo_url: null,
             carta_url: null,
-            destinatario: null,
-            tipo: 'virtual',
-            esVirtual: true
+            destinatario: rrllBorrador.destinatario || null,
+            tipo: rrllBorrador.tipo || 'trabajador',
+            esBorrador: true
         });
     }
 
@@ -3250,6 +3315,11 @@ function renderizarDrawerRRLL() {
     document.getElementById('relaciones-drawer-content').innerHTML = `
         ${infoBox}
 
+        <div class="mt-3">
+        <div class="mt-3">
+            <button id="rrll-add-carta-top" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 rounded-xl transition">+ Añadir carta</button>
+        </div>
+
         <div class="mt-5">
             <div class="flex items-center gap-3">
                 ${flechaAtras}
@@ -3275,6 +3345,7 @@ function renderizarDrawerRRLL() {
 
 function renderBloqueRRLL(bloque, caso, h, bloques) {
     const numero = bloque.numero;
+    if (bloque.esBorrador) return renderBloqueBorrador(bloque, h);
     const casoCerrado = !!caso.fecha_cierre || caso.paso_actual >= 8;
 
     let htmlEmision = '';
@@ -3296,9 +3367,8 @@ function renderBloqueRRLL(bloque, caso, h, bloques) {
                     <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Destinatario</label>
                     <select id="rrll-dest-${numero}" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500">${opcionesDestinatario(h.TRABAJADOR, '')}</select>
                     <input type="text" id="rrll-dest-${numero}-otro" placeholder="Nombre del destinatario" class="hidden w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Subir PDF</label>
-                    <input type="file" id="rrll-file-${numero}" accept="application/pdf" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 rounded-lg p-1 mb-3">
-                    <button id="rrll-btn-guardar-${numero}" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Guardar y emitir</button>
+                    <p class="text-[11px] text-slate-500 mb-3">Se abre el editor con la fecha y el destinatario ya puestos; el cuerpo lo escribes tú.</p>
+                    <button id="rrll-btn-generar-${numero}" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Generar carta ${numero}</button>
                 </div>
             `;
         }
@@ -3312,16 +3382,24 @@ function renderBloqueRRLL(bloque, caso, h, bloques) {
                 <p class="text-xs text-slate-500 mb-1">📅 ${formatearFecha(bloque.emision)}</p>
                 ${bloque.destinatario ? `<p class="text-xs text-slate-700"><span class="font-semibold">Destinatario:</span> ${escaparHTML(bloque.destinatario)}</p>` : ''}
                 ${bloque.carta_url ? `<a href="${escaparAttr(bloque.carta_url)}" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold mt-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Ver PDF</a>` : ''}
-                ${numero === 1 ? `<div class="mt-3"><button id="rrll-btn-editar-carta-1" class="w-full bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 text-xs font-semibold py-2 rounded-lg transition">Editar carta</button></div>` : ''}
+                <div class="mt-3">
+                    <button id="rrll-btn-editar-carta-${numero}" data-carta-num="${numero}" data-carta-dest="${escaparAttr(bloque.destinatario || '')}"
+                            class="rrll-btn-editar-carta w-full bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 text-xs font-semibold py-2 rounded-lg transition">Editar carta</button>
+                </div>
             </div>
         `;
     }
 
     let htmlRecepcion = '';
     if (bloque.emision && !bloque.recepcion) {
+        const hoyISO = new Date().toISOString().slice(0, 10);
         htmlRecepcion = `
             <div class="step-item active border-2 rounded-xl p-4 mt-3">
                 <p class="text-sm font-bold text-slate-800 mb-3">Confirmación de recepción</p>
+                <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Fecha de recepción (la real, manual)</label>
+                <input type="date" id="rrll-recep-fecha-${numero}" value="${hoyISO}"
+                       class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs mb-1 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <p class="text-[10px] text-slate-400 mb-3">Fecha de subida: ${formatearFecha(new Date().toISOString())} (automática)</p>
                 <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Subir cargo FIRMADO (PDF)</label>
                 <input type="file" id="rrll-file-${numero}-firmado" accept="application/pdf" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer border border-slate-200 rounded-lg p-1 mb-3">
                 <button id="rrll-btn-recepcion-${numero}" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition">✅ Confirmar recepción</button>
@@ -3334,87 +3412,107 @@ function renderBloqueRRLL(bloque, caso, h, bloques) {
                     <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                     <p class="text-sm font-bold text-slate-800">Recepción confirmada</p>
                 </div>
-                <p class="text-xs text-slate-500">📅 ${formatearFecha(bloque.recepcion)}</p>
+                <p class="text-xs text-slate-600">📅 Recepción: ${formatearFecha(bloque.recepcion)}</p>
+                ${bloque.recepcionRegistro ? `<p class="text-[11px] text-slate-400">🕒 Subida: ${formatearFecha(bloque.recepcionRegistro)}</p>` : ''}
                 ${bloque.carta_firmada_url ? `<a href="${escaparAttr(bloque.carta_firmada_url)}" target="_blank" class="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-semibold mt-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Ver PDF firmado</a>` : ''}
             </div>
         `;
     }
 
+    const esTrabajador = (bloque.tipo || 'trabajador') === 'trabajador';
+    const descargoActual = (numero === 1) ? (caso.descargo || null) : (bloque.descargo || null);
+    const descargoUrlActual = (numero === 1) ? (caso.descargo_url || null) : (bloque.descargo_url || null);
+
     let htmlDescargo = '';
-
-    if (numero === 1) {
-        if (bloque.recepcion && !bloque.descargo && !casoCerrado) {
-            htmlDescargo = `
-                <div class="step-item active border-2 rounded-xl p-4 mt-3">
-                    <p class="text-sm font-bold text-slate-800 mb-1">Descargo del colaborador</p>
-                    <p class="text-[10px] text-slate-500 mb-3">Plazo: 3 días hábiles desde la emisión de la 1.ª carta. Si no sube nada, avanza solo a la siguiente carta.</p>
-                    <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Subir descargo (PDF) — opcional</label>
-                    <input type="file" id="rrll-file-descargo" accept="application/pdf" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 rounded-lg p-1 mb-3">
-                    <button id="rrll-btn-descargo-subir" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Subir descargo y continuar</button>
-                </div>
-            `;
-        } else if (bloque.descargo) {
-            htmlDescargo = `
-                <div class="step-item completed border-2 rounded-xl p-4 mt-3">
-                    <p class="text-sm font-bold text-slate-800 mb-1">Descargo</p>
-                    <p class="text-xs ${bloque.descargo === 'con' ? 'text-blue-700' : 'text-slate-600'} font-semibold">
-                        ${bloque.descargo === 'con' ? '✍️ El colaborador presentó descargo' : '⭕ El colaborador NO presentó descargo'}
-                    </p>
-                    ${bloque.descargo_url ? `<a href="${escaparAttr(bloque.descargo_url)}" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold mt-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Ver descargo</a>` : ''}
-                </div>
-            `;
-        }
-    } else {
-        if (bloque.recepcion && !casoCerrado) {
-            htmlDescargo = `
-                <div class="step-item active border-2 rounded-xl p-4 mt-3">
-                    <p class="text-sm font-bold text-slate-800 mb-3">Siguiente acción</p>
-                    <p class="text-xs text-slate-500 mb-3">¿El colaborador presentó descargo o pasamos a medida disciplinaria?</p>
-
-                    <div class="grid grid-cols-2 gap-2 mb-3">
-                        <button id="rrll-btn-elegir-descargo-${numero}" class="rrll-btn-elegir bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 hover:border-blue-400 text-blue-800 text-xs font-bold py-3 rounded-xl transition flex flex-col items-center gap-1">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                            Subió descargo
-                        </button>
-                        <button id="rrll-btn-elegir-medida-${numero}" class="rrll-btn-elegir bg-amber-50 hover:bg-amber-100 border-2 border-amber-200 hover:border-amber-400 text-amber-800 text-xs font-bold py-3 rounded-xl transition flex flex-col items-center gap-1">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
-                            Pasar a medida
-                        </button>
-                    </div>
-
-                    <div id="rrll-panel-descargo-${numero}" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <label class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold block mb-1">Subir descargo (PDF)</label>
-                        <input type="file" id="rrll-file-descargo-${numero}" accept="application/pdf" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-white file:text-blue-700 hover:file:bg-blue-50 cursor-pointer border border-blue-200 rounded-lg p-1 bg-white mb-2">
-                        <button id="rrll-btn-descargo-${numero}" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Guardar descargo y continuar</button>
-                    </div>
-
-                    <div id="rrll-panel-medida-${numero}" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        <label class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold block mb-1">Tipo de medida</label>
-                        <select id="rrll-select-medida-${numero}" class="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
-                            <option value="">Selecciona la medida...</option>
-                            <option value="Suspensión">Suspensión</option>
-                            <option value="Amonestación">Amonestación</option>
-                        </select>
-                        <div id="rrll-medida-extra-${numero}" class="hidden"></div>
-                        <button id="rrll-btn-guardar-medida-${numero}" class="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold py-2 rounded-lg transition mt-2">Aplicar medida y cerrar caso</button>
-                    </div>
-                </div>
-            `;
-        } else if (casoCerrado) {
-            htmlDescargo = `
-                <div class="step-item completed border-2 rounded-xl p-4 mt-3">
-                    <div class="flex items-center gap-2 mb-1">
-                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                        <p class="text-sm font-bold text-slate-800">Caso cerrado</p>
-                    </div>
-                    ${caso.medida_disciplinaria ? `<p class="text-xs text-slate-700 mt-1"><span class="font-semibold">${caso.medida_disciplinaria}:</span> ${caso.medida_disciplinaria === 'Suspensión' ? (caso.dias_suspension || 0) + ' días' : (caso.afecta_incentivos ? 'Sí afecta incentivos' : 'No afecta incentivos')}</p>` : ''}
-                    ${caso.fecha_cierre ? `<p class="text-xs text-slate-500 mt-1">📅 ${formatearFecha(caso.fecha_cierre)}</p>` : ''}
-                </div>
-            `;
-        }
+    if (descargoActual) {
+        htmlDescargo = `
+            <div class="step-item completed border-2 rounded-xl p-4 mt-3">
+                <p class="text-sm font-bold text-slate-800 mb-1">Descargo</p>
+                <p class="text-xs ${descargoActual === 'con' ? 'text-blue-700' : 'text-slate-600'} font-semibold">
+                    ${descargoActual === 'con' ? '\u270D\uFE0F El colaborador present\u00F3 descargo' : '\u26ED El colaborador NO present\u00F3 descargo'}
+                </p>
+                ${descargoUrlActual ? `<a href="${escaparAttr(descargoUrlActual)}" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold mt-2">Ver descargo</a>` : ''}
+            </div>`;
     }
 
-    return htmlEmision + htmlRecepcion + htmlDescargo;
+    let htmlAcciones = '';
+    if (bloque.recepcion && !casoCerrado) {
+        htmlAcciones = `
+            <div class="mt-3">
+                <button id="rrll-add-btn-${numero}"
+                        class="w-full border-2 border-dashed border-slate-300 rounded-xl py-3 text-slate-500 text-xs font-bold hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/40 transition">
+                    + A\u00F1adir
+                </button>
+
+                <div id="rrll-menu-${numero}" class="hidden mt-2 border-2 border-dashed border-slate-300 rounded-xl p-2 space-y-2">
+                    ${!descargoActual ? `<button id="rrll-opt-descargo-${numero}" class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-blue-700 hover:bg-blue-50 border border-blue-200">Subir descargo</button>` : ''}
+                    ${esTrabajador ? `<button id="rrll-opt-medida-${numero}" class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-amber-700 hover:bg-amber-50 border border-amber-200">Pasar a medida</button>` : ''}
+                </div>
+
+                <div id="rrll-panel-descargo-${numero}" class="hidden mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <label class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold block mb-1">Subir descargo (PDF)</label>
+                    <input type="file" id="rrll-file-descargo-${numero}" accept="application/pdf" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-white file:text-blue-700 hover:file:bg-blue-50 cursor-pointer border border-blue-200 rounded-lg p-1 bg-white mb-2">
+                    <button id="rrll-btn-descargo-${numero}" class="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-lg transition">Guardar descargo y continuar</button>
+                </div>
+
+                ${esTrabajador ? `
+                <div id="rrll-panel-medida-${numero}" class="hidden mt-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <label class="text-[10px] text-slate-600 uppercase tracking-wider font-semibold block mb-1">Tipo de medida</label>
+                    <select id="rrll-select-medida-${numero}" class="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <option value="">Selecciona la medida...</option>
+                        <option value="Suspensi\u00F3n">Suspensi\u00F3n</option>
+                        <option value="Amonestaci\u00F3n">Amonestaci\u00F3n</option>
+                    </select>
+                    <div id="rrll-medida-extra-${numero}"></div>
+                    <button id="rrll-btn-guardar-medida-${numero}" class="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg py-2 transition mt-2">Aplicar medida y cerrar caso</button>
+                </div>` : ''}
+            </div>`;
+    }
+
+    if (casoCerrado) {
+        htmlAcciones += `
+            <div class="step-item completed border-2 rounded-xl p-4 mt-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    <p class="text-sm font-bold text-slate-800">Caso cerrado</p>
+                </div>
+                ${caso.medida_disciplinaria ? `<p class="text-xs text-slate-700 mt-1"><span class="font-semibold">${caso.medida_disciplinaria}:</span> ${caso.medida_disciplinaria === 'Suspensi\u00F3n' ? (caso.dias_suspension || 0) + ' d\u00EDas' : (caso.afecta_incentivos ? 'S\u00ED afecta incentivos' : 'No afecta incentivos')}</p>` : ''}
+                ${caso.fecha_cierre ? `<p class="text-xs text-slate-500 mt-1">\uD83D\uDCC5 ${formatearFecha(caso.fecha_cierre)}</p>` : ''}
+            </div>`;
+    }
+
+    return htmlEmision + htmlRecepcion + htmlDescargo + htmlAcciones;
+}
+
+
+function renderBloqueBorrador(bloque, h) {
+    const esSup = (bloque.tipo === 'supervisor');
+    return `
+        <div class="step-item active border-2 border-emerald-300 rounded-xl p-4 mt-3 bg-emerald-50/40">
+            <p class="text-sm font-bold text-slate-800 mb-3">Nueva carta</p>
+
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Dirigida a</label>
+            <select id="rrll-bor-tipo" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="trabajador" ${esSup ? '' : 'selected'}>Trabajador</option>
+                <option value="supervisor" ${esSup ? 'selected' : ''}>Supervisor / jefe / encargado</option>
+            </select>
+
+            <div id="rrll-bor-trabajador" class="${esSup ? 'hidden' : ''}">
+                <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Destinatario</label>
+                <p class="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700">${escaparHTML(h.TRABAJADOR) || '—'}</p>
+            </div>
+
+            <div id="rrll-bor-supervisor" class="${esSup ? '' : 'hidden'}">
+                <label class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block mb-1">Nombre del destinatario</label>
+                <input type="text" id="rrll-bor-nombre" placeholder="Escribe el nombre"
+                       class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <div class="flex gap-2 mt-4">
+                <button id="rrll-bor-cancelar" class="flex-1 border border-slate-300 text-slate-600 text-xs font-semibold py-2 rounded-lg hover:bg-slate-50 transition">Cancelar</button>
+                <button id="rrll-bor-crear" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition">Crear carta</button>
+            </div>
+        </div>`;
 }
 
 function bindEventosPasos() {
@@ -3446,60 +3544,27 @@ function bindEventosPasos() {
 
     const numBloqueActual = bloques[rrllBloqueActual - 1]?.numero || 1;
 
-    // La 1.ª carta se genera con el modelo de la empresa (ver carta-rrll.js)
-    document.getElementById('rrll-btn-generar-1')?.addEventListener('click', () => {
-        if (window.CartaRRLL) window.CartaRRLL.abrir();
+    // Todas las cartas se generan con el editor propio (ver carta-rrll.js)
+    const abrirEditorCarta = (num, dest) => {
+        if (window.CartaRRLL) window.CartaRRLL.abrir(num, dest);
         else alert('❌ No se cargó el generador de cartas. Recarga la página.');
-    });
+    };
 
-    document.getElementById('rrll-btn-editar-carta-1')?.addEventListener('click', () => {
-        if (window.CartaRRLL) window.CartaRRLL.abrir();
-        else alert('❌ No se cargó el generador de cartas. Recarga la página.');
+    document.getElementById('rrll-btn-generar-1')?.addEventListener('click', () => abrirEditorCarta(1));
+
+    document.querySelectorAll('.rrll-btn-editar-carta').forEach(btn => {
+        btn.addEventListener('click', () => {
+            abrirEditorCarta(parseInt(btn.dataset.cartaNum, 10) || 1, btn.dataset.cartaDest || '');
+        });
     });
 
     if (numBloqueActual >= 2) {
-        document.getElementById(`rrll-btn-guardar-${numBloqueActual}`)?.addEventListener('click', async () => {
-            const file = document.getElementById(`rrll-file-${numBloqueActual}`)?.files[0];
+        document.getElementById(`rrll-btn-generar-${numBloqueActual}`)?.addEventListener('click', () => {
             const destSelect = document.getElementById(`rrll-dest-${numBloqueActual}`)?.value;
             const destOtro = document.getElementById(`rrll-dest-${numBloqueActual}-otro`)?.value?.trim() || '';
             const destinatario = destSelect === '__otro__' ? destOtro : destSelect;
             if (!destinatario) { alert('⚠️ Ingresa el destinatario.'); return; }
-            if (!file) { alert('⚠️ Selecciona el PDF.'); return; }
-            if (file.type !== 'application/pdf') { alert('⚠️ El archivo debe ser PDF.'); return; }
-            try {
-                const num = numBloqueActual;
-                const path = `${h.COD_HALLAZGO}/carta_${num}_${Date.now()}.pdf`;
-                const { error: upErr } = await supabaseClient.storage.from('relaciones-cargos').upload(path, file, { contentType: 'application/pdf', upsert: true });
-                if (upErr) throw upErr;
-                const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
-                const url = urlData.publicUrl;
-
-                const { data: casoFresh } = await supabaseClient
-                    .from('relaciones_casos')
-                    .select('cartas_adicionales')
-                    .eq('id', caso.id)
-                    .single();
-                const cartas = Array.isArray(casoFresh?.cartas_adicionales) ? [...casoFresh.cartas_adicionales] : [];
-
-                const idx = num - 2;
-                cartas[idx] = {
-                    numero: num,
-                    destinatario,
-                    url,
-                    fecha_emision: new Date().toISOString(),
-                    fecha_recepcion: null,
-                    descargo: null,
-                    descargo_url: null
-                };
-
-                await guardarPaso(caso.id, {
-                    cartas_adicionales: cartas,
-                    paso_actual: 5
-                });
-                await abrirDrawerRRLL(h.COD_HALLAZGO);
-                await cargarTablaRRLL();
-                await cargarPanelAvisos();
-            } catch (err) { alert('Error: ' + err.message); }
+            abrirEditorCarta(numBloqueActual, destinatario);
         });
 
         document.getElementById(`rrll-dest-${numBloqueActual}`)?.addEventListener('change', (e) => {
@@ -3521,10 +3586,17 @@ function bindEventosPasos() {
         const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
         const url = urlData.publicUrl;
 
+        const inputFecha = document.getElementById(`rrll-recep-fecha-${num}`);
+        const fechaManual = inputFecha && inputFecha.value
+            ? new Date(inputFecha.value + 'T12:00:00').toISOString()
+            : new Date().toISOString();
+        const fechaSubida = new Date().toISOString();
+
         if (num === 1) {
             await guardarPaso(caso.id, {
                 cargo_1_firmado_url: url,
-                fecha_recepcion_1: new Date().toISOString(),
+                fecha_recepcion_1: fechaManual,
+                meta: { ...(caso.meta || {}), recepcion_1_registro: fechaSubida },
                 paso_actual: 3
             });
         } else {
@@ -3538,7 +3610,8 @@ function bindEventosPasos() {
             if (cartas[idx]) {
                 cartas[idx] = {
                     ...cartas[idx],
-                    fecha_recepcion: new Date().toISOString(),
+                    fecha_recepcion: fechaManual,
+                    fecha_recepcion_registro: fechaSubida,
                     carta_firmada_url: url
                 };
             } else {
@@ -3578,15 +3651,53 @@ function bindEventosPasos() {
         } catch (err) { alert('Error: ' + err.message); }
     });
 
-    document.getElementById(`rrll-btn-elegir-descargo-${numBloqueActual}`)?.addEventListener('click', () => {
-        document.getElementById(`rrll-panel-medida-${numBloqueActual}`)?.classList.add('hidden');
-        document.getElementById(`rrll-panel-descargo-${numBloqueActual}`)?.classList.remove('hidden');
+    const mostrarPanel = (num, panel) => {
+        ['descargo', 'medida', 'carta'].forEach(p => {
+            document.getElementById(`rrll-panel-${p}-${num}`)?.classList.add('hidden');
+        });
+        document.getElementById(`rrll-panel-${panel}-${num}`)?.classList.remove('hidden');
+        document.getElementById(`rrll-menu-${num}`)?.classList.add('hidden');
+    };
+
+    document.getElementById(`rrll-add-btn-${numBloqueActual}`)?.addEventListener('click', () => {
+        document.getElementById(`rrll-menu-${numBloqueActual}`)?.classList.toggle('hidden');
     });
 
-    document.getElementById(`rrll-btn-elegir-medida-${numBloqueActual}`)?.addEventListener('click', () => {
-        document.getElementById(`rrll-panel-descargo-${numBloqueActual}`)?.classList.add('hidden');
-        document.getElementById(`rrll-panel-medida-${numBloqueActual}`)?.classList.remove('hidden');
+    document.getElementById(`rrll-opt-descargo-${numBloqueActual}`)?.addEventListener('click', () => mostrarPanel(numBloqueActual, 'descargo'));
+    document.getElementById(`rrll-opt-medida-${numBloqueActual}`)?.addEventListener('click', () => mostrarPanel(numBloqueActual, 'medida'));
+    document.getElementById('rrll-add-carta-top')?.addEventListener('click', () => {
+        rrllBorrador = { tipo: 'trabajador' };
+        rrllBloqueActual = calcularBloquesRRLL(caso).length;
+        renderizarDrawerRRLL();
     });
+
+    if (bloques[rrllBloqueActual - 1] && bloques[rrllBloqueActual - 1].esBorrador) {
+        const selTipo = document.getElementById('rrll-bor-tipo');
+        selTipo?.addEventListener('change', (e) => {
+            const esSup = e.target.value === 'supervisor';
+            document.getElementById('rrll-bor-trabajador')?.classList.toggle('hidden', esSup);
+            document.getElementById('rrll-bor-supervisor')?.classList.toggle('hidden', !esSup);
+        });
+
+        document.getElementById('rrll-bor-cancelar')?.addEventListener('click', () => {
+            rrllBorrador = null;
+            rrllBloqueActual = Math.max(1, rrllBloqueActual - 1);
+            renderizarDrawerRRLL();
+        });
+
+        document.getElementById('rrll-bor-crear')?.addEventListener('click', () => {
+            const tipo = selTipo?.value || 'trabajador';
+            let destino = '';
+            if (tipo === 'supervisor') {
+                destino = document.getElementById('rrll-bor-nombre')?.value?.trim() || '';
+                if (!destino) { alert('\u26A0\uFE0F Escribe el nombre del destinatario.'); return; }
+            } else {
+                destino = h.TRABAJADOR || '';
+            }
+            if (window.CartaRRLL) window.CartaRRLL.abrir(rrllBloqueActual, destino, tipo);
+            else alert('\u274C No se carg\u00F3 el generador de cartas.');
+        });
+    }
 
     document.getElementById(`rrll-btn-descargo-${numBloqueActual}`)?.addEventListener('click', async () => {
         const num = numBloqueActual;
@@ -3599,6 +3710,14 @@ function bindEventosPasos() {
             if (upErr) throw upErr;
             const { data: urlData } = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path);
             const url = urlData.publicUrl;
+            if (num === 1) {
+                await guardarPaso(caso.id, { descargo: 'con', descargo_url: url, paso_actual: 4 });
+                await abrirDrawerRRLL(h.COD_HALLAZGO);
+                await cargarTablaRRLL();
+                await cargarPanelAvisos();
+                return;
+            }
+
 
             const { data: casoFresh } = await supabaseClient
                 .from('relaciones_casos')

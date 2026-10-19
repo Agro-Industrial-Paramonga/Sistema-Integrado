@@ -1,0 +1,18 @@
+# Normaliza los fines de linea en todo el repositorio.
+# Evita que un editor (VS Code, Bloc de notas) guarde CRLF y el diff
+# muestre el archivo completo como modificado.
+* text=auto eol=lf
+
+# Archivos binarios: nunca convertir
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.apk binary
+*.keystore binary
+*.jks binary
+*.pdf binary
