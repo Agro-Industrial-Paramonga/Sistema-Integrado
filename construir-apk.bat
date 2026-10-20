@@ -1,15 +1,15 @@
 @echo off
 setlocal
-title Construir APK - Sistema Integrado
+title Construir APK - Seguridad y salud en el trabajo
 set "_JAVA_OPTIONS="
 set "ROOT=%~dp0"
 set "APP=%ROOT%app"
 set "ANDROID=%APP%\android"
 set "APK=%ANDROID%\app\build\outputs\apk\debug\app-debug.apk"
-set "DESTINO=%USERPROFILE%\Desktop\Sistema-Integrado.apk"
+set "DESTINO=%USERPROFILE%\Desktop\Seguridad y Salud en el Trabajo.apk"
 
 echo ============================================
-echo   CONSTRUIR APK - SISTEMA INTEGRADO
+echo   CONSTRUIR APK - SEGURIDAD Y SALUD EN EL TRABAJO
 echo ============================================
 echo.
 

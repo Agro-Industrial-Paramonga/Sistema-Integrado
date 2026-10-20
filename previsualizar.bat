@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Previsualizar - Sistema Integrado
+title Previsualizar - Seguridad y salud en el trabajo
 set "_JAVA_OPTIONS="
 set "ROOT=%~dp0"
 
@@ -14,7 +14,7 @@ echo   IMPORTANTE: deja esta ventana abierta.
 echo   Si la cierras, la previsualizacion se detiene.
 echo.
 
-start "Servidor Sistema Integrado" /min cmd /c "node "%~dp0servidor-local.mjs""
+start "Servidor Seguridad y salud en el trabajo" /min cmd /c "node "%~dp0servidor-local.mjs""
 
 timeout /t 3 >nul
 start "" "http://127.0.0.1:5501/"

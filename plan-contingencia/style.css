@@ -2170,12 +2170,13 @@ body {
         display: none; /* Ocultar imagen de fondo en móvil para evitar que tape el texto */
     }
 }
-/* Permitir que el gesto de scroll pase a través de los nodos */
+/* El scroll horizontal y el zoom con dos dedos pasan a traves de los nodos */
 .flowchart-wrapper .node,
 .flowchart-wrapper .diamond-wrapper,
 .flowchart-wrapper .node *,
-.flowchart-wrapper .diamond-wrapper * {
-    touch-action: pan-x;
+.flowchart-wrapper .diamond-wrapper *,
+.flowchart-wrapper .connectors {
+    touch-action: manipulation;
 }
 /* ============================================================
    TOOLTIPS PERSONALIZADOS EN FILTROS

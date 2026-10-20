@@ -22,7 +22,7 @@ public class MainActivity extends BridgeActivity {
 
         // Boton/gesto de retroceder:
         //  - Si hay historial en el WebView, retrocede (p. ej. de Hallazgos
-        //    o Plan de Contingencia vuelve al portal Sistema Integrado).
+        //    o Plan de Contingencia vuelve al portal Seguridad y salud en el trabajo).
         //  - Si ya estamos en el portal, sale de la app como siempre.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override

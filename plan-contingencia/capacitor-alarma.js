@@ -1,4 +1,4 @@
-// Puente JS del plugin nativo "Alarma" (Sistema Integrado)
+// Puente JS del plugin nativo "Alarma" (Seguridad y salud en el trabajo)
 // Sigue el mismo formato que generan los plugins de Capacitor.
 var alarmaExports = (function (exports, core) {
 	'use strict';

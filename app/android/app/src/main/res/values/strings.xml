@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Sistema Integrado</string>
-    <string name="title_activity_main">Sistema Integrado</string>
+    <string name="app_name">Seguridad y salud en el trabajo</string>
+    <string name="title_activity_main">Seguridad y salud en el trabajo</string>
     <string name="package_name">com.aipsa.sistema</string>
     <string name="custom_url_scheme">com.aipsa.sistema</string>
 </resources>

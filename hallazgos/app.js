@@ -352,7 +352,8 @@ async function intentarLogin() {
         desc_seccion: data[0].desc_seccion,
         esAdmin:      false
     };
-    sessionStorage.setItem('usuario', JSON.stringify(usuarioActual));
+    localStorage.setItem('usuario', JSON.stringify(usuarioActual));
+    sessionStorage.removeItem('usuario');
     await iniciarDashboard();
 }
 
@@ -378,7 +379,8 @@ async function intentarLoginAdmin() {
     }
 
     usuarioActual = { nombre: data[0].nombre, esAdmin: true };
-    sessionStorage.setItem('usuario', JSON.stringify(usuarioActual));
+    localStorage.setItem('usuario', JSON.stringify(usuarioActual));
+    sessionStorage.removeItem('usuario');
     await iniciarDashboard();
 }
 
@@ -404,11 +406,14 @@ async function intentarLoginRRLL() {
     }
 
     usuarioRRLL = { nombre: NOMBRE_RRLL };
-    sessionStorage.setItem('usuarioRRLL', JSON.stringify(usuarioRRLL));
+    localStorage.setItem('usuarioRRLL', JSON.stringify(usuarioRRLL));
+    sessionStorage.removeItem('usuarioRRLL');
     await iniciarPanelRRLL();
 }
 
 function cerrarSesion() {
+    localStorage.removeItem('usuario');
+    localStorage.removeItem('usuarioRRLL');
     sessionStorage.removeItem('usuario');
     sessionStorage.removeItem('usuarioRRLL');
     location.reload();
@@ -1378,15 +1383,15 @@ document.getElementById('subt-tab-faltas').addEventListener('click', () => cambi
 // ==========================================
 async function init() {
     await cargarOpcionesLogin();
-    const guardado = sessionStorage.getItem('usuario');
-    const guardadoRRLL = sessionStorage.getItem('usuarioRRLL');
+    const guardado = localStorage.getItem('usuario') || sessionStorage.getItem('usuario');
+    const guardadoRRLL = localStorage.getItem('usuarioRRLL') || sessionStorage.getItem('usuarioRRLL');
     if (guardado) {
         const parsed = JSON.parse(guardado);
         if (parsed && parsed.gerencia_key !== undefined) {
             usuarioActual = parsed;
             await iniciarDashboard();
         } else {
-            sessionStorage.removeItem('usuario');
+            localStorage.removeItem('usuario');
         }
     } else if (guardadoRRLL) {
         usuarioRRLL = JSON.parse(guardadoRRLL);
