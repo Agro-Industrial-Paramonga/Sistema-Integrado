@@ -3097,7 +3097,7 @@ async function cargarTablaRRLL() {
         rrllTotalPaginas = Math.ceil(total / rrllRegistrosPorPagina) || 1;
 
         const elContador = document.getElementById('relaciones-contador');
-        if (elContador) elContador.textContent = total.toLocaleString();
+        if (elContador) elContador.textContent = total.toLocaleString() + ' hallazgos';
 
         const tbody = document.getElementById('relaciones-tabla-body');
 
