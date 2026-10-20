@@ -2143,6 +2143,9 @@ function renderGridActos() {
    Envía la alarma push al jefe del departamento del hallazgo.
    El jefe recibe en los celulares donde haya iniciado sesión.
    ========================================================== */
+/* Variable global para guardar qué botón se presionó y sus datos */
+let ctxNotificacion = { boton: null, codigo: '', seccion: '', texto: '' };
+
 async function notificarHallazgoAlJefe(boton, codigo, seccionRaw, textoRaw) {
     if (!esAdminReal()) return;
 
@@ -2152,7 +2155,27 @@ async function notificarHallazgoAlJefe(boton, codigo, seccionRaw, textoRaw) {
         return;
     }
 
-    if (!confirm(`¿Enviar la alarma al jefe de "${seccion}"?\n\nHallazgo: ${codigo}`)) return;
+    // Guardamos los datos para usarlos si el usuario confirma
+    ctxNotificacion = { boton, codigo, seccion, texto: textoRaw };
+
+    // Rellenamos la ventana modal
+    document.getElementById('modal-notif-seccion').textContent = `"${seccion}"`;
+    document.getElementById('modal-notif-codigo').textContent = codigo;
+
+    // Mostramos la ventana modal
+    const modal = document.getElementById('modal-confirmar-notificacion');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+async function ejecutarNotificacion() {
+    const { boton, codigo, seccion, texto: textoRaw } = ctxNotificacion;
+    if (!boton) return;
+
+    // Cerramos la ventana modal
+    const modal = document.getElementById('modal-confirmar-notificacion');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
 
     const texto = String(textoRaw || '').substring(0, 140);
     const contenidoOriginal = boton.innerHTML;
@@ -2186,8 +2209,18 @@ async function notificarHallazgoAlJefe(boton, codigo, seccionRaw, textoRaw) {
     } finally {
         boton.disabled = false;
         boton.innerHTML = contenidoOriginal;
+        ctxNotificacion = { boton: null, codigo: '', seccion: '', texto: '' };
     }
 }
+
+/* Enlazar los botones del modal (esto va suelto en el archivo, no dentro de otra función) */
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btn-cancelar-notificacion')?.addEventListener('click', () => {
+        document.getElementById('modal-confirmar-notificacion').classList.add('hidden');
+        document.getElementById('modal-confirmar-notificacion').classList.remove('flex');
+    });
+    document.getElementById('btn-confirmar-notificacion')?.addEventListener('click', ejecutarNotificacion);
+});
 
 function obtenerFotoDestacada(hallazgoId) {
     const fotos = imagenesHallazgosCache.filter(i => i.hallazgo_id === hallazgoId);
