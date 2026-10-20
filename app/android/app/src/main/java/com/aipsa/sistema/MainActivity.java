@@ -45,6 +45,13 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() != null) {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
+                // Permitir agrandar/achicar con dos dedos (por ejemplo el
+                // diagrama de flujo del plan de contingencia).
+                android.webkit.WebSettings ajustes = webView.getSettings();
+                ajustes.setSupportZoom(true);
+                ajustes.setBuiltInZoomControls(true);
+                ajustes.setDisplayZoomControls(false);
+
                 webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {

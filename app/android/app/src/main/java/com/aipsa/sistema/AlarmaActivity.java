@@ -6,6 +6,9 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -41,6 +44,7 @@ public class AlarmaActivity extends Activity {
     private static final long REPETIR_VOZ_MS = 12000;
 
     private MediaPlayer reproductor;
+    private AudioTrack pistaSirena;
     private Vibrator vibrador;
 
     private TextToSpeech voz;
@@ -136,13 +140,51 @@ public class AlarmaActivity extends Activity {
         return raiz;
     }
 
+    /** Sirena generada en el propio telefono: sube y baja de tono. */
     private void iniciarSonido() {
         try {
-            Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-            if (uri == null) return;
+            final int frecuencia = 44100;
+            final int duracionMs = 1800;
+            final int muestras = frecuencia * duracionMs / 1000;
 
+            final short[] buffer = new short[muestras];
+            double fase = 0.0;
+            for (int i = 0; i < muestras; i++) {
+                double avance = (double) i / muestras;
+                double tono = 640 + 520 * Math.sin(2 * Math.PI * avance);
+                fase += 2 * Math.PI * tono / frecuencia;
+                buffer[i] = (short) (Math.sin(fase) * 0.55 * Short.MAX_VALUE);
+            }
+
+            pistaSirena = new AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build())
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(frecuencia)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build())
+                    .setBufferSizeInBytes(buffer.length * 2)
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build();
+
+            pistaSirena.write(buffer, 0, buffer.length);
+            pistaSirena.setLoopPoints(0, buffer.length, -1);
+            pistaSirena.setVolume(1.0f);
+            pistaSirena.play();
+        } catch (Exception e) {
+            e.printStackTrace();
+            iniciarSonidoRespaldo();
+        }
+    }
+
+    /** Si la sirena falla, usa el tono de alarma del sistema. */
+    private void iniciarSonidoRespaldo() {
+        try {
+            Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (uri == null) return;
             reproductor = new MediaPlayer();
             reproductor.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -150,12 +192,42 @@ public class AlarmaActivity extends Activity {
                     .build());
             reproductor.setDataSource(this, uri);
             reproductor.setLooping(true);
-            reproductor.setVolume(1.0f, 1.0f);
             reproductor.prepare();
             reproductor.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void bajarVolumen() {
+        try {
+            if (pistaSirena != null) pistaSirena.setVolume(0.18f);
+            if (reproductor != null) reproductor.setVolume(0.18f, 0.18f);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void subirVolumen() {
+        try {
+            if (pistaSirena != null) pistaSirena.setVolume(1.0f);
+            if (reproductor != null) reproductor.setVolume(1.0f, 1.0f);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void detenerSonido() {
+        try {
+            if (pistaSirena != null) {
+                if (pistaSirena.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) pistaSirena.stop();
+                pistaSirena.release();
+                pistaSirena = null;
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        try {
+            if (reproductor != null) {
+                if (reproductor.isPlaying()) reproductor.stop();
+                reproductor.release();
+                reproductor = null;
+            }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     private void iniciarVibracion() {
@@ -216,7 +288,7 @@ public class AlarmaActivity extends Activity {
     private void hablar() {
         if (!vozLista || voz == null || textoParaVoz.isEmpty()) return;
         try {
-            if (reproductor != null) reproductor.setVolume(0.15f, 0.15f);
+            bajarVolumen();
             voz.speak(textoParaVoz, TextToSpeech.QUEUE_FLUSH, null, "alarma-voz");
         } catch (Exception e) {
             e.printStackTrace();
@@ -225,20 +297,24 @@ public class AlarmaActivity extends Activity {
     }
 
     private void restaurarVolumen() {
-        try {
-            if (reproductor != null) reproductor.setVolume(1.0f, 1.0f);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        subirVolumen();
     }
 
     /** Quita emojis y simbolos raros para que la voz no los lea. */
     private String limpiarParaVoz(String texto) {
         if (texto == null) return "";
-        return texto
+        String limpio = texto
                 .replaceAll("[\\p{So}\\p{Sk}\\p{Cn}]", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+
+        // El sintetizador deletrea las siglas en mayuscula: se le da la
+        // forma hablada para que diga "huayco" de corrido.
+        limpio = limpio.replaceAll("(?i)huayco", "uayco");
+        limpio = limpio.replaceAll("(?i)huaycos", "uaycos");
+        limpio = limpio.replaceAll("(?i)alerta de uayco", "alerta de uayco");
+
+        return limpio;
     }
 
     private void detenerVoz() {
@@ -259,15 +335,7 @@ public class AlarmaActivity extends Activity {
     /** Detiene sonido, vibracion, voz y la notificacion, y cierra la pantalla. */
     private void detenerTodo() {
         detenerVoz();
-        try {
-            if (reproductor != null) {
-                if (reproductor.isPlaying()) reproductor.stop();
-                reproductor.release();
-                reproductor = null;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        detenerSonido();
         try {
             if (vibrador != null) {
                 vibrador.cancel();
@@ -289,15 +357,7 @@ public class AlarmaActivity extends Activity {
     @Override
     protected void onDestroy() {
         detenerVoz();
-        try {
-            if (reproductor != null) {
-                if (reproductor.isPlaying()) reproductor.stop();
-                reproductor.release();
-                reproductor = null;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        detenerSonido();
         try {
             if (vibrador != null) {
                 vibrador.cancel();
