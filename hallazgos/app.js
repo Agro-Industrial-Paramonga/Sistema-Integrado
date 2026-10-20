@@ -1148,7 +1148,7 @@ async function cargarTabla() {
 
         let q = supabaseClient
             .from('hallazgos')
-            .select('"COD_HALLAZGO","FECHA_ACONTECIMIENTO","DESC_SECCION","ESTADO","ACONTECIMIENTO","USR_RESPONSABLE","USR_REASIGNADO"', { count: 'exact' })
+            .select('"COD_HALLAZGO","FECHA_ACONTECIMIENTO","DESC_SECCION","ESTADO","DESC_EVENTO","ACONTECIMIENTO","USR_RESPONSABLE","USR_REASIGNADO"', { count: 'exact' })
             .neq('"ESTADO"', 'Anulado');
 
         q = excluirAnios(q);
