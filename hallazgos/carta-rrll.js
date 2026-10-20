@@ -15,6 +15,7 @@
 
     var numeroCarta = 1;
     var tipoCartaActual = 'trabajador';
+    var modoCarta = 'normal';
     var destinatarioActual = '';
     var ultimoRango = null;
     var imagenActiva = null;
@@ -41,6 +42,13 @@
 
     function minusculaInicial(t) { return t ? t.charAt(0).toLowerCase() + t.slice(1) : ''; }
 
+    function enLetras(n) {
+        var u = ['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez',
+                 'once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte',
+                 'veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve','treinta'];
+        return (n >= 0 && n <= 30) ? u[n] : String(n);
+    }
+
     function esc(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -56,7 +64,9 @@
         partes.push('<p>Señor<br>' + esc(quien) + '<br>Paramonga.-</p>');
         partes.push('<p>Estimado señor:</p>');
 
-        if (numero === 1) {
+        const esPlantillaPrimera = (numero === 1) && (modoCarta !== 'medida');
+
+        if (esPlantillaPrimera) {
             var fechaHecho = parsearFecha(h.FECHA_ACONTECIMIENTO);
             var hecho = minusculaInicial((h.ACONTECIMIENTO || '').trim().replace(/\.$/, ''));
             var anioHecho = fechaHecho ? fechaHecho.getFullYear() : null;
@@ -72,6 +82,23 @@
 
             partes.push('<p>' + esc(cuerpo) + '</p>');
             partes.push('<p>' + esc(plazo) + '</p>');
+        } else if (modoCarta === 'medida') {
+            var cm = (rrllCasoActual && rrllCasoActual.meta && rrllCasoActual.meta.carta_medida) || {};
+            var detalle = '';
+
+            if (cm.medida === 'Suspensión') {
+                var dias = parseInt(cm.dias_suspension) || 1;
+                detalle = 'Se le comunica que se ha resuelto imponerle la medida disciplinaria de SUSPENSIÓN de ' +
+                    dias + ' (' + enLetras(dias) + ') día' + (dias === 1 ? '' : 's') + ' hábil' + (dias === 1 ? '' : 'es') +
+                    ', por los hechos que se le imputaron.';
+            } else if (cm.medida === 'Amonestación') {
+                detalle = 'Se le comunica que se ha resuelto imponerle la medida disciplinaria de AMONESTACIÓN ESCRITA, ' +
+                    (cm.afecta_incentivos ? 'la cual SÍ afecta los incentivos' : 'la cual NO afecta los incentivos') +
+                    ', por los hechos que se le imputaron.';
+            }
+
+            partes.push('<p>' + esc(detalle) + '</p>');
+            partes.push('<p><br></p>');
         } else {
             partes.push('<p><br></p>');
         }
@@ -86,7 +113,14 @@
     function doc() { return document.getElementById('carta-doc'); }
 
     function urlTexto(num) {
-        var archivo = (num === 1) ? '1era_carta_texto.json' : ('carta_' + num + '_texto.json');
+        var archivo;
+        if (modoCarta === 'medida') {
+            archivo = 'carta_medida_' + num + '_texto.json';
+        } else if (num === 1) {
+            archivo = '1era_carta_texto.json';
+        } else {
+            archivo = 'carta_' + num + '_texto.json';
+        }
         return supabaseClient.storage
             .from('relaciones-cargos')
             .getPublicUrl(rrllHallazgoActual.COD_HALLAZGO + '/' + archivo).data.publicUrl;
@@ -97,8 +131,10 @@
             var resp = await fetch(urlTexto(num) + '?v=' + Date.now());
             if (!resp.ok) return null;
             var guardado = await resp.json();
-            if (guardado && typeof guardado.html === 'string' && guardado.html.trim()) return guardado.html;
-            return null;
+            if (!guardado || typeof guardado.html !== 'string' || !guardado.html.trim()) return null;
+            var modoGuardado = guardado.modo || 'normal';
+            if (modoGuardado !== modoCarta) return null;
+            return guardado.html;
         } catch (e) { return null; }
     }
 
@@ -106,17 +142,20 @@
         doc().querySelectorAll('img').forEach(function (img) { hacerArrastrable(img); });
     }
 
-    async function abrirModal(numero, destinatario, tipo) {
+    async function abrirModal(numero, destinatario, tipo, modo) {
         var h = rrllHallazgoActual;
         if (!h) { alert('Abre primero un caso de la lista.'); return; }
 
         numeroCarta = numero || 1;
         tipoCartaActual = tipo || 'trabajador';
+        modoCarta = modo || 'normal';
         destinatarioActual = (destinatario || h.TRABAJADOR || '').trim();
         if (!destinatarioActual) { alert('⚠️ El hallazgo no tiene trabajador asignado.'); return; }
 
         var titulo = document.querySelector('#modal-carta h3');
-        if (titulo) titulo.textContent = (numeroCarta === 1) ? 'Primera carta' : ('Carta ' + numeroCarta);
+        if (titulo) titulo.textContent = (modoCarta === 'medida')
+            ? 'Carta de medida disciplinaria'
+            : ((numeroCarta === 1) ? 'Primera carta' : ('Carta ' + numeroCarta));
 
         var html = await cargarHTMLGuardado(numeroCarta);
         doc().innerHTML = html || construirHTML(h, numeroCarta, destinatarioActual);
@@ -308,7 +347,9 @@
             boton.textContent = 'Guardando...';
 
             var num = numeroCarta;
-            var nombrePdf = (num === 1) ? ('1era_carta_' + Date.now() + '.pdf') : ('carta_' + num + '_' + Date.now() + '.pdf');
+            var nombrePdf = (modoCarta === 'medida')
+                ? ('carta_medida_' + num + '_' + Date.now() + '.pdf')
+                : ((num === 1) ? ('1era_carta_' + Date.now() + '.pdf') : ('carta_' + num + '_' + Date.now() + '.pdf'));
             var path = h.COD_HALLAZGO + '/' + nombrePdf;
 
             var subida = await supabaseClient.storage
@@ -318,15 +359,23 @@
 
             var url = supabaseClient.storage.from('relaciones-cargos').getPublicUrl(path).data.publicUrl;
 
-            var archivoTexto = (num === 1) ? '1era_carta_texto.json' : ('carta_' + num + '_texto.json');
+            var archivoTexto = (modoCarta === 'medida')
+                ? ('carta_medida_' + num + '_texto.json')
+                : ((num === 1) ? '1era_carta_texto.json' : ('carta_' + num + '_texto.json'));
             try {
-                var json = new Blob([JSON.stringify({ html: doc().innerHTML })], { type: 'application/json' });
+                var json = new Blob([JSON.stringify({ html: doc().innerHTML, modo: modoCarta })], { type: 'application/json' });
                 await supabaseClient.storage.from('relaciones-cargos')
                     .upload(h.COD_HALLAZGO + '/' + archivoTexto, json,
                             { contentType: 'application/json', upsert: true });
             } catch (e) { console.error('[carta] no se pudo guardar el HTML:', e); }
 
-            if (num === 1) {
+            if (modoCarta === 'medida') {
+                var cm = Object.assign({}, (caso.meta && caso.meta.carta_medida) || {});
+                cm.url = url;
+                cm.destinatario = destinatarioActual;
+                cm.fecha_emision = new Date().toISOString();
+                await guardarPaso(caso.id, { meta: Object.assign({}, caso.meta || {}, { carta_medida: cm }) });
+            } else if (num === 1) {
                 var payload = { cargo_1_url: url, cargo_1_destinatario: destinatarioActual };
                 if (!caso.fecha_emision_1) {
                     var fechaEmision = new Date();
@@ -358,7 +407,10 @@
                     descargo_url: null
                 };
 
-                await guardarPaso(caso.id, { cartas_adicionales: cartas, paso_actual: 5 });
+                const casoCerrado = !!(caso.fecha_cierre || caso.paso_actual >= 8);
+                await guardarPaso(caso.id, casoCerrado
+                    ? { cartas_adicionales: cartas }
+                    : { cartas_adicionales: cartas, paso_actual: 5 });
             }
 
             if (ventana) { ventana.location.href = url; } else { window.open(url, '_blank'); }

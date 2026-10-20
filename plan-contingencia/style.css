@@ -2310,3 +2310,16 @@ body {
         display: none;
     }
 }
+
+
+/* Numero de celular tocable dentro del diagrama de flujo */
+.tel-link {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: rgba(5, 150, 105, .5);
+    cursor: pointer;
+}
+.tel-link:hover { text-decoration-color: #059669; }
+.tel-link::after { content: ' \260E'; font-size: .85em; opacity: .7; }

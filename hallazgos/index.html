@@ -98,6 +98,25 @@
         .acto-card:hover .acto-card-btn-edit { display: inline-flex; }
         .acto-card-btn-edit:hover { background: #059669; }
 
+        /* Flechas para pasar de foto dentro de la tarjeta */
+        .acto-foto-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 30px; height: 30px; border-radius: 50%;
+            background: rgba(15,23,42,.6); color: #fff; border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 3; backdrop-filter: blur(3px);
+            transition: background .15s, opacity .15s; opacity: .85;
+        }
+        .acto-foto-nav:hover { background: rgba(5,150,105,.95); opacity: 1; }
+        .acto-foto-prev { left: 8px; }
+        .acto-foto-next { right: 8px; }
+        .acto-foto-contador {
+            position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+            background: rgba(15,23,42,.65); color: #fff; font-size: 10px; font-weight: 700;
+            padding: 2px 8px; border-radius: 999px; z-index: 3; pointer-events: none;
+            letter-spacing: .04em;
+        }
+
         .acto-card-hint-editable { cursor: text; transition: background .15s; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; }
         .acto-card-hint-editable:hover { background: #ecfdf5; }
 
@@ -112,6 +131,32 @@
         .btn-campana.enviada { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
 
         /* Carta RRLL: previsualizacion editable tipo A4 */
+
+        /* ===== MODO NOCHE ===== */
+        html.dark body { background: #0b1220 !important; color: #e2e8f0; }
+        html.dark [class*="bg-white"] { background-color: #111c31 !important; }
+        html.dark [class*="bg-slate-50"] { background-color: #0d1830 !important; }
+        html.dark [class*="bg-slate-100"] { background-color: #16233a !important; }
+        html.dark [class*="bg-slate-200"] { background-color: #1d2c46 !important; }
+        html.dark [class*="border-slate-200"],
+        html.dark [class*="border-slate-100"],
+        html.dark [class*="border-slate-300"] { border-color: #1f2f4a !important; }
+        html.dark [class*="text-slate-900"],
+        html.dark [class*="text-slate-800"],
+        html.dark [class*="text-\[\#17233B\]"] { color: #e8eefb !important; }
+        html.dark [class*="text-slate-700"],
+        html.dark [class*="text-slate-600"] { color: #c8d4e6 !important; }
+        html.dark [class*="text-slate-500"] { color: #93a4bd !important; }
+        html.dark [class*="text-slate-400"] { color: #7b8ca6 !important; }
+        html.dark input, html.dark select, html.dark textarea {
+            background-color: #0d1830 !important; color: #e8eefb !important; border-color: #1f2f4a !important;
+        }
+        html.dark .tab-btn { color: #c8d4e6; }
+        html.dark .tab-btn-active { background: #1d2f4d !important; color: #fff !important; }
+        html.dark .drawer, html.dark #relaciones-drawer-content { background: #0b1220 !important; }
+        html.dark tr:hover, html.dark .acto-card:hover { background-color: #16233a !important; }
+        html.dark #btn-tema { background: #e8eefb; color: #0b1220; }
+
         .carta-pagina {
             position: relative;
             box-sizing: border-box;
@@ -165,12 +210,21 @@
         }
         .drawer-overlay.active { opacity: 1; pointer-events: auto; }
         .drawer {
-            position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw;
-            background: white; z-index: 50; box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+            position: fixed; top: 0; right: 0; bottom: 0; left: 0; width: 100%;
+            background: #F8FAFC; z-index: 50;
             transform: translateX(100%); transition: transform .35s cubic-bezier(.4,0,.2,1);
             overflow-y: auto;
         }
         .drawer.active { transform: translateX(0); }
+        #relaciones-drawer-content {
+            max-width: none; width: 100%; margin: 0; background: #fff;
+            min-height: calc(100vh - 65px); padding: 28px clamp(24px, 3vw, 56px) 56px;
+        }
+        .drawer-panel {
+            width: 100%; max-width: 900px; margin: 0 auto;
+            background: #fff; min-height: 100%;
+            box-shadow: 0 10px 40px rgba(15,23,42,.08);
+        }
 
         .step-item { transition: all .2s ease; }
         .step-item.completed { background: #f0fdf4; border-color: #86efac; }
@@ -704,6 +758,12 @@
                 </div>
 
                 <div id="subt-vista-faltas" class="hidden">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm flex flex-wrap items-center gap-2 mb-4">
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Año:</span>
+                        <div class="flex flex-wrap gap-2" id="faltas-anios"></div>
+                        <span class="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider ml-2">Mes:</span>
+                        <select id="faltas-mes" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
                     <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                         <div class="px-5 py-4 border-b border-slate-100">
                             <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Ranking de faltas más cometidas</h2>
@@ -751,6 +811,18 @@
                         <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Sesión activa</p>
                         <p id="relaciones-usuario-actual" class="text-sm font-semibold text-slate-700">Relaciones Laborales</p>
                     </div>
+                    <button id="rrll-tab-casos" class="bg-white border border-slate-200 shadow-sm text-slate-800 text-sm font-semibold px-3 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        Casos disciplinarios
+                    </button>
+                    <button id="rrll-tab-actos" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path>
+                        </svg>
+                        Actos Inseguros
+                    </button>
                     <button id="btn-logout-relaciones" class="text-slate-600 hover:text-red-600 text-sm font-medium px-3 py-2 rounded-lg hover:bg-red-50 transition flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
@@ -762,6 +834,8 @@
         </header>
 
         <main class="max-w-[1600px] mx-auto px-6 py-5 space-y-4">
+
+            <div id="rrll-seccion-actos" class="hidden space-y-4"></div>
 
             <div id="relaciones-avisos" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5">
                 <div class="flex items-center justify-between gap-3 mb-3">
@@ -811,7 +885,7 @@
                     </div>
                 </div>
 
-                <div id="rrll-table-wrapper" class="hidden md:block">
+                <div id="rrll-table-wrapper" class="hidden">
                     <table class="w-full text-sm" style="min-width: 1400px;">
                         <thead>
                             <tr class="bg-slate-50/70 border-b border-slate-100">
@@ -832,7 +906,7 @@
                     </table>
                 </div>
 
-                <div id="rrll-cards" class="md:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100">
+                <div id="rrll-cards" class="flex-1 min-h-0 overflow-y-auto space-y-3 p-4">
                     <div class="text-center py-12 text-slate-400 text-sm">Cargando casos...</div>
                 </div>
 
@@ -867,6 +941,7 @@
             <div>
                 <p class="text-xs text-slate-400 uppercase tracking-wider font-medium">Caso disciplinario</p>
                 <p id="relaciones-drawer-titulo" class="text-base font-bold text-slate-900">—</p>
+                        <p id="relaciones-drawer-sub" class="text-[11px] text-slate-400 mt-0.5">—</p>
             </div>
             <button id="btn-cerrar-drawer" class="text-slate-400 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1070,8 +1145,31 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="app.js?v=28"></script>
+    <script src="app.js?v=59"></script>
     <script src="push-jefe.js?v=2"></script>
-    <script src="carta-rrll.js?v=9"></script>
+    <script src="carta-rrll.js?v=15"></script>
+
+    <button id="btn-tema" title="Cambiar modo noche"
+            class="fixed bottom-5 right-5 z-[130] w-11 h-11 rounded-full bg-slate-900 text-white shadow-lg
+                   flex items-center justify-center hover:scale-105 transition">
+        <svg id="icono-tema" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+    </button>
+    <script>
+        (function () {
+            var guardado = localStorage.getItem('tema') === 'noche';
+            if (guardado) document.documentElement.classList.add('dark');
+            document.addEventListener('DOMContentLoaded', function () {
+                var btn = document.getElementById('btn-tema');
+                if (!btn) return;
+                btn.addEventListener('click', function () {
+                    var noche = document.documentElement.classList.toggle('dark');
+                    localStorage.setItem('tema', noche ? 'noche' : 'dia');
+                });
+            });
+        })();
+    </script>
 </body>
 </html>

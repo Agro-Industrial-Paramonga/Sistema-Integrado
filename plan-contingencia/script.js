@@ -150,10 +150,21 @@ function mostrarConfirm(mensaje, titulo = 'Confirmar', tipo = 'info') {
     });
 }
 
+/* Pide confirmacion antes de cambiar el estado de una actividad. */
+async function confirmarCambioEstado(actual, nuevo) {
+    const mapa = ETIQUETAS || {};
+    const desde = mapa[actual] || actual || '-';
+    const hasta = mapa[nuevo] || nuevo || '-';
+    return await mostrarConfirm(
+        '¿Confirmas el cambio de estado de esta actividad? Pasará de "' + desde + '" a "' + hasta + '".',
+        'Cambiar estado',
+        'info'
+    );
+}
+
 /* ============================================================
    HISTORIAL
-   ============================================================ */
-async function registrarHistorial(accion, tabla, medidaId, detalle) {
+   ============================================================ */async function registrarHistorial(accion, tabla, medidaId, detalle) {
     const user = obtenerSesion();
     if (!user) return;
     try {
@@ -182,9 +193,7 @@ async function abrirModalHistorial() {
         .order('created_at', { ascending: false })
         .limit(200);
 
-    if (!esVistaCompleta()) {
-        query = query.eq('area', user.area);
-    }
+    /* Historial completo: todas las áreas ven quién agregó qué. */
 
     const { data, error } = await query;
     if (error) {
@@ -206,7 +215,7 @@ async function abrirModalHistorial() {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
-        const areaExtra = esVistaCompleta() ? ` · <em>${h.area}</em>` : '';
+        const areaExtra = h.area ? ` · <em>${h.area}</em>` : '';
         item.innerHTML = `
             <div class="historial-head">
                 <strong>Nueva actividad</strong>
@@ -593,10 +602,11 @@ function aplicarVisibilidadGerente() {
     const vistaCompleta = esVistaCompleta();
     const gerenteReal   = esGerente();
 
-    // Filtro de área, historial → los 3 roles con vista completa
+    // Filtros de área: visibles para TODOS (todos ven el plan completo).
+    // Historial y demás botones de gerente: solo roles con vista completa.
     document.querySelectorAll('.btn-solo-gerente').forEach(el => {
         if (el.tagName === 'SELECT') {
-            el.style.display = vistaCompleta ? 'inline-block' : 'none';
+            el.style.display = 'inline-block';
         } else {
             el.style.display = vistaCompleta ? 'inline-flex' : 'none';
         }
@@ -690,6 +700,14 @@ function esSoloLectura() {
     return u.rol === 'gdo' || u.rol === 'gerencial_legal';
 }
 
+
+/* Seguridad Industrial puede asignar la medida a cualquier área. */
+function esSeguridadIndustrial() {
+    const u = obtenerSesion();
+    if (!u || !u.area) return false;
+    return String(u.area).toUpperCase().indexOf('SEGURIDAD INDUSTRIAL') !== -1;
+}
+
 function puedeEditar(medida) {
     const user = obtenerSesion();
     if (!user) return false;
@@ -712,14 +730,11 @@ function avisoNoEditable() {
 function filtrarVisibles(medidas, filtroArea) {
     const user = obtenerSesion();
     if (!user) return [];
+
+    /* Todas las áreas ven el plan completo.
+       La edición sigue restringida por puedeEditar() a la propia área. */
     let result = medidas;
-    if (!esVistaCompleta()) {
-        result = result.filter(m => {
-            if (!m.area) return false;
-            const areas = m.area.split('/').map(normalizarArea);
-            return areas.includes(normalizarArea(user.area));
-        });
-    }
+
     if (filtroArea && filtroArea !== 'all') {
         const filtroNorm = normalizarArea(filtroArea);
         result = result.filter(m => {
@@ -920,6 +935,9 @@ function renderTablaAntes() {
             if (!puedeEditar(item)) { avisoNoEditable(); return; }
 
             const nuevo = siguienteEstado(item.estado);
+            const confirmado = await confirmarCambioEstado(item.estado, nuevo);
+            if (!confirmado) return;
+
             item.estado = nuevo;
             badge.classList.remove('badge-no-iniciado','badge-en-ejecucion','badge-finalizado');
             badge.classList.add('badge-' + nuevo);
@@ -1265,6 +1283,9 @@ function renderTablaDespues() {
             if (!puedeEditar(item)) { avisoNoEditable(); return; }
 
             const nuevo = siguienteEstado(item.estado);
+            const confirmado = await confirmarCambioEstado(item.estado, nuevo);
+            if (!confirmado) return;
+
             item.estado = nuevo;
             badge.classList.remove('badge-no-iniciado','badge-en-ejecucion','badge-finalizado');
             badge.classList.add('badge-' + nuevo);
@@ -1418,7 +1439,11 @@ function abrirModalAgregar(tabla) {
     document.getElementById('areas-lista').innerHTML = '';
 
     const user = obtenerSesion();
-    agregarAreaFila(user.area, true, true);
+    if (esSeguridadIndustrial()) {
+        agregarAreaFila(user.area, false, false);
+    } else {
+        agregarAreaFila(user.area, true, true);
+    }
 
     document.querySelectorAll('#modal-agregar .solo-antes').forEach(w => {
         if (w.querySelector('#agregar-periodo')) w.style.display = 'block';
@@ -1784,6 +1809,51 @@ if (typeof messaging !== 'undefined') {
         }
     });
 }
+
+/* ============================================================
+   NUMEROS LLAMABLES
+   Convierte los celulares del diagrama en enlaces tel:
+   para que al tocarlos se abra el marcador con el numero puesto.
+   ============================================================ */
+function activarNumerosLlamables(raiz) {
+    const cont = raiz || document.getElementById('section-flujo');
+    if (!cont) return;
+
+    const patron = /(^|\D)(9\d{8})(?!\d)/g;
+    const walker = document.createTreeWalker(cont, NodeFilter.SHOW_TEXT, null);
+    const nodos = [];
+    while (walker.nextNode()) nodos.push(walker.currentNode);
+
+    nodos.forEach((nodo) => {
+        const texto = nodo.nodeValue || '';
+        if (!texto.match(/9\d{8}/)) return;
+        if (nodo.parentElement && nodo.parentElement.classList.contains('tel-link')) return;
+
+        const frag = document.createDocumentFragment();
+        let ultimo = 0;
+        let m;
+        patron.lastIndex = 0;
+
+        while ((m = patron.exec(texto)) !== null) {
+            const numero = m[2];
+            frag.appendChild(document.createTextNode(texto.slice(ultimo, m.index) + m[1]));
+
+            const a = document.createElement('a');
+            a.href = 'tel:+51' + numero;
+            a.className = 'tel-link';
+            a.textContent = numero;
+            a.title = 'Llamar al ' + numero;
+            frag.appendChild(a);
+
+            ultimo = m.index + m[0].length;
+        }
+
+        if (ultimo === 0) return;
+        frag.appendChild(document.createTextNode(texto.slice(ultimo)));
+        nodo.parentNode.replaceChild(frag, nodo);
+    });
+}
+
 /* ============================================================
    INICIO
    ============================================================ */
@@ -1793,4 +1863,5 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosDespues();
     inicializarFiltrosArea();
     verificarSesion();
+    activarNumerosLlamables();
 });

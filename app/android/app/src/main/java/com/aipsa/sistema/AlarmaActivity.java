@@ -11,8 +11,12 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -20,19 +24,36 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.Locale;
+
 /**
  * Pantalla de ALARMA.
  *
  * Se muestra encima de la pantalla de bloqueo, enciende la pantalla sola,
- * reproduce el sonido de alarma del celular EN BUCLE y vibra hasta que el
- * usuario pulsa el boton DETENER.
+ * reproduce el sonido de alarma del celular EN BUCLE, VIBRA y ADEMAS DICE
+ * EN VOZ ALTA la alerta, hasta que el usuario pulsa el boton DETENER.
  */
 public class AlarmaActivity extends Activity {
 
     public static final int ID_NOTIFICACION = 1001;
 
+    /** Cada cuantos milisegundos se repite el aviso hablado. */
+    private static final long REPETIR_VOZ_MS = 12000;
+
     private MediaPlayer reproductor;
     private Vibrator vibrador;
+
+    private TextToSpeech voz;
+    private boolean vozLista = false;
+    private String textoParaVoz = "";
+    private final Handler manejador = new Handler(Looper.getMainLooper());
+    private final Runnable repetirVoz = new Runnable() {
+        @Override
+        public void run() {
+            hablar();
+            manejador.postDelayed(this, REPETIR_VOZ_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +82,7 @@ public class AlarmaActivity extends Activity {
 
         iniciarSonido();
         iniciarVibracion();
+        iniciarVoz(titulo, cuerpo);
     }
 
     private View construirVista(String titulo, String cuerpo) {
@@ -151,8 +173,92 @@ public class AlarmaActivity extends Activity {
         }
     }
 
-    /** Detiene sonido, vibracion y la notificacion, y cierra la pantalla. */
+    /* ============================================================
+       VOZ: dice en voz alta el titulo y el mensaje de la alerta,
+       y lo repite cada pocos segundos mientras la alarma este activa.
+       ============================================================ */
+    private void iniciarVoz(String titulo, String cuerpo) {
+        textoParaVoz = limpiarParaVoz(titulo + ". " + cuerpo);
+        if (textoParaVoz.isEmpty()) return;
+
+        voz = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int estado) {
+                if (estado != TextToSpeech.SUCCESS || voz == null) return;
+
+                int resultado = voz.setLanguage(new Locale("es", "ES"));
+                if (resultado == TextToSpeech.LANG_MISSING_DATA
+                        || resultado == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    resultado = voz.setLanguage(new Locale("es", "US"));
+                }
+                if (resultado == TextToSpeech.LANG_MISSING_DATA
+                        || resultado == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    voz.setLanguage(Locale.getDefault());
+                }
+
+                voz.setSpeechRate(0.95f);
+                voz.setPitch(1.0f);
+
+                voz.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override public void onStart(String id) { }
+                    @Override public void onDone(String id) { restaurarVolumen(); }
+                    @Override public void onError(String id) { restaurarVolumen(); }
+                });
+
+                vozLista = true;
+                hablar();
+                manejador.postDelayed(repetirVoz, REPETIR_VOZ_MS);
+            }
+        });
+    }
+
+    /** Baja el sonido de la alarma mientras habla, para que se entienda. */
+    private void hablar() {
+        if (!vozLista || voz == null || textoParaVoz.isEmpty()) return;
+        try {
+            if (reproductor != null) reproductor.setVolume(0.15f, 0.15f);
+            voz.speak(textoParaVoz, TextToSpeech.QUEUE_FLUSH, null, "alarma-voz");
+        } catch (Exception e) {
+            e.printStackTrace();
+            restaurarVolumen();
+        }
+    }
+
+    private void restaurarVolumen() {
+        try {
+            if (reproductor != null) reproductor.setVolume(1.0f, 1.0f);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /** Quita emojis y simbolos raros para que la voz no los lea. */
+    private String limpiarParaVoz(String texto) {
+        if (texto == null) return "";
+        return texto
+                .replaceAll("[\\p{So}\\p{Sk}\\p{Cn}]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private void detenerVoz() {
+        try {
+            manejador.removeCallbacksAndMessages(null);
+            if (voz != null) {
+                voz.stop();
+                voz.shutdown();
+                voz = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        vozLista = false;
+        restaurarVolumen();
+    }
+
+    /** Detiene sonido, vibracion, voz y la notificacion, y cierra la pantalla. */
     private void detenerTodo() {
+        detenerVoz();
         try {
             if (reproductor != null) {
                 if (reproductor.isPlaying()) reproductor.stop();
@@ -182,6 +288,7 @@ public class AlarmaActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        detenerVoz();
         try {
             if (reproductor != null) {
                 if (reproductor.isPlaying()) reproductor.stop();

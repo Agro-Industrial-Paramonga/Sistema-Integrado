@@ -45,6 +45,7 @@ function arg(nombre) {
 const TEST_USER = arg('--test-user');
 const ONLY = arg('--only');
 const LIMIT = arg('--limit') ? parseInt(arg('--limit'), 10) : null;
+const MAX_ALERTAS = arg('--max-alertas') ? parseInt(arg('--max-alertas'), 10) : 5;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -72,6 +73,28 @@ function diasAbierto(fecha) {
   }
   if (!d || isNaN(d)) return null;
   const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+  return dias >= 0 ? dias : null;
+}
+
+function diasCalendario(fecha) {
+  if (!fecha) return null;
+
+  let y = null, m = null, d = null;
+
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
+  if (iso) {
+    y = +iso[1]; m = +iso[2]; d = +iso[3];
+  } else {
+    const lat = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/.exec(fecha);
+    if (lat) { y = +lat[3]; m = +lat[2]; d = +lat[1]; }
+  }
+  if (!y || !m || !d) return null;
+
+  const hoyPeru = new Date(Date.now() - 5 * 3600000);
+  const hoyUTC = Date.UTC(hoyPeru.getUTCFullYear(), hoyPeru.getUTCMonth(), hoyPeru.getUTCDate());
+  const repUTC = Date.UTC(y, m - 1, d);
+
+  const dias = Math.round((hoyUTC - repUTC) / 86400000);
   return dias >= 0 ? dias : null;
 }
 
@@ -132,60 +155,86 @@ async function main() {
   }
   console.log(`Dispositivos de jefes registrados: ${subs.length} en ${tokensPorClave.size} secciones`);
 
-  // 4) Envio
-  const resumen = { enviados: 0, sinJefe: [], sinDispositivo: [], errores: [] };
+  // 4) Una sola alerta por responsable, con todos sus actos abiertos
+  const resumen = { enviados: 0, sinJefe: [], sinDispositivo: [], errores: [], omitidos: 0 };
   const detalleSinJefe = new Set();
   const detalleSinDispositivo = new Set();
 
+  const porSeccion = new Map();
   for (const h of hallazgos) {
     const seccion = norm(h.DESC_SECCION);
-    const clave = PREFIJO + seccion;
-    const cod = norm(h.COD_HALLAZGO) || 'sin codigo';
-
+    if (!seccion) continue;
     if (ONLY && norm(ONLY) !== seccion) continue;
+
+    const dias = diasCalendario(h.FECHA_ACONTECIMIENTO);
+    if (dias === null || dias < 1) { resumen.omitidos++; continue; }
+    if (!porSeccion.has(seccion)) porSeccion.set(seccion, []);
+    porSeccion.get(seccion).push({
+      cod: norm(h.COD_HALLAZGO) || 'sin codigo',
+      desc: norm(h.descripcion_acto || h.ACONTECIMIENTO).slice(0, 95),
+      dias,
+    });
+  }
+  console.log(`Secciones con actos de dias anteriores: ${porSeccion.size}`);
+
+  for (const [seccion, items] of porSeccion) {
+    const clave = PREFIJO + seccion;
     if (LIMIT !== null && resumen.enviados >= LIMIT) break;
 
-    if (!jefePorSeccion.has(seccion)) {
-      detalleSinJefe.add(seccion || '(sin seccion)');
-      continue;
-    }
-    if (!tokensPorClave.has(clave)) {
-      detalleSinDispositivo.add(seccion);
-      continue;
-    }
+    if (!jefePorSeccion.has(seccion)) { detalleSinJefe.add(seccion); continue; }
+    if (!tokensPorClave.has(clave)) { detalleSinDispositivo.add(seccion); continue; }
 
     const jefe = jefePorSeccion.get(seccion)[0];
-    const dias = diasAbierto(h.FECHA_ACONTECIMIENTO);
-    const desc = norm(h.descripcion_acto || h.ACONTECIMIENTO).slice(0, 120);
+    const maxDias = Math.max(...items.map((i) => i.dias));
+    const ordenados = items.slice().sort((a, b) => b.dias - a.dias);
 
-    const titulo = '⚠️ ACTO INSEGURO ABIERTO';
+    const titulo = `⚠️ ACTOS INSEGUROS ABIERTOS (${items.length})`;
+    const lineas = ordenados.slice(0, 5).map((i) => `• ${i.cod} · ${i.dias} día${i.dias === 1 ? '' : 's'}`);
+    const resto = items.length > 5 ? `\n+${items.length - 5} más` : '';
     const cuerpo =
-      `${seccion} · ${cod}` +
-      (dias !== null ? ` · ${dias} día${dias === 1 ? '' : 's'} abierto` : '') +
-      (desc ? `\n${desc}` : '');
+      `Responsable: ${jefe} · ${seccion}\n` +
+      `${items.length} acto${items.length === 1 ? '' : 's'} abierto${items.length === 1 ? '' : 's'} · ${maxDias} día${maxDias === 1 ? '' : 's'} de demora\n` +
+      lineas.join('\n') + resto;
+
+    // Una alerta por dia acumulado (el usuario detiene una y aparece la siguiente)
+    // El dia del reporte y el primer dia de plazo no alargan: desde 2 dias
+    // acumulados empieza a sonar 1 alerta, y suma una por dia adicional.
+    const repeticiones = Math.min(Math.max(0, maxDias - 1), MAX_ALERTAS);
+    if (repeticiones === 0) { resumen.omitidos++; continue; }
 
     if (DRY) {
-      console.log(`[SIMULA] ${jefe} <- ${cuerpo.replace(/\n/g, ' | ')}`);
-      resumen.enviados++;
+      for (let r = 1; r <= repeticiones; r++) {
+        const etiqueta = repeticiones > 1 ? ` [alerta ${r}/${repeticiones}]` : '';
+        console.log(`[SIMULA] ${jefe} (${seccion})${etiqueta} <- ${cuerpo.replace(/\n/g, ' | ')}`);
+      }
+      resumen.enviados += repeticiones;
       continue;
     }
 
-    try {
-      const res = await fetch(PUSH_FN, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: titulo, body: cuerpo, userId: clave }),
-      });
-      if (!res.ok) {
-        resumen.errores.push(`${cod}: HTTP ${res.status}`);
-        console.error(`ERROR ${cod}: HTTP ${res.status} ${await res.text()}`);
-      } else {
-        resumen.enviados++;
-        console.log(`OK ${cod} -> ${jefe} (${seccion})`);
+    for (let r = 1; r <= repeticiones; r++) {
+      const cuerpoAlerta = repeticiones > 1
+        ? `${cuerpo}\n\nAlerta ${r} de ${repeticiones}`
+        : cuerpo;
+
+      try {
+        const res = await fetch(PUSH_FN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: titulo, body: cuerpoAlerta, userId: clave }),
+        });
+        if (!res.ok) {
+          resumen.errores.push(`${seccion}: HTTP ${res.status}`);
+          console.error(`ERROR ${seccion}: HTTP ${res.status} ${await res.text()}`);
+        } else {
+          resumen.enviados++;
+          console.log(`OK ${seccion} -> ${jefe} (alerta ${r}/${repeticiones})`);
+        }
+      } catch (e) {
+        resumen.errores.push(`${seccion}: ${e.message}`);
+        console.error(`ERROR ${seccion}:`, e.message);
       }
-    } catch (e) {
-      resumen.errores.push(`${cod}: ${e.message}`);
-      console.error(`ERROR ${cod}:`, e.message);
+
+      if (r < repeticiones) await sleep(4000);
     }
     await sleep(300);
   }
