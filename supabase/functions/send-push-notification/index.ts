@@ -81,11 +81,41 @@ Deno.serve(async (req) => {
     // ============================================================
     // 1. Obtener tokens del destinatario + webhooks globales de iPhone
     // ============================================================
-    let query = supabase.from('push_subscriptions').select('token, notialarm_webhook, user_id');
-    if (userId) query = query.in('user_id', [userId, '__GLOBAL__']);
+    const { data: todos, error } = await supabase
+      .from('push_subscriptions')
+      .select('token, notialarm_webhook, user_id');
 
-    const { data: subs, error } = await query;
     if (error) throw new Error('Error al leer tokens: ' + error.message);
+
+    // Comparacion sin importar mayusculas, tildes ni espacios sobrantes
+    const norm = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+    // Un usuario puede cubrir varias areas: "Operaciones Agrícolas / Cosecha"
+    const partes = (v: unknown) => String(v ?? '').split('/').map(norm).filter(Boolean);
+
+    // Si el celular quedo registrado con el NOMBRE de la persona,
+    // se traduce a su seccion usando la tabla usuarios.
+    const { data: usuarios } = await supabase.from('usuarios').select('area, seccion');
+    const mapaSeccion = new Map<string, string[]>();
+    for (const u of usuarios || []) {
+      const clave = norm(u.area);
+      const secciones = partes(u.seccion);
+      if (clave && secciones.length) mapaSeccion.set(clave, secciones);
+    }
+
+    const clavesDe = (fila: any): string[] => {
+      const propias = partes(fila.user_id);
+      const traducidas = propias.flatMap((p) => mapaSeccion.get(p) || []);
+      return [...new Set([...propias, ...traducidas])];
+    };
+
+    const subs = userId
+      ? (todos || []).filter((s) => {
+          const buscado = norm(userId);
+          const claves = clavesDe(s);
+          return claves.includes(buscado) || claves.includes('__global__');
+        })
+      : (todos || []);
 
     let enviados = 0;
     const tituloFinal = title || 'ðŸš¨ ALERTA DE HUAYCO';
@@ -183,5 +213,8 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+
+
 
 

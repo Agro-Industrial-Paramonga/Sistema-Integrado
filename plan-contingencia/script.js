@@ -1814,9 +1814,28 @@ async function activarNotificacionesPush() {
         console.log('[FCM] Token obtenido:', token.slice(0, 20) + '...');
 
         // 4-5. Guardar token en Supabase
-        // El celular se registra por GERENCIA para que le lleguen las
-        // alarmas de todas las medidas de su area responsable.
-        await guardarTokenPush(user.seccion || user.gerencia_key || user.area, token);
+        // Siempre registrar por SECCION (nunca por el nombre de la persona)
+        let clave = (user.seccion || '').trim();
+
+        if (!clave) {
+            const { data } = await db
+                .from('usuarios')
+                .select('seccion')
+                .eq('area', user.area)
+                .maybeSingle();
+            clave = (data && data.seccion ? data.seccion : '').trim();
+            if (clave) {
+                guardarSesion({ ...user, seccion: clave });
+                user.seccion = clave;
+            }
+        }
+
+        if (!clave) {
+            console.warn('[FCM] El usuario no tiene seccion asignada; no se registra el celular.');
+            return;
+        }
+
+        await guardarTokenPush(clave, token);
     } catch (err) {
         console.error('[FCM] Error al activar notificaciones:', err);
     }
