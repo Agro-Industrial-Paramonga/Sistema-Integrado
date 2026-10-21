@@ -1,0 +1,30 @@
+name: Alarma medidas antes (actividades vencidas)
+
+on:
+  schedule:
+    # 13:00 UTC = 08:00 en Peru
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo simular (no enviar)'
+        required: false
+        default: 'false'
+
+jobs:
+  alarma:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enviar alarma de actividades vencidas
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            node scripts/alarma-medidas-antes.mjs --dry-run
+          else
+            node scripts/alarma-medidas-antes.mjs
+          fi

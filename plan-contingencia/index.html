@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -25,6 +25,9 @@
             <div class="user-pill" id="user-pill">
                 <i class="fas fa-user-circle"></i>
                 <span id="user-name">—</span>
+                <button class="logout-btn" onclick="abrirModalPassword()" title="Cambiar contraseña">
+                    <i class="fas fa-key"></i>
+                </button>
                 <button class="logout-btn" onclick="cerrarSesion()" title="Cerrar sesión">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
@@ -43,6 +46,11 @@
                 <p class="login-sub">Accede con tus credenciales de área</p>
 
                 <form id="login-form" onsubmit="event.preventDefault(); iniciarSesion();">
+                    <label class="login-label">GERENCIA</label>
+                    <select id="login-gerencia" class="login-input login-gerencia-select">
+                        <option value="">Selecciona tu gerencia</option>
+                    </select>
+
                     <label class="login-label">USUARIO</label>
                     <div class="custom-select" id="custom-area-select">
                         <button type="button" class="custom-select-trigger" id="custom-select-trigger">
@@ -555,7 +563,7 @@
 
                 <div class="solo-antes">
                     <label>Período de ejecución (dd/mm/aaaa)</label>
-                    <input type="text" id="agregar-periodo" placeholder="Ej: 25/11/2026">
+                    <input type="date" id="agregar-periodo" placeholder="Ej: 25/11/2026">
                 </div>
 
                 <label>Área responsable *</label>
@@ -644,6 +652,30 @@
      <script src="./capacitor-core.js"></script>
      <script src="./capacitor-push-notifications.js"></script>
      <script src="./capacitor-alarma.js"></script>
-     <script src="script.js?v=8"></script>
+     <script src="script.js?v=12"></script>
+
+<!-- MODAL: CAMBIAR CONTRASEÑA -->
+<div id="modal-password" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width:420px;">
+        <h3 class="modal-title">Cambiar contraseña</h3>
+        <p class="modal-sub">Mínimo 6 caracteres. La nueva contraseña reemplaza a la actual.</p>
+
+        <label class="login-label">CONTRASEÑA ACTUAL</label>
+        <input type="password" id="pass-actual" class="login-input" autocomplete="current-password">
+
+        <label class="login-label">NUEVA CONTRASEÑA</label>
+        <input type="password" id="pass-nueva" class="login-input" autocomplete="new-password">
+
+        <label class="login-label">REPETIR NUEVA</label>
+        <input type="password" id="pass-repetir" class="login-input" autocomplete="new-password">
+
+        <p id="pass-error" style="color:#dc2626;font-size:.85rem;margin-top:10px;display:none;"></p>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="cerrarModalPassword()">Cancelar</button>
+            <button class="btn-primary" id="btn-guardar-pass" onclick="guardarPassword()">Guardar</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

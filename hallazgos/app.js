@@ -1378,6 +1378,64 @@ document.getElementById('btn-rrll-ver-actos')?.addEventListener('click', () => e
 document.getElementById('subt-tab-indicadores').addEventListener('click', () => cambiarSubVistaActos('indicadores'));
 document.getElementById('subt-tab-faltas').addEventListener('click', () => cambiarSubVistaActos('faltas'));
 
+
+/* ==========================================
+   CAMBIAR CONTRASEÑA (Hallazgos AIP)
+   ========================================== */
+function abrirModalPasswordAIP() {
+    if (!usuarioActual) return;
+    document.getElementById('aip-pass-actual').value = '';
+    document.getElementById('aip-pass-nueva').value = '';
+    document.getElementById('aip-pass-repetir').value = '';
+    document.getElementById('aip-pass-error').classList.add('hidden');
+    const m = document.getElementById('modal-pass-aip');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+
+function cerrarModalPasswordAIP() {
+    const m = document.getElementById('modal-pass-aip');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+async function guardarPasswordAIP() {
+    const error = document.getElementById('aip-pass-error');
+    const btn = document.getElementById('aip-pass-guardar');
+    const actual = document.getElementById('aip-pass-actual').value;
+    const nueva = document.getElementById('aip-pass-nueva').value;
+    const repetir = document.getElementById('aip-pass-repetir').value;
+
+    const fallar = (msg) => { error.textContent = msg; error.classList.remove('hidden'); };
+    error.classList.add('hidden');
+
+    if (!actual || !nueva || !repetir) return fallar('Completa los tres campos.');
+    if (nueva.length < 6) return fallar('La nueva contraseña debe tener al menos 6 caracteres.');
+    if (nueva !== repetir) return fallar('Las contraseñas nuevas no coinciden.');
+
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+        const { data, error: err } = await supabaseClient.rpc('cambiar_password_acceso', {
+            p_nombre: usuarioActual.nombre,
+            p_actual: actual,
+            p_nueva: nueva
+        });
+        if (err) throw err;
+        if (!data) return fallar('La contraseña actual no es correcta.');
+
+        cerrarModalPasswordAIP();
+        alert('Tu contraseña se actualizó correctamente.');
+    } catch (e) {
+        console.error(e);
+        fallar('No se pudo cambiar la contraseña.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Guardar';
+    }
+}
+
 // ==========================================
 // 13. INIT
 // ==========================================
@@ -4564,3 +4622,8 @@ function cerrarModalHistorialTrabajador() {
 // INICIO
 // ==========================================
 init();
+
+
+document.getElementById('btn-cambiar-pass')?.addEventListener('click', abrirModalPasswordAIP);
+document.getElementById('aip-pass-cancelar')?.addEventListener('click', cerrarModalPasswordAIP);
+document.getElementById('aip-pass-guardar')?.addEventListener('click', guardarPasswordAIP);

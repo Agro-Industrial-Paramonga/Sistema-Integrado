@@ -484,22 +484,48 @@ const loginAreaHidden     = document.getElementById('login-area');
 
 let areasCargadas = [];
 
+let usuariosLogin = [];
+
 async function cargarAreasEnLogin() {
     const { data, error } = await db
         .from('usuarios')
-        .select('area')
+        .select('area, gerencia_key')
         .eq('activo', true)
         .order('area', { ascending: true });
 
+    const selGerencia = document.getElementById('login-gerencia');
+
     if (error) {
-        console.error('Error al cargar áreas:', error);
-        customSelectMenu.innerHTML = '<div class="custom-select-option">Error al cargar áreas</div>';
+        console.error('Error al cargar usuarios:', error);
+        customSelectMenu.innerHTML = '<div class="custom-select-option">Error al cargar usuarios</div>';
         return;
     }
 
-    areasCargadas = (data || []).map(u => u.area);
+    usuariosLogin = (data || []).filter(u => u.area);
+
+    const gerencias = [...new Set(usuariosLogin.map(u => u.gerencia_key).filter(Boolean))].sort();
+
+    if (selGerencia) {
+        selGerencia.innerHTML = '<option value="">Selecciona tu gerencia</option>' +
+            gerencias.map(g => `<option value="${g}">${g}</option>`).join('');
+
+        selGerencia.addEventListener('change', () => pintarUsuariosDeGerencia(selGerencia.value));
+    }
+
+    pintarUsuariosDeGerencia('');
+}
+
+function pintarUsuariosDeGerencia(gerencia) {
+    const lista = gerencia
+        ? usuariosLogin.filter(u => u.gerencia_key === gerencia)
+        : usuariosLogin;
+
+    areasCargadas = lista.map(u => u.area);
 
     customSelectMenu.innerHTML = '';
+    if (lista.length === 0) {
+        customSelectMenu.innerHTML = '<div class="custom-select-option">Sin usuarios en esta gerencia</div>';
+    }
     areasCargadas.forEach(area => {
         const opt = document.createElement('div');
         opt.className = 'custom-select-option';
@@ -507,6 +533,9 @@ async function cargarAreasEnLogin() {
         opt.textContent = area;
         customSelectMenu.appendChild(opt);
     });
+
+    loginAreaHidden.value = '';
+    if (customSelectValue) customSelectValue.textContent = 'Selecciona tu usuario';
 }
 
 customSelectMenu.addEventListener('click', (e) => {
@@ -562,7 +591,7 @@ async function iniciarSesion() {
 
     const { data, error } = await db
         .from('usuarios')
-        .select('area, rol')
+        .select('area, rol, gerencia_key, seccion')
         .eq('area', area)
         .eq('password', pass)
         .eq('activo', true)
@@ -573,7 +602,12 @@ async function iniciarSesion() {
         return;
     }
 
-    guardarSesion({ area: data.area, rol: data.rol });
+    guardarSesion({
+            area: data.area,
+            rol: data.rol,
+            gerencia_key: data.gerencia_key || null,
+            seccion: data.seccion || null
+        });
     entrarApp();
 }
 
@@ -688,10 +722,16 @@ function esGerente() {
     const u = obtenerSesion();
     return !!(u && u.rol === 'gerente_general');
 }
+/* Secciones con permiso para ver TODO el plan (aunque editen solo lo suyo) */
+const SECCIONES_VISTA_TOTAL = ['COMUNICACIONES E IMAGEN CORPORATIVA'];
+
 function esVistaCompleta() {
     const u = obtenerSesion();
     if (!u) return false;
-    return u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal';
+    if (u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal') return true;
+
+    const seccion = String(u.seccion || '').trim().toUpperCase();
+    return SECCIONES_VISTA_TOTAL.includes(seccion);
 }
 
 function esSoloLectura() {
@@ -1553,6 +1593,10 @@ async function guardarNuevaMedida() {
     }
 
     let periodo = document.getElementById('agregar-periodo').value.trim() || null;
+    if (periodo && /^\d{4}-\d{2}-\d{2}$/.test(periodo)) {
+        const [a, m, d] = periodo.split('-');
+        periodo = d + '/' + m + '/' + a;   // se guarda como DD/MM/AAAA
+    }
     let costo = null;
     if (tablaModalActual === 'antes') {
         costo = formatearCosto(document.getElementById('agregar-costo').value) || null;
@@ -1646,7 +1690,9 @@ async function activarNotificacionesPush() {
         console.log('[FCM] Token obtenido:', token.slice(0, 20) + '...');
 
         // 4-5. Guardar token en Supabase
-        await guardarTokenPush(user.area, token);
+        // El celular se registra por GERENCIA para que le lleguen las
+        // alarmas de todas las medidas de su area responsable.
+        await guardarTokenPush(user.seccion || user.gerencia_key || user.area, token);
     } catch (err) {
         console.error('[FCM] Error al activar notificaciones:', err);
     }
@@ -1852,6 +1898,65 @@ function activarNumerosLlamables(raiz) {
         frag.appendChild(document.createTextNode(texto.slice(ultimo)));
         nodo.parentNode.replaceChild(frag, nodo);
     });
+}
+
+
+/* ============================================================
+   CAMBIAR CONTRASEÑA (cada usuario la suya)
+   ============================================================ */
+function abrirModalPassword() {
+    const user = obtenerSesion();
+    if (!user) return;
+    document.getElementById('pass-actual').value = '';
+    document.getElementById('pass-nueva').value = '';
+    document.getElementById('pass-repetir').value = '';
+    document.getElementById('pass-error').style.display = 'none';
+    document.getElementById('modal-password').style.display = 'flex';
+}
+
+function cerrarModalPassword() {
+    document.getElementById('modal-password').style.display = 'none';
+}
+
+async function guardarPassword() {
+    const user = obtenerSesion();
+    if (!user) return;
+
+    const actual = document.getElementById('pass-actual').value;
+    const nueva = document.getElementById('pass-nueva').value;
+    const repetir = document.getElementById('pass-repetir').value;
+    const error = document.getElementById('pass-error');
+    const btn = document.getElementById('btn-guardar-pass');
+
+    const fallar = (msg) => { error.textContent = msg; error.style.display = 'block'; };
+
+    error.style.display = 'none';
+    if (!actual || !nueva || !repetir) return fallar('Completa los tres campos.');
+    if (nueva.length < 6) return fallar('La nueva contraseña debe tener al menos 6 caracteres.');
+    if (nueva !== repetir) return fallar('Las contraseñas nuevas no coinciden.');
+
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+        const { data, error: err } = await db.rpc('cambiar_password', {
+            p_area: user.area,
+            p_actual: actual,
+            p_nueva: nueva
+        });
+
+        if (err) throw err;
+        if (!data) return fallar('La contraseña actual no es correcta.');
+
+        cerrarModalPassword();
+        await mostrarAlerta('Tu contraseña se actualizó correctamente.', 'Listo', 'info');
+    } catch (e) {
+        console.error(e);
+        fallar('No se pudo cambiar la contraseña.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Guardar';
+    }
 }
 
 /* ============================================================
