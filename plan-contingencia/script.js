@@ -319,7 +319,7 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    title: `🚨 ALERTA MANUAL · MEDIDAS ${fase}`,
+                                        title: `⚠️ ${medida.actividad} · ${area}`.slice(0, 95),
                     body: `Gerencia General solicita atención para esta medida:\n${medida.actividad}\nÁrea: ${area}\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
                     userId: area
                 })
@@ -568,11 +568,12 @@ const loginAreaHidden     = document.getElementById('login-area');
 let areasCargadas = [];
 
 let usuariosLogin = [];
+let areasResponsables = [];   // areas/secciones a cargo de los jefes
 
 async function cargarAreasEnLogin() {
     const { data, error } = await db
         .from('usuarios')
-        .select('area, gerencia_key')
+        .select('area, gerencia_key, seccion')
         .eq('activo', true)
         .order('area', { ascending: true });
 
@@ -585,6 +586,14 @@ async function cargarAreasEnLogin() {
     }
 
     usuariosLogin = (data || []).filter(u => u.area);
+
+    // Areas responsables = secciones a cargo (no los nombres de las personas)
+    const setAreas = new Set();
+    usuariosLogin.forEach(u => {
+        const sec = (u.seccion || '').trim();
+        if (sec) setAreas.add(sec);
+    });
+    areasResponsables = [...setAreas].sort((a, b) => a.localeCompare(b, 'es'));
 
     const gerencias = [...new Set(usuariosLogin.map(u => u.gerencia_key).filter(Boolean))].sort();
 
@@ -744,6 +753,27 @@ async function entrarApp() {
     const u = obtenerSesion();
     if (!u) return;
 
+    // Refrescar seccion/rol/gerencia desde la base (por si cambiaron)
+    try {
+        const { data } = await db
+            .from('usuarios')
+            .select('rol, gerencia_key, seccion')
+            .eq('area', u.area)
+            .maybeSingle();
+
+        if (data) {
+            const actualizada = {
+                ...u,
+                rol: data.rol || u.rol,
+                gerencia_key: data.gerencia_key || u.gerencia_key,
+                seccion: data.seccion || u.seccion
+            };
+            guardarSesion(actualizada);
+        }
+    } catch (e) {
+        console.warn('No se pudo refrescar la sesión:', e);
+    }
+
     document.getElementById('main-header').style.display = 'flex';
     document.getElementById('user-name').textContent = u.area;
 
@@ -828,7 +858,8 @@ function esSoloLectura() {
 function esSeguridadIndustrial() {
     const u = obtenerSesion();
     if (!u || !u.area) return false;
-    return String(u.area).toUpperCase().indexOf('SEGURIDAD INDUSTRIAL') !== -1;
+    const texto = (String(u.seccion || '') + ' ' + String(u.area || '')).toUpperCase();
+    return texto.indexOf('SEGURIDAD INDUSTRIAL') !== -1;
 }
 
 function puedeEditar(medida) {
@@ -837,9 +868,14 @@ function puedeEditar(medida) {
     if (esSoloLectura()) return false;
     if (user.rol === 'gerente_general') return false;
     if (!medida || !medida.area) return false;
+
     const areas = medida.area.split('/').map(normalizarArea);
-    const userArea = normalizarArea(user.area);
-    return areas.includes(userArea);
+    const misAreas = String(user.seccion || '')
+        .split('/')
+        .map(normalizarArea)
+        .filter(Boolean);
+
+    return misAreas.some(a => areas.includes(a));
 }
 
 function avisoNoEditable() {
@@ -1564,10 +1600,11 @@ function abrirModalAgregar(tabla) {
     document.getElementById('areas-lista').innerHTML = '';
 
     const user = obtenerSesion();
+    const seccionUsuario = (user.seccion || '').trim();
     if (esSeguridadIndustrial()) {
-        agregarAreaFila(user.area, false, false);
+        agregarAreaFila(seccionUsuario, false, false);
     } else {
-        agregarAreaFila(user.area, true, true);
+        agregarAreaFila(seccionUsuario, true, true);
     }
 
     document.querySelectorAll('#modal-agregar .solo-antes').forEach(w => {
@@ -1622,7 +1659,9 @@ function cerrarModalAgregar() {
 
 function agregarAreaFila(areaSeleccionada, esFija, sinBotonEliminar) {
     const cont = document.getElementById('areas-lista');
-    const opciones = areasCargadas.map(a => {
+    const fuente = (areasResponsables && areasResponsables.length) ? areasResponsables : areasCargadas;
+    const vacia = areaSeleccionada ? '' : '<option value="" selected>Selecciona el área</option>';
+    const opciones = vacia + fuente.map(a => {
         const sel = (a === areaSeleccionada) ? 'selected' : '';
         return `<option value="${a}" ${sel}>${a}</option>`;
     }).join('');

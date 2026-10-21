@@ -78,8 +78,12 @@ async function main() {
   for (const s of subs) {
     const k = norm(s.user_id);
     if (!k || !s.token) continue;
-    if (!tokensPorArea.has(k)) tokensPorArea.set(k, new Set());
-    tokensPorArea.get(k).add(s.token);
+    // Un usuario puede tener varias areas: "Operaciones Agrícolas / Cosecha"
+    const areasDelUsuario = k.split('/').map((a) => a.trim()).filter(Boolean);
+    for (const area of areasDelUsuario) {
+      if (!tokensPorArea.has(area)) tokensPorArea.set(area, new Set());
+      tokensPorArea.get(area).add(s.token);
+    }
   }
   console.log(`Celulares registrados: ${subs.length} en ${tokensPorArea.size} areas`);
 
@@ -115,7 +119,8 @@ async function main() {
     }
 
     const maxDias = Math.max(...items.map((i) => i.dias));
-    const titulo = `\u26A0\uFE0F ACTIVIDADES VENCIDAS (${items.length})`;
+    const primera = items.slice().sort((a, b) => b.dias - a.dias)[0];
+    const titulo = `\u26A0\uFE0F ${primera.actividad}${items.length > 1 ? ' (+' + (items.length - 1) + ')' : ''} \u00B7 ${area}`.slice(0, 95);
 
     const lineas = items
       .slice()

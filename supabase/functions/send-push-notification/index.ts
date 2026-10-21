@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const FCM_PROJECT_ID    = Deno.env.get('FCM_PROJECT_ID')!;
 const FCM_CLIENT_EMAIL  = Deno.env.get('FCM_CLIENT_EMAIL')!;
@@ -79,21 +79,21 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // ============================================================
-    // 1. Obtener todos los tokens y webhooks
+    // 1. Obtener tokens del destinatario + webhooks globales de iPhone
     // ============================================================
-    let query = supabase.from('push_subscriptions').select('token, notialarm_webhook');
-    if (userId) query = query.eq('user_id', userId);
+    let query = supabase.from('push_subscriptions').select('token, notialarm_webhook, user_id');
+    if (userId) query = query.in('user_id', [userId, '__GLOBAL__']);
 
     const { data: subs, error } = await query;
     if (error) throw new Error('Error al leer tokens: ' + error.message);
 
-    // ============================================================
-    // 2. Enviar notificaciones FCM
-    // ============================================================
     let enviados = 0;
-    const tituloFinal = title || '🚨 ALERTA DE HUAYCO';
-    const cuerpoFinal = body  || 'Gerencia General ha autorizado el inicio de los planes de acción.';
+    const tituloFinal = title || 'ðŸš¨ ALERTA DE HUAYCO';
+    const cuerpoFinal = body  || 'Gerencia General ha autorizado el inicio de los planes de acciÃ³n.';
 
+    // ============================================================
+    // 2. Enviar notificaciones FCM (Android)
+    // ============================================================
     if (subs && subs.length > 0) {
       const accessToken = await getAccessToken();
 
@@ -110,13 +110,6 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               message: {
                 token: s.token,
-
-                // ============================================================
-                // MENSAJE "URGENTE" (data-only)  <-- LO UNICO QUE CAMBIO
-                // Asi Android entrega la alerta a la APP aunque el celular
-                // este bloqueado o la app cerrada, y se dispara la ALARMA
-                // a pantalla completa con sonido en bucle.
-                // ============================================================
                 data: {
                   titulo: tituloFinal,
                   cuerpo: cuerpoFinal,
@@ -141,6 +134,7 @@ Deno.serve(async (req) => {
 
     // ============================================================
     // 3. Disparar alarma en TODOS los iPhones con NotiAlarm
+    //    (incluye los webhooks globales, con user_id nulo)
     // ============================================================
     const webhooksUnicos = [...new Set(
       (subs || [])
@@ -167,13 +161,10 @@ Deno.serve(async (req) => {
           console.error('NotiAlarm error:', await respNotiAlarm.text());
         }
       } catch (err) {
-        console.error('Error de conexión con NotiAlarm:', err);
+        console.error('Error de conexiÃ³n con NotiAlarm:', err);
       }
     }
 
-    // ============================================================
-    // 4. Respuesta final
-    // ============================================================
     return new Response(JSON.stringify({
       ok: true,
       fcm_enviados: enviados,
@@ -192,3 +183,5 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+
