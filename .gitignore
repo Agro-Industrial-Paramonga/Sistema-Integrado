@@ -8,3 +8,5 @@ desktop.ini
 
 # Logs
 *.log
+
+supabase/.temp/
