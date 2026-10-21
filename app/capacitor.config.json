@@ -5,5 +5,12 @@
   "backgroundColor": "#F4F6F4",
   "android": {
     "allowMixedContent": false
+  },
+  "server": {
+    "url": "https://agro-industrial-paramonga.github.io/Sistema-Integrado/",
+    "allowNavigation": [
+      "agro-industrial-paramonga.github.io"
+    ],
+    "androidScheme": "https"
   }
 }
