@@ -831,6 +831,16 @@ function normalizarArea(area) {
     return ALIASES[limpia] || limpia;
 }
 
+/* Clave de comparacion: sin mayusculas, sin tildes, sin espacios de mas */
+function claveArea(area) {
+    return String(normalizarArea(area) || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
 function esGerente() {
     const u = obtenerSesion();
     return !!(u && u.rol === 'gerente_general');
@@ -858,8 +868,8 @@ function esSoloLectura() {
 function esSeguridadIndustrial() {
     const u = obtenerSesion();
     if (!u || !u.area) return false;
-    const texto = (String(u.seccion || '') + ' ' + String(u.area || '')).toUpperCase();
-    return texto.indexOf('SEGURIDAD INDUSTRIAL') !== -1;
+    const texto = claveArea((String(u.seccion || '') + ' ' + String(u.area || '')));
+    return texto.indexOf('seguridad industrial') !== -1;
 }
 
 function puedeEditar(medida) {
@@ -869,11 +879,8 @@ function puedeEditar(medida) {
     if (user.rol === 'gerente_general') return false;
     if (!medida || !medida.area) return false;
 
-    const areas = medida.area.split('/').map(normalizarArea);
-    const misAreas = String(user.seccion || '')
-        .split('/')
-        .map(normalizarArea)
-        .filter(Boolean);
+    const areas = String(medida.area || '').split('/').map(claveArea).filter(Boolean);
+    const misAreas = String(user.seccion || '').split('/').map(claveArea).filter(Boolean);
 
     return misAreas.some(a => areas.includes(a));
 }
