@@ -1867,6 +1867,30 @@ body {
 }
 .btn-editar-fila:active { transform: translateY(0); }
 
+.btn-alarma-fila {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #B91C1C;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.15s;
+}
+.btn-alarma-fila:hover {
+    background: #FEE2E2;
+    border-color: #F87171;
+    color: #991B1B;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+.btn-alarma-fila:active { transform: translateY(0); }
+.btn-alarma-fila:disabled { cursor: wait; opacity: 0.65; }
+
 /* ============================================================
    PANEL DE TOTAL DE COSTOS
    ============================================================ */

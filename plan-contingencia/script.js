@@ -270,6 +270,89 @@ function botonFotosHTML(tabla, medidaId) {
     `;
 }
 
+function botonAlarmaMedidaHTML(tabla, medidaId) {
+    if (!esGerente()) return '';
+    return `
+        <button class="btn-alarma-fila" title="Enviar alarma manual" aria-label="Enviar alarma manual"
+                onclick="enviarAlarmaMedidaManual('${tabla}', '${medidaId}', this)">
+            <i class="fas fa-bell"></i>
+        </button>
+    `;
+}
+
+async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
+    if (!esGerente()) return;
+
+    const medidas = tabla === 'antes' ? medidasAntesCache
+        : tabla === 'despues' ? medidasDespuesCache
+        : null;
+    const medida = medidas?.find(item => String(item.id) === String(medidaId));
+    if (!medida) {
+        await mostrarAlerta('No se encontró la medida seleccionada.', 'No se pudo enviar', 'error');
+        return;
+    }
+
+    const areas = [...new Set(String(medida.area || '').split('/').map(area => area.trim()).filter(Boolean))];
+    if (areas.length === 0) {
+        await mostrarAlerta('La medida no tiene un área responsable asignada.', 'Sin destinatario', 'warn');
+        return;
+    }
+
+    const fase = tabla === 'antes' ? 'ANTES' : 'DESPUÉS';
+    const confirmar = await mostrarConfirm(
+        `Se enviará una alarma a ${areas.join(', ')} por la medida: ${medida.actividad}. ¿Continuar?`,
+        'Enviar alarma manual',
+        'warn'
+    );
+    if (!confirmar) return;
+
+    const htmlOriginal = boton.innerHTML;
+    boton.disabled = true;
+    boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    const enviados = [];
+    const sinDispositivo = [];
+    const errores = [];
+    for (const area of areas) {
+        try {
+            const response = await fetch(`${SUPABASE_URL_FUNCTIONS}/send-push-notification`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `🚨 ALERTA MANUAL · MEDIDAS ${fase}`,
+                    body: `Gerencia General solicita atención para esta medida:\n${medida.actividad}\nÁrea: ${area}\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
+                    userId: area
+                })
+            });
+            const resultado = await response.json().catch(() => ({}));
+            if (!response.ok || !resultado.ok) {
+                errores.push(area);
+            } else if (!resultado.total_subs) {
+                sinDispositivo.push(area);
+            } else {
+                enviados.push(area);
+            }
+        } catch (error) {
+            console.error(`[ALARMA] Error enviando a ${area}:`, error);
+            errores.push(area);
+        }
+    }
+
+    boton.disabled = false;
+    boton.innerHTML = htmlOriginal;
+
+    const detalle = [
+        enviados.length ? `Alarma enviada a: ${enviados.join(', ')}.` : '',
+        sinDispositivo.length ? `Sin dispositivos registrados: ${sinDispositivo.join(', ')}.` : '',
+        errores.length ? `No se pudo enviar a: ${errores.join(', ')}.` : ''
+    ].filter(Boolean).join('\n');
+    await mostrarAlerta(
+        detalle || 'No se pudo enviar la alarma.',
+        enviados.length ? 'Alarma procesada' : 'Error al enviar alarma',
+        enviados.length ? 'info' : errores.length ? 'error' : 'warn'
+    );
+}
+
 function abrirModalFotos(tabla, medidaId) {
     fotosContexto = { tabla, medidaId };
     document.getElementById('foto-input').value = '';
@@ -956,6 +1039,7 @@ function renderTablaAntes() {
                 ${botonFotosHTML('antes', act.id)}
             </td>
             <td class="acciones-cell" data-label="Acciones">
+                ${botonAlarmaMedidaHTML('antes', act.id)}
                 ${editable ? `
                     <button class="btn-editar-fila" title="Editar medida" onclick="abrirModalEditar('antes', '${act.id}')">
                         <i class="fas fa-pen"></i>
@@ -1304,6 +1388,7 @@ function renderTablaDespues() {
                 ${botonFotosHTML('despues', act.id)}
             </td>
             <td class="acciones-cell" data-label="Acciones">
+                ${botonAlarmaMedidaHTML('despues', act.id)}
                 ${editable ? `
                     <button class="btn-editar-fila" title="Editar medida" onclick="abrirModalEditar('despues', '${act.id}')">
                         <i class="fas fa-pen"></i>
