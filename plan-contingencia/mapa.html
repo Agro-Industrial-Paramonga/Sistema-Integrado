@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de unidades - Plan de Contingencia</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; }
+        #mapa { position: absolute; inset: 0; }
+        .barra {
+            position: absolute; top: 12px; left: 12px; right: 12px; z-index: 1000;
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+            background: rgba(255,255,255,.96); border-radius: 14px; padding: 10px 12px;
+            box-shadow: 0 6px 24px rgba(15,23,42,.18);
+        }
+        .barra h1 { font-size: .95rem; margin: 0 12px 0 0; font-weight: 700; color: #0f172a; }
+        .barra button, .barra a {
+            border: 1px solid #e2e8f0; background: #fff; color: #334155; border-radius: 10px;
+            padding: 8px 12px; font-size: .82rem; font-weight: 600; cursor: pointer; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .barra button:hover, .barra a:hover { background: #f1f5f9; }
+        .barra button.activo { background: #dcfce7; border-color: #86efac; color: #166534; }
+        .barra .sep { flex: 1; }
+        .barra label { font-size: .72rem; color: #64748b; display: flex; align-items: center; gap: 6px; }
+        .estado { font-size: .75rem; color: #64748b; }
+        .leyenda {
+            position: absolute; bottom: 14px; left: 12px; z-index: 1000;
+            background: rgba(255,255,255,.95); border-radius: 12px; padding: 10px 12px;
+            font-size: .75rem; color: #475569; box-shadow: 0 4px 18px rgba(15,23,42,.15); line-height: 1.5;
+        }
+        .pin-unidad { font-size: 20px; color: #dc2626; text-shadow: 0 0 4px #fff; }
+    </style>
+</head>
+<body>
+    <div id="mapa"></div>
+
+    <div class="barra">
+        <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
+        <button id="btn-ajustar" onclick="alternarAjuste()"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
+        <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
+        <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
+        <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
+        <span class="sep"></span>
+        <span class="estado" id="estado">Cargando…</span>
+        <a href="index.html"><i class="fas fa-arrow-left"></i> Volver</a>
+    </div>
+
+    <div class="leyenda" id="leyenda" style="display:none">
+        <strong>Modo ajuste</strong><br>
+        Arrastra los dos puntos (NOROESTE y SURESTE) hasta que la imagen calce con el terreno.<br>
+        Luego pulsa <strong>Guardar</strong>.
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="mapa.js"></script>
+</body>
+</html>
