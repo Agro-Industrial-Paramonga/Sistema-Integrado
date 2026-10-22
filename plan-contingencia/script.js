@@ -270,8 +270,19 @@ function botonFotosHTML(tabla, medidaId) {
     `;
 }
 
+function puedeEnviarAlarma() {
+    return esGerente() || esSeguridadIndustrial();
+}
+
+
+function quienEnvia() {
+    if (esGerente()) return 'Gerencia General';
+    const u = obtenerSesion();
+    return u ? (u.area || 'Seguridad Industrial') : 'Seguridad Industrial';
+}
+
 function botonAlarmaMedidaHTML(tabla, medidaId) {
-    if (!esGerente()) return '';
+    if (!puedeEnviarAlarma()) return '';
     return `
         <button class="btn-alarma-fila" title="Enviar alarma manual" aria-label="Enviar alarma manual"
                 onclick="enviarAlarmaMedidaManual('${tabla}', '${medidaId}', this)">
@@ -281,7 +292,7 @@ function botonAlarmaMedidaHTML(tabla, medidaId) {
 }
 
 async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
-    if (!esGerente()) return;
+    if (!puedeEnviarAlarma()) return;
 
     const medidas = tabla === 'antes' ? medidasAntesCache
         : tabla === 'despues' ? medidasDespuesCache
@@ -320,7 +331,7 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                                         title: `⚠️ ${medida.actividad} · ${area}`.slice(0, 95),
-                    body: `Gerencia General solicita atención para esta medida:\n${medida.actividad}\nÁrea: ${area}\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
+                    body: `${quienEnvia()} solicita atención para esta medida:\n${medida.actividad}\nÁrea: ${area}\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
                     userId: area
                 })
             });
