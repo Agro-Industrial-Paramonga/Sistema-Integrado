@@ -2470,19 +2470,10 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosDespues();
     inicializarFiltrosArea();
     verificarSesion();
-    aplicarModoGuardado();
-    // Primero las tablas (si algo falla despues, igual se ven las medidas)
+    // Carga inicial: solo las tablas. Segmentos y modo se aplican despues
+    // dentro de entrarApp(), cuando la pantalla ya esta visible.
     cargarMedidasAntes();
     cargarMedidasDurante();
     cargarMedidasDespues();
-
-    // Luego los segmentos, y se redibuja si llegaron
-    cargarSegmentos()
-        .then(() => {
-            cargarMedidasAntes();
-            cargarMedidasDurante();
-            cargarMedidasDespues();
-        })
-        .catch((e) => console.warn('Segmentos no disponibles:', e));
     activarNumerosLlamables();
 });
