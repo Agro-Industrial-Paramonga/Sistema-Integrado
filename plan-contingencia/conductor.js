@@ -173,4 +173,21 @@ async function iniciarTurno() {
     setTimeout(() => { window.location.href = 'mapa.html'; }, listo ? 700 : 1800);
 }
 
+async function continuarTurno() {
+    let sesion = null;
+    try { sesion = JSON.parse(localStorage.getItem('conductor') || 'null'); } catch (e) {}
+
+    if (sesion && sesion.unidad && sesion.nombre) {
+        // Turno vigente: reactivar el envio y seguir en el mapa
+        if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
+            window.AndroidUbicacion.iniciarServicio(sesion.nombre, sesion.unidad);
+        }
+        mostrarAviso('Turno activo: ' + sesion.nombre + ' · ' + sesion.unidad + '. Abriendo el mapa…');
+        setTimeout(() => { window.location.href = 'mapa.html'; }, 900);
+        return true;
+    }
+    return false;
+}
+
 cargar();
+continuarTurno();
