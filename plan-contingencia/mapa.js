@@ -239,9 +239,15 @@ async function cargarUnidades() {
             const uSeguro = String(u.user_id || '').replace(/'/g, '');
             const unSeguro = String(u.unidad || '').replace(/'/g, '');
             const tokSeguro = String(u.token || '').replace(/'/g, '');
-            marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br>` +
-                `${tokSeguro ? '' : '<div style="font-size:.7rem;color:#b45309;margin-bottom:6px;">Sin celular registrado</div>'}` +
-                `<button onclick="alertarUnidad('${uSeguro}','${unSeguro}','${tokSeguro}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`);
+            marcador.bindPopup(
+                `<strong>${u.user_id || titulo}</strong><br>` +
+                `<span style="color:#16a34a;font-weight:700">🚚 ${u.unidad || 'sin unidad'}</span><br>` +
+                `Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br>` +
+                `<button onclick="alertarUnidad('${uSeguro}','${unSeguro}','${tokSeguro}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`
+            );
+            if (u.unidad) {
+                marcador.bindTooltip(u.unidad, { permanent: true, direction: 'bottom', className: 'etiqueta-unidad', offset: [0, 8] });
+            }
             marcadoresUnidades.push(marcador);
         });
 
