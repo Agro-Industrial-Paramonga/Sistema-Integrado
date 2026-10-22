@@ -33,6 +33,23 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        // Si concedio la ubicacion normal, pedir "Todo el tiempo" (segundo plano)
+        if (requestCode == CODIGO_UBICACION
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+
+            boolean tieneFondo = ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+
+            if (!tieneFondo) {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                        CODIGO_UBICACION + 1);
+            }
+        }
+
         if (requestCode == CODIGO_UBICACION && callbackUbicacion != null) {
             boolean concedido = grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED;
