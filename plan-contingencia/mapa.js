@@ -236,7 +236,11 @@ async function cargarUnidades() {
             }).addTo(mapa);
 
             const titulo = u.unidad || u.user_id;
-            marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br><button onclick="alertarUnidad('${(u.user_id || '').replace(/'/g, "")}','${(u.unidad || '').replace(/'/g, "")}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`);
+            const uSeguro = String(u.user_id || '').replace(/'/g, '');
+            const unSeguro = String(u.unidad || '').replace(/'/g, '');
+            const tokSeguro = String(u.token || '').replace(/'/g, '');
+            marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br>` +
+                `<button onclick="alertarUnidad('${uSeguro}','${unSeguro}','${tokSeguro}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`);
             marcadoresUnidades.push(marcador);
         });
 
@@ -514,29 +518,31 @@ function esSeguridadIndustrial() {
    ------------------------------------------------------------ */
 const FUNC_PUSH = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
 
-async function alertarUnidad(usuario, unidad) {
+async function alertarUnidad(usuario, unidad, token) {
     const quien = unidad || usuario;
-    if (!quien) { alert('La unidad no tiene identificacion.'); return; }
+    if (!quien) { alert('La unidad no tiene identificación.'); return; }
+    if (!usuario && !token) {
+        alert('Esta unidad no tiene un celular registrado para recibir alarmas.');
+        return;
+    }
     if (!confirm('¿Alertar a ' + quien + ' para que evacue a un lugar seguro?')) return;
 
-    const cuerpo = 'Evacue de inmediato y dirijase a un lugar seguro.';
-    const titulo = 'EVACUACION · ' + quien;
+    const cuerpo = 'Evacue de inmediato y diríjase a un lugar seguro.';
+    const titulo = 'EVACUACIÓN · ' + quien;
 
-    // 1) Hablar en este dispositivo (confirmacion para el operador)
     hablar(titulo + '. ' + cuerpo);
 
-    // 2) Enviar la alarma al celular de la unidad
     try {
         const resp = await fetch(FUNC_PUSH, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: titulo, body: cuerpo, userId: usuario || quien })
+            body: JSON.stringify({ title: titulo, body: cuerpo, userId: usuario || null, token: token || null })
         });
         const datos = await resp.json().catch(() => ({}));
         document.getElementById('estado').textContent =
-            'Alerta enviada a ' + quien + ' · equipos alcanzados: ' + (datos.fcm_enviados ?? 0);
+            'Alerta enviada a ' + quien + ' · equipos: ' + (datos.fcm_enviados ?? 0);
     } catch (e) {
-        document.getElementById('estado').textContent = 'No se pudo enviar la alerta: ' + e.message;
+        document.getElementById('estado').textContent = 'No se pudo enviar: ' + e.message;
     }
 }
 

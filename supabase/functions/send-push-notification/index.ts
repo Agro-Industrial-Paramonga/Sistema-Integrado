@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { title, body, userId } = await req.json();
+    const { title, body, userId, token } = await req.json();
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -108,6 +108,35 @@ Deno.serve(async (req) => {
       const traducidas = propias.flatMap((p) => mapaSeccion.get(p) || []);
       return [...new Set([...propias, ...traducidas])];
     };
+
+    // Envio directo a un solo celular (alerta a una unidad concreta)
+    if (token) {
+      const soloEse = (todos || []).filter((s) => s.token === token);
+      const lista = soloEse.length ? soloEse : [{ token, notialarm_webhook: null }];
+
+      const accessTokenDirecto = await getAccessToken();
+      let enviadosDirecto = 0;
+
+      for (const s of lista) {
+        if (!s.token) continue;
+        const res = await fetch(
+          `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessTokenDirecto}` },
+            body: JSON.stringify({
+              message: { token: s.token, data: { titulo: title || 'ALERTA', cuerpo: body || '', alarma: 'true' },
+                android: { priority: 'high', ttl: '3600s' } }
+            })
+          }
+        );
+        if (res.ok) enviadosDirecto++;
+      }
+
+      return new Response(JSON.stringify({ ok: true, fcm_enviados: enviadosDirecto, notialarm_disparados: 0, total_subs: lista.length }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     const subs = userId
       ? (todos || []).filter((s) => {

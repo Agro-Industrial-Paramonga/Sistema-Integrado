@@ -77,6 +77,8 @@ async function registrarPush(nombre) {
         PN.addListener('registration', async (token) => {
             await db.from('push_subscriptions').delete().eq('user_id', nombre);
             await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
+            // guardar el token junto a la ubicacion para alarmas puntuales
+            await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
         });
 
         PN.addListener('registrationError', (e) => console.warn('Push error', e));
