@@ -2290,7 +2290,11 @@ async function abrirModalAvance(tabla, medidaId) {
     avanceCtx = { tabla, medidaId, medida };
     document.getElementById('avance-actividad').textContent = medida ? medida.actividad : '';
     document.getElementById('avance-texto').value = '';
-    document.getElementById('avance-form').style.display = puedeEditar(medida) ? 'block' : 'none';
+    const puede = puedeEditar(medida);
+    const finalizado = medida && medida.estado === 'finalizado';
+    document.getElementById('avance-form').style.display = (puede && !finalizado) ? 'block' : 'none';
+    const reinicio = document.getElementById('avance-reiniciar');
+    if (reinicio) reinicio.style.display = (puede && finalizado) ? 'block' : 'none';
     document.getElementById('modal-avance').style.display = 'flex';
     await cargarAvances();
 }
@@ -2359,6 +2363,17 @@ async function eliminarAvance(id) {
     if (!ok) return;
     await db.from('medidas_avances').delete().eq('id', id);
     await cargarAvances();
+}
+
+
+async function reiniciarDesdeAvance() {
+    const ok = await mostrarConfirm('¿Volver esta actividad a "No iniciado"?', 'Reiniciar ejecución', 'warn');
+    if (!ok) return;
+    const tabla = avanceCtx.tabla === 'antes' ? 'medidas_antes'
+        : avanceCtx.tabla === 'durante' ? 'medidas_durante' : 'medidas_despues';
+    await db.from(tabla).update({ estado: 'no-iniciado', updated_at: new Date().toISOString() }).eq('id', avanceCtx.medidaId);
+    cerrarModalAvance();
+    recargarTabla(avanceCtx.tabla);
 }
 
 async function finalizarDesdeAvance() {
