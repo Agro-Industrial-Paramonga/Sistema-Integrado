@@ -144,16 +144,29 @@ public class AlarmaActivity extends Activity {
     private void iniciarSonido() {
         try {
             final int frecuencia = 44100;
-            final int duracionMs = 1800;
+            final int duracionMs = 3600;
             final int muestras = frecuencia * duracionMs / 1000;
 
             final short[] buffer = new short[muestras];
             double fase = 0.0;
             for (int i = 0; i < muestras; i++) {
                 double avance = (double) i / muestras;
-                double tono = 640 + 520 * Math.sin(2 * Math.PI * avance);
+
+                // Barrido tipo sirena de emergencia: sube y baja lentamente
+                double ciclo = 0.5 - 0.5 * Math.cos(2 * Math.PI * avance);
+                double tono = 520 + 620 * ciclo;
+
                 fase += 2 * Math.PI * tono / frecuencia;
-                buffer[i] = (short) (Math.sin(fase) * 0.55 * Short.MAX_VALUE);
+
+                // Tono con armonicos: mas grave y con cuerpo, menos "juguete"
+                double onda = Math.sin(fase) * 0.62
+                        + Math.sin(2 * fase) * 0.22
+                        + Math.sin(3 * fase) * 0.10;
+
+                // Envolvente suave para evitar chasquidos al repetir
+                double envolvente = Math.min(1.0, Math.min(avance, 1.0 - avance) * 25);
+
+                buffer[i] = (short) (onda * envolvente * 0.9 * Short.MAX_VALUE);
             }
 
             pistaSirena = new AudioTrack.Builder()

@@ -20,7 +20,7 @@ import androidx.core.app.NotificationCompat;
  */
 public class AlarmaNotificacion {
 
-    public static final String CANAL_ID = "alarma_huayco";
+    public static final String CANAL_ID = "alarma_v2";
     private static final String TITULO_DEF = "\uD83D\uDEA8 ALERTA DE HUAYCO";
     private static final String CUERPO_DEF = "Se ha autorizado el inicio de los planes de accion.";
 
@@ -91,14 +91,8 @@ public class AlarmaNotificacion {
         canal.enableVibration(true);
         canal.setVibrationPattern(new long[]{0, 800, 400});
         canal.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-
-        Uri sonido = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (sonido != null) {
-            AudioAttributes attrs = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build();
-            canal.setSound(sonido, attrs);
+        // Canal SIN sonido: el audio lo produce la pantalla de alarma (sirena + voz).
+        canal.setSound(null, null);
         }
 
         try {
