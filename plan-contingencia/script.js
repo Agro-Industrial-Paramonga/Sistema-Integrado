@@ -803,6 +803,7 @@ async function entrarApp() {
     }
 
     document.getElementById('main-header').style.display = 'flex';
+    mostrarMenuLogin(false);
     document.getElementById('user-name').textContent = u.area;
 
     aplicarVisibilidadGerente();
@@ -833,6 +834,12 @@ async function entrarApp() {
      activarNotificacionesPush();
 }
 
+
+function mostrarMenuLogin(visible) {
+    const m = document.getElementById('menu-hamburguesa');
+    if (m) m.style.display = visible ? 'block' : 'none';
+}
+
 function verificarSesion() {
     const u = obtenerSesion();
     if (u) {
@@ -840,6 +847,7 @@ function verificarSesion() {
     } else {
         document.getElementById('main-header').style.display = 'none';
         mostrarPantalla('screen-login');
+        mostrarMenuLogin(true);
         cargarAreasEnLogin();
     }
 }
