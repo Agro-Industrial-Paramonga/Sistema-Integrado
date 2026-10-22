@@ -3,6 +3,8 @@ package com.aipsa.sistema;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import android.content.Intent;
+import androidx.core.content.ContextCompat;
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.NetworkType;
@@ -26,6 +28,11 @@ public class UbicacionScheduler {
                 .putString("unidad", unidad == null ? "" : unidad)
                 .apply();
 
+        // Servicio en primer plano: envia cada 5 minutos con la app cerrada
+        Intent servicio = new Intent(ctx, UbicacionService.class);
+        ContextCompat.startForegroundService(ctx, servicio);
+
+        // Respaldo: si el servicio se detiene, WorkManager lo reactiva cada hora
         Constraints restricciones = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
@@ -50,6 +57,7 @@ public class UbicacionScheduler {
 
     /** Detiene el envio y olvida la sesion. */
     public static void detener(Context ctx) {
+        ctx.stopService(new Intent(ctx, UbicacionService.class));
         WorkManager.getInstance(ctx).cancelUniqueWork(TRABAJO);
         SharedPreferences prefs = ctx.getSharedPreferences("ubicacion", Context.MODE_PRIVATE);
         prefs.edit().clear().apply();
