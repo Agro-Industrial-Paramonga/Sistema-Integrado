@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
     private GeolocationPermissions.Callback callbackUbicacion;
     private String origenUbicacion;
     private static final int CODIGO_UBICACION = 4711;
+    private static final int CODIGO_NOTIFICACIONES = 4712;
 
     private boolean tienePermisoUbicacion() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -113,6 +114,24 @@ public class MainActivity extends BridgeActivity {
                             UbicacionScheduler.iniciar(getApplicationContext(), usuario, unidad);
                         } catch (Exception e) {
                             android.util.Log.e("MainActivity", "iniciarServicio fallo", e);
+                        }
+                    }
+
+                    @JavascriptInterface
+                    public void pedirNotificaciones() {
+                        try {
+                            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                                boolean concedido = ContextCompat.checkSelfPermission(
+                                        MainActivity.this, "android.permission.POST_NOTIFICATIONS")
+                                        == PackageManager.PERMISSION_GRANTED;
+                                if (!concedido) {
+                                    ActivityCompat.requestPermissions(MainActivity.this,
+                                            new String[]{"android.permission.POST_NOTIFICATIONS"},
+                                            CODIGO_NOTIFICACIONES);
+                                }
+                            }
+                        } catch (Exception e) {
+                            android.util.Log.e("MainActivity", "pedirNotificaciones", e);
                         }
                     }
 

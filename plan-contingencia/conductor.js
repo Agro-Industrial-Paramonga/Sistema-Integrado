@@ -154,6 +154,11 @@ async function iniciarTurno() {
 
     pedirPermisoUbicacion();
 
+    // Permiso de notificaciones (Android 13+): sin el, las alarmas no llegan
+    if (window.AndroidUbicacion && window.AndroidUbicacion.pedirNotificaciones) {
+        try { window.AndroidUbicacion.pedirNotificaciones(); } catch (e) {}
+    }
+
     const boton = document.getElementById('btn-entrar');
     boton.disabled = true;
     boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando…';
