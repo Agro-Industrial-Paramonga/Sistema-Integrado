@@ -42,6 +42,11 @@ function iniciarMapa() {
         { maxZoom: 19, opacity: 0.85 }
     ).addTo(mapa);
 
+    mapa.on('click', async (e) => {
+        if (!simulando) return;
+        await moverSimulacion(e.latlng.lat, e.latlng.lng);
+    });
+
     dibujarCapa();
     cargarCapaGuardada();
     cargarUnidades();
@@ -243,11 +248,6 @@ function alternarSimulacion() {
     document.getElementById('leyenda-sim').style.display = simulando ? 'block' : 'none';
     document.getElementById('mapa').style.cursor = simulando ? 'crosshair' : '';
 }
-
-mapa.on('click', async (e) => {
-    if (!simulando) return;
-    await moverSimulacion(e.latlng.lat, e.latlng.lng);
-});
 
 async function moverSimulacion(lat, lon) {
     const fila = {
