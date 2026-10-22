@@ -810,6 +810,7 @@ async function entrarApp() {
     mostrarBotonMapa();
 
     mostrarPantalla('screen-home');
+    mostrarModoBotones(false);
     aplicarModoGuardado();
 
     if (areasCargadas.length === 0) {
@@ -2501,6 +2502,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosDurante();
     inicializarFiltrosDespues();
     inicializarFiltrosArea();
+    mostrarModoBotones(false);
     verificarSesion();
     activarNumerosLlamables();
 
