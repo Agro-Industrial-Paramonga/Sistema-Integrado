@@ -79,6 +79,7 @@ async function registrarPush(nombre) {
                 await db.from('push_subscriptions').delete().eq('user_id', nombre);
                 await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
                 await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
+                try { localStorage.setItem('pushToken', token.value); } catch (e) {}
                 window.__pushListo = true;
                 mostrarAviso('Celular registrado para alarmas ✓');
             } catch (e) {

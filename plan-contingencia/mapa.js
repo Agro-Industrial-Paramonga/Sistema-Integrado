@@ -380,8 +380,12 @@ async function enviarUbicacion(lat, lon, precision) {
 
     const c = sesionConductor();
     const unidad = unidadSeleccionada();
+    let tokenGuardado = null;
+    try { tokenGuardado = localStorage.getItem('pushToken'); } catch (e) {}
+
     const fila = {
         user_id: c ? c.nombre : usuarioActual(),
+        token: tokenGuardado,
         unidad: unidad,
         lat,
         lon,
@@ -519,8 +523,18 @@ function esSeguridadIndustrial() {
    ------------------------------------------------------------ */
 const FUNC_PUSH = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
 
+async function buscarToken(usuario) {
+    if (!usuario) return null;
+    const { data } = await db.from('push_subscriptions').select('token, user_id');
+    const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const buscado = norm(usuario);
+    const fila = (data || []).find(r => norm(r.user_id) === buscado && r.token && r.token.length > 30);
+    return fila ? fila.token : null;
+}
+
 async function alertarUnidad(usuario, unidad, token) {
     const quien = unidad || usuario;
+    if (!token) { token = await buscarToken(usuario); }
     if (!quien) { alert('La unidad no tiene identificación.'); return; }
     if (!usuario && !token) {
         alert('Esta unidad no tiene un celular registrado para recibir alarmas.');
