@@ -427,6 +427,10 @@ function aplicarSesionConductor() {
     const c = sesionConductor();
     const botonCerrar = document.getElementById('btn-cerrar-turno');
     if (botonCerrar) botonCerrar.style.display = c ? 'inline-flex' : 'none';
+
+    // El conductor no debe ver "Volver": le cerraria la sesion
+    const volver = document.querySelector('.barra a[href="index.html"]');
+    if (volver) volver.style.display = c ? 'none' : 'inline-flex';
     if (!c) return;
 
     // Unidad fija

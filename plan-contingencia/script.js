@@ -835,6 +835,12 @@ async function entrarApp() {
 }
 
 
+
+function mostrarModoBotones(visible) {
+    const m = document.getElementById('modo-toggle');
+    if (m) m.style.display = visible ? 'flex' : 'none';
+}
+
 function mostrarMenuLogin(visible) {
     const m = document.getElementById('menu-hamburguesa');
     if (m) m.style.display = visible ? 'block' : 'none';
@@ -959,6 +965,7 @@ function filtrarVisibles(medidas, filtroArea) {
 
 /* ===== NAVEGACION CON HISTORIAL (atras por pestaña) ===== */
 function _verPlan() {
+    mostrarModoBotones(false);
     document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('active'));
     document.getElementById('screen-plan').classList.add('active');
     document.querySelectorAll('.section-view').forEach(v => v.classList.remove('active'));
@@ -970,6 +977,7 @@ function _verPlan() {
 
 function _verSeccion(nombre) {
     _verPlan();
+    mostrarModoBotones(true);
     document.querySelectorAll('.section-view').forEach(v => v.classList.remove('active'));
     document.getElementById('section-' + nombre).classList.add('active');
     const bc = document.getElementById('breadcrumb-menu');
@@ -978,6 +986,7 @@ function _verSeccion(nombre) {
 }
 
 function _verInicio() {
+    mostrarModoBotones(false);
     document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('active'));
     document.getElementById('screen-home').classList.add('active');
     window.scrollTo(0, 0);
