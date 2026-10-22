@@ -514,7 +514,7 @@ async function subirFotoSeleccionada(event) {
 }
 
 async function eliminarFoto(fotoId, storagePath) {
-    if (esVistaCompleta()) return;
+    if (esVistaCompleta() || modoLectura) return;
 
     const ok = await mostrarConfirm('¿Eliminar esta foto?', 'Eliminar foto', 'warn');
     if (!ok) return;
@@ -665,6 +665,16 @@ function resetCustomSelect() {
     customSelect.classList.remove('has-value', 'open');
     customSelectMenu.querySelectorAll('.custom-select-option')
         .forEach(o => o.classList.remove('selected'));
+}
+
+
+function pintarSelectSegmento(tabla, seleccionado) {
+    const sel = document.getElementById('agregar-segmento');
+    if (!sel) return;
+    const items = segmentosDe(tabla);
+    sel.innerHTML = '<option value="">Sin segmento</option>' +
+        items.map(s => `<option value="${s.id}" ${s.id === seleccionado ? 'selected' : ''}>${s.nombre}</option>`).join('');
+    sel.value = seleccionado || '';
 }
 
 /* ============================================================
@@ -876,6 +886,11 @@ function puedeEditar(medida) {
     const user = obtenerSesion();
     if (!user) return false;
     if (esSoloLectura()) return false;
+    if (modoLectura) return false;
+
+    // Seguridad Industrial puede editar cualquier area
+    if (esSeguridadIndustrial()) return true;
+
     if (user.rol === 'gerente_general') return false;
     if (!medida || !medida.area) return false;
 
@@ -886,6 +901,7 @@ function puedeEditar(medida) {
 }
 
 function avisoNoEditable() {
+    if (modoLectura) return;
     mostrarAlerta(
         'Solo el área responsable puede modificar esta medida.',
         'Acción no permitida',
@@ -1059,7 +1075,13 @@ function renderTablaAntes() {
     }
 
     tbody.innerHTML = '';
-    filtradas.forEach(act => {
+    let _segActual = '__inicio__';
+    ordenarPorSegmento(filtradas, 'antes').forEach(act => {
+        const _seg = act.segmento_id || null;
+        if (_seg !== _segActual) {
+            _segActual = _seg;
+            tbody.insertAdjacentHTML('beforeend', filaSegmentoHTML(_seg, 'antes'));
+        }
         const editable = puedeEditar(act) && !esVistaCompleta();
         const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -1095,7 +1117,7 @@ function renderTablaAntes() {
 
     tbody.querySelectorAll('.badge-estado').forEach(badge => {
         badge.addEventListener('click', async () => {
-             if (esVistaCompleta()) return;
+             if (esVistaCompleta() || modoLectura) return;
 
             const id = badge.dataset.id;
             const item = medidasAntesCache.find(m => m.id === id);
@@ -1121,12 +1143,12 @@ function renderTablaAntes() {
 
     tbody.querySelectorAll('.input-costo').forEach(input => {
         input.addEventListener('click', (e) => {
-            if (esVistaCompleta()) return;
+            if (esVistaCompleta() || modoLectura) return;
             const item = medidasAntesCache.find(m => m.id === e.target.dataset.id);
             if (!puedeEditar(item)) avisoNoEditable();
         });
         input.addEventListener('change', async (e) => {
-            if (esVistaCompleta()) return;
+            if (esVistaCompleta() || modoLectura) return;
             const id = e.target.dataset.id;
             const item = medidasAntesCache.find(m => m.id === id);
             if (!puedeEditar(item)) return;
@@ -1192,7 +1214,13 @@ function renderTablaDurante() {
     }
 
     tbody.innerHTML = '';
-    filtradas.forEach(act => {
+    let _segActual = '__inicio__';
+    ordenarPorSegmento(filtradas, 'durante').forEach(act => {
+        const _seg = act.segmento_id || null;
+        if (_seg !== _segActual) {
+            _segActual = _seg;
+            tbody.insertAdjacentHTML('beforeend', filaSegmentoHTML(_seg, 'durante'));
+        }
         const editable = puedeEditar(act) && !esVistaCompleta();
         const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -1415,7 +1443,13 @@ function renderTablaDespues() {
     }
 
     tbody.innerHTML = '';
-    filtradas.forEach(act => {
+    let _segActual = '__inicio__';
+    ordenarPorSegmento(filtradas, 'despues').forEach(act => {
+        const _seg = act.segmento_id || null;
+        if (_seg !== _segActual) {
+            _segActual = _seg;
+            tbody.insertAdjacentHTML('beforeend', filaSegmentoHTML(_seg, 'despues'));
+        }
         const editable = puedeEditar(act) && !esVistaCompleta();
         const tr = document.createElement('tr');
                         tr.innerHTML = `
@@ -1444,7 +1478,7 @@ function renderTablaDespues() {
 
     tbody.querySelectorAll('.badge-estado').forEach(badge => {
         badge.addEventListener('click', async () => {
-            if (esVistaCompleta()) return;
+            if (esVistaCompleta() || modoLectura) return;
 
             const id = badge.dataset.id;
             const item = medidasDespuesCache.find(m => m.id === id);
@@ -1605,6 +1639,7 @@ function abrirModalAgregar(tabla) {
     document.getElementById('agregar-periodo').value = '';
     document.getElementById('agregar-costo').value = '';
     document.getElementById('areas-lista').innerHTML = '';
+    pintarSelectSegmento(tabla, null);
 
     const user = obtenerSesion();
     const seccionUsuario = (user.seccion || '').trim();
@@ -1642,6 +1677,7 @@ function abrirModalEditar(tabla, id) {
     document.getElementById('agregar-periodo').value = item.periodo || '';
     document.getElementById('agregar-costo').value = formatearCosto(item.costo);
     document.getElementById('areas-lista').innerHTML = '';
+    pintarSelectSegmento(tabla, item.segmento_id || null);
 
     const areas = (item.area || '').split('/').map(a => a.trim()).filter(Boolean);
     areas.slice(0, 2).forEach((a, i) => agregarAreaFila(a, false, i === 0));
@@ -1742,6 +1778,7 @@ async function guardarNuevaMedida() {
         const estadoDefault = (tablaModalActual === 'durante') ? 'bloqueado' : 'no-iniciado';
         const payload = {
             id, actividad, periodo, area, costo,
+            segmento_id: document.getElementById('agregar-segmento')?.value || null,
             estado: estadoDefault,
             updated_at: new Date().toISOString()
         };
@@ -1755,6 +1792,7 @@ async function guardarNuevaMedida() {
     } else {
         const payload = {
             actividad, periodo, area, costo,
+            segmento_id: document.getElementById('agregar-segmento')?.value || null,
             updated_at: new Date().toISOString()
         };
         const { error } = await db.from(nombreTabla)
@@ -2109,6 +2147,320 @@ async function guardarPassword() {
     }
 }
 
+
+/* ============================================================
+   AVANCE DE EJECUCION (bitacora por actividad)
+   ============================================================ */
+let avanceCtx = { tabla: null, medidaId: null, medida: null };
+
+function medidaDeCache(tabla, id) {
+    const cache = tabla === 'antes' ? medidasAntesCache
+        : tabla === 'durante' ? medidasDuranteCache
+        : medidasDespuesCache;
+    return (cache || []).find(m => String(m.id) === String(id)) || null;
+}
+
+async function abrirModalAvance(tabla, medidaId) {
+    const medida = medidaDeCache(tabla, medidaId);
+    avanceCtx = { tabla, medidaId, medida };
+
+    document.getElementById('avance-actividad').textContent = medida ? medida.actividad : '';
+    document.getElementById('avance-texto').value = '';
+
+    const responsable = puedeEditar(medida);
+    document.getElementById('avance-form').style.display = responsable ? 'block' : 'none';
+
+    document.getElementById('modal-avance').style.display = 'flex';
+    await cargarAvances();
+}
+
+function cerrarModalAvance() {
+    document.getElementById('modal-avance').style.display = 'none';
+}
+
+async function cargarAvances() {
+    const cont = document.getElementById('avance-lista');
+    cont.innerHTML = '<p style="color:#94a3b8;font-size:.85rem;">Cargando...</p>';
+
+    const { data, error } = await db
+        .from('medidas_avances')
+        .select('*')
+        .eq('tabla', avanceCtx.tabla)
+        .eq('medida_id', String(avanceCtx.medidaId))
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        cont.innerHTML = '<p style="color:#dc2626;font-size:.85rem;">No se pudo cargar el avance.</p>';
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        cont.innerHTML = '<p style="color:#94a3b8;font-size:.85rem;">Aún no hay avances registrados.</p>';
+        return;
+    }
+
+    const responsable = puedeEditar(avanceCtx.medida);
+
+    cont.innerHTML = data.map(a => {
+        const fecha = new Date(a.created_at);
+        const f = fecha.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) +
+                  ' · ' + fecha.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+        return `
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                <span style="font-size:.72rem;color:#94a3b8;">${f} · ${a.autor || 'Sin autor'}</span>
+                ${responsable ? `<span style="display:flex;gap:6px;">
+                    <button type="button" onclick="editarAvance('${a.id}')" style="border:none;background:#f1f5f9;border-radius:8px;padding:4px 8px;font-size:.72rem;color:#475569;cursor:pointer;">Editar</button>
+                    <button type="button" onclick="eliminarAvance('${a.id}')" style="border:none;background:#fef2f2;border-radius:8px;padding:4px 8px;font-size:.72rem;color:#b91c1c;cursor:pointer;">Eliminar</button>
+                </span>` : ''}
+            </div>
+            <p style="margin:8px 0 0;font-size:.87rem;color:#0f172a;white-space:pre-wrap;">${escaparTexto(a.texto)}</p>
+        </div>`;
+    }).join('');
+}
+
+function escaparTexto(t) {
+    const d = document.createElement('div');
+    d.textContent = t || '';
+    return d.innerHTML;
+}
+
+async function guardarAvance() {
+    const area = document.getElementById('avance-texto');
+    const texto = area.value.trim();
+    if (!texto) { await mostrarAlerta('Escribe el avance antes de guardar.', 'Falta el texto', 'warn'); return; }
+
+    const user = obtenerSesion();
+    const { error } = await db.from('medidas_avances').insert({
+        tabla: avanceCtx.tabla,
+        medida_id: String(avanceCtx.medidaId),
+        texto,
+        autor: user ? user.area : null
+    });
+
+    if (error) { await mostrarAlerta('No se pudo guardar el avance.', 'Error', 'error'); return; }
+
+    area.value = '';
+    await cargarAvances();
+}
+
+async function editarAvance(id) {
+    const { data } = await db.from('medidas_avances').select('texto').eq('id', id).maybeSingle();
+    const actual = data ? data.texto : '';
+    const nuevo = await pedirTexto('Editar avance', actual, 'Modifica el texto del avance');
+    if (nuevo === null) return;
+    if (!nuevo.trim()) return;
+
+    await db.from('medidas_avances')
+        .update({ texto: nuevo.trim(), updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+    await cargarAvances();
+}
+
+async function eliminarAvance(id) {
+    const ok = await mostrarConfirm('¿Eliminar este avance?', 'Eliminar avance', 'warn');
+    if (!ok) return;
+    await db.from('medidas_avances').delete().eq('id', id);
+    await cargarAvances();
+}
+
+async function finalizarDesdeAvance() {
+    const ok = await mostrarConfirm(
+        '¿Marcar esta actividad como Finalizada?',
+        'Finalizar ejecución',
+        'info'
+    );
+    if (!ok) return;
+
+    const tabla = avanceCtx.tabla === 'antes' ? 'medidas_antes'
+        : avanceCtx.tabla === 'durante' ? 'medidas_durante' : 'medidas_despues';
+
+    await db.from(tabla)
+        .update({ estado: 'finalizado', updated_at: new Date().toISOString() })
+        .eq('id', avanceCtx.medidaId);
+
+    cerrarModalAvance();
+    if (avanceCtx.tabla === 'antes') cargarMedidasAntes();
+    else if (avanceCtx.tabla === 'durante') cargarMedidasDurante();
+    else cargarMedidasDespues();
+}
+
+/* Clic en el estado: si esta en ejecucion o finalizado, abre el avance */
+document.addEventListener('click', (e) => {
+    const badge = e.target.closest('.badge-estado');
+    if (!badge) return;
+
+    const id = badge.dataset.id;
+    const tabla = medidasAntesCache.some(m => String(m.id) === String(id)) ? 'antes'
+        : medidasDuranteCache.some(m => String(m.id) === String(id)) ? 'durante'
+        : medidasDespuesCache.some(m => String(m.id) === String(id)) ? 'despues' : null;
+    if (!tabla) return;
+
+    const medida = medidaDeCache(tabla, id);
+    if (!medida) return;
+
+    if (medida.estado === 'en-ejecucion' || medida.estado === 'finalizado') {
+        e.stopPropagation();
+        e.preventDefault();
+        abrirModalAvance(tabla, id);
+    }
+}, true);
+
+
+
+/* ============================================================
+   VENTANA PROPIA PARA PEDIR TEXTO (sin prompt del navegador)
+   ============================================================ */
+let pedirTextoResolver = null;
+
+function pedirTexto(titulo, valor, sub) {
+    return new Promise((resolve) => {
+        pedirTextoResolver = resolve;
+        document.getElementById('texto-titulo').textContent = titulo || '';
+        document.getElementById('texto-sub').textContent = sub || '';
+        const campo = document.getElementById('texto-input');
+        campo.value = valor || '';
+        document.getElementById('modal-texto').style.display = 'flex';
+        setTimeout(() => { campo.focus(); campo.select(); }, 60);
+    });
+}
+
+function cerrarPedirTexto(valor) {
+    document.getElementById('modal-texto').style.display = 'none';
+    const r = pedirTextoResolver;
+    pedirTextoResolver = null;
+    if (r) r(valor);
+}
+
+
+/* ============================================================
+   MODO VISUALIZACION / EDICION
+   ============================================================ */
+function cambiarModo(modo) {
+    const lectura = modo === 'lectura';
+    modoLectura = lectura;
+    document.body.classList.toggle('modo-lectura', lectura);
+    localStorage.setItem('modoPlan', modo);
+
+    const bVer = document.getElementById('btn-modo-ver');
+    const bEd  = document.getElementById('btn-modo-editar');
+    if (bVer) bVer.style.cssText = bVer.style.cssText.replace(/background:[^;]+;?/g, '');
+    if (bEd)  bEd.style.cssText  = bEd.style.cssText.replace(/background:[^;]+;?/g, '');
+
+    // Redibujar las tablas para que los permisos se apliquen de verdad
+    try {
+        cargarMedidasAntes();
+        cargarMedidasDurante();
+        cargarMedidasDespues();
+    } catch (e) { console.warn('No se pudo redibujar:', e); }
+
+    const activo = lectura ? bVer : bEd;
+    const inactivo = lectura ? bEd : bVer;
+    if (activo) { activo.style.background = '#dcfce7'; activo.style.borderColor = '#86efac'; activo.style.color = '#166534'; }
+    if (inactivo) { inactivo.style.background = '#fff'; inactivo.style.borderColor = '#e2e8f0'; inactivo.style.color = '#475569'; }
+}
+
+function aplicarModoGuardado() {
+    const guardado = localStorage.getItem('modoPlan') || 'edicion';
+    cambiarModo(guardado);
+}
+
+/* ============================================================
+   SEGMENTOS (agrupacion de actividades)
+   ============================================================ */
+let segmentosCache = [];
+let modoLectura = false;
+
+async function cargarSegmentos() {
+    const { data } = await db.from('segmentos').select('*').order('orden', { ascending: true });
+    segmentosCache = data || [];
+    return segmentosCache;
+}
+
+function segmentosDe(tabla) {
+    return segmentosCache.filter(s => s.tabla === tabla)
+        .sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+function nombreSegmento(id) {
+    const s = segmentosCache.find(x => x.id === id);
+    return s ? s.nombre : 'Sin segmento';
+}
+
+function ordenarPorSegmento(lista, tabla) {
+    const orden = new Map();
+    segmentosDe(tabla).forEach((s, i) => orden.set(s.id, i));
+    return lista.slice().sort((a, b) => {
+        const oa = a.segmento_id && orden.has(a.segmento_id) ? orden.get(a.segmento_id) : 999;
+        const ob = b.segmento_id && orden.has(b.segmento_id) ? orden.get(b.segmento_id) : 999;
+        return oa - ob;
+    });
+}
+
+function filaSegmentoHTML(segId, tabla) {
+    const items = segmentosDe(tabla);
+    const idx = items.findIndex(s => s.id === segId);
+    const nombre = segId ? nombreSegmento(segId) : 'Sin segmento';
+    const flechas = segId ? `
+        <button type="button" class="seg-flecha" onclick="moverSegmento('${segId}',-1)" ${idx <= 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="seg-flecha" onclick="moverSegmento('${segId}',1)" ${idx === -1 || idx >= items.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="seg-flecha" onclick="renombrarSegmento('${segId}')" title="Renombrar">✎</button>
+        <button type="button" class="seg-flecha" onclick="eliminarSegmento('${segId}')" title="Eliminar">✕</button>` : '';
+
+    return `<tr class="fila-segmento"><td colspan="7">
+        <div class="seg-cabecera"><span class="seg-nombre">${nombre}</span><span class="seg-acciones">${flechas}</span></div>
+    </td></tr>`;
+}
+
+async function nuevoSegmento(tabla) {
+    const nombre = await pedirTexto('Nuevo segmento', '', 'Escribe el nombre del segmento');
+    if (nombre === null || !nombre.trim()) return;
+    const orden = segmentosDe(tabla).length;
+    await db.from('segmentos').insert({ tabla, nombre: nombre.trim(), orden });
+    await cargarSegmentos();
+    recargarTabla(tabla);
+}
+
+async function moverSegmento(id, delta) {
+    const seg = segmentosCache.find(s => s.id === id);
+    if (!seg) return;
+    const items = segmentosDe(seg.tabla);
+    const i = items.findIndex(s => s.id === id);
+    const j = i + delta;
+    if (j < 0 || j >= items.length) return;
+    await db.from('segmentos').update({ orden: items[j].orden }).eq('id', items[i].id);
+    await db.from('segmentos').update({ orden: items[i].orden }).eq('id', items[j].id);
+    await cargarSegmentos();
+    recargarTabla(seg.tabla);
+}
+
+async function renombrarSegmento(id) {
+    const seg = segmentosCache.find(s => s.id === id);
+    if (!seg) return;
+    const nuevo = await pedirTexto('Renombrar segmento', seg.nombre, 'Nuevo nombre');
+    if (nuevo === null || !nuevo.trim()) return;
+    await db.from('segmentos').update({ nombre: nuevo.trim() }).eq('id', id);
+    await cargarSegmentos();
+    recargarTabla(seg.tabla);
+}
+
+async function eliminarSegmento(id) {
+    const seg = segmentosCache.find(s => s.id === id);
+    if (!seg) return;
+    const ok = await mostrarConfirm('Las actividades de este segmento quedaran en "Sin segmento". ¿Continuar?', 'Eliminar segmento', 'warn');
+    if (!ok) return;
+    await db.from('segmentos').delete().eq('id', id);
+    await cargarSegmentos();
+    recargarTabla(seg.tabla);
+}
+
+function recargarTabla(tabla) {
+    if (tabla === 'antes') cargarMedidasAntes();
+    else if (tabla === 'durante') cargarMedidasDurante();
+    else cargarMedidasDespues();
+}
+
 /* ============================================================
    INICIO
    ============================================================ */
@@ -2118,5 +2470,11 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosDespues();
     inicializarFiltrosArea();
     verificarSesion();
+    aplicarModoGuardado();
+    cargarSegmentos().then(() => {
+        cargarMedidasAntes();
+        cargarMedidasDurante();
+        cargarMedidasDespues();
+    });
     activarNumerosLlamables();
 });
