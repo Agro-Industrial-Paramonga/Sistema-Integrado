@@ -2471,10 +2471,18 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosArea();
     verificarSesion();
     aplicarModoGuardado();
-    cargarSegmentos().then(() => {
-        cargarMedidasAntes();
-        cargarMedidasDurante();
-        cargarMedidasDespues();
-    });
+    // Primero las tablas (si algo falla despues, igual se ven las medidas)
+    cargarMedidasAntes();
+    cargarMedidasDurante();
+    cargarMedidasDespues();
+
+    // Luego los segmentos, y se redibuja si llegaron
+    cargarSegmentos()
+        .then(() => {
+            cargarMedidasAntes();
+            cargarMedidasDurante();
+            cargarMedidasDespues();
+        })
+        .catch((e) => console.warn('Segmentos no disponibles:', e));
     activarNumerosLlamables();
 });
