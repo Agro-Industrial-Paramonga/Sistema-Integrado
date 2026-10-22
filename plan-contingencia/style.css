@@ -2509,16 +2509,14 @@ body {
 #modal-password button:disabled { opacity: .6; cursor: not-allowed; }
 #pass-error { margin-top: 14px !important; color: #dc2626 !important; font-size: .8rem !important; }
 
-
-/* ===== SEGMENTOS EN LAS TABLAS ===== */
+/* ===== SEGMENTOS ===== */
 .fila-segmento td { background: #f0fdf4; border-top: 2px solid #bbf7d0; padding: 6px 10px !important; }
 .seg-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .seg-nombre { font-weight: 700; font-size: .78rem; letter-spacing: .05em; text-transform: uppercase; color: #166534; }
 .seg-acciones { display: flex; gap: 4px; }
-.seg-flecha { border: 1px solid #bbf7d0; background: #fff; color: #166534; border-radius: 6px; width: 24px; height: 24px; font-size: .75rem; line-height: 1; cursor: pointer; }
+.seg-flecha { border: 1px solid #bbf7d0; background: #fff; color: #166534; border-radius: 6px; width: 24px; height: 24px; font-size: .72rem; cursor: pointer; }
 .seg-flecha:hover { background: #dcfce7; }
 .seg-flecha:disabled { opacity: .35; cursor: not-allowed; }
-
 
 /* ===== MODO VISUALIZACION ===== */
 body.modo-lectura .btn-agregar,
@@ -2527,7 +2525,4 @@ body.modo-lectura .seg-acciones,
 body.modo-lectura .btn-alarma-fila,
 body.modo-lectura .btn-remove-area,
 body.modo-lectura .btn-add-area { display: none !important; }
-
-body.modo-lectura .badge-estado { cursor: pointer; }
-body.modo-lectura .input-costo { pointer-events: none; background: transparent; border: 1px solid transparent; }
-body.modo-lectura .tabla-progreso { display: none; }
+body.modo-lectura .input-costo { pointer-events: none; background: transparent; border-color: transparent; }
