@@ -166,6 +166,11 @@ async function iniciarTurno() {
         window.AndroidUbicacion.iniciarServicio(nombre, unidad);
     }
 
+    // Permiso de pantalla completa para que la alarma aparezca sola
+    if (window.AndroidUbicacion && window.AndroidUbicacion.pedirPantallaCompleta) {
+        try { window.AndroidUbicacion.pedirPantallaCompleta(); } catch (e) {}
+    }
+
     mostrarAviso(listo
         ? 'Turno iniciado y celular registrado. Abriendo el mapa…'
         : 'Turno iniciado, pero el celular no se registró para alarmas.');

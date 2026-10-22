@@ -117,6 +117,23 @@ public class MainActivity extends BridgeActivity {
                     }
 
                     @JavascriptInterface
+                    public void pedirPantallaCompleta() {
+                        try {
+                            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                                android.app.NotificationManager nm =
+                                        (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                                if (nm != null && !nm.canUseFullScreenIntent()) {
+                                    Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                                    i.setData(Uri.parse("package:" + getPackageName()));
+                                    startActivity(i);
+                                }
+                            }
+                        } catch (Exception e) {
+                            android.util.Log.e("MainActivity", "pantalla completa", e);
+                        }
+                    }
+
+                    @JavascriptInterface
                     public void cambiarUnidad(String unidad) {
                         UbicacionScheduler.cambiarUnidad(getApplicationContext(), unidad);
                     }
