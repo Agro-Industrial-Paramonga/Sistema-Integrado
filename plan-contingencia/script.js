@@ -282,6 +282,8 @@ function quienEnvia() {
 }
 
 function botonAlarmaMedidaHTML(tabla, medidaId) {
+    // Solo se puede enviar alarma en modo edicion
+    if (modoLectura) return '';
     if (!puedeEnviarAlarma()) return '';
     return `
         <button class="btn-alarma-fila" title="Enviar alarma manual" aria-label="Enviar alarma manual"

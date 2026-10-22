@@ -2522,7 +2522,6 @@ body {
 body.modo-lectura .btn-agregar,
 body.modo-lectura .btn-solo-area,
 body.modo-lectura .seg-acciones,
-body.modo-lectura .btn-alarma-fila,
 body.modo-lectura .btn-remove-area,
 body.modo-lectura .btn-add-area { display: none !important; }
 body.modo-lectura .input-costo { pointer-events: none; background: transparent; border-color: transparent; }
