@@ -65,14 +65,18 @@ function mostrarAviso(texto) {
 
 /* Registra el celular para recibir alarmas (FCM) a nombre del conductor */
 async function registrarPush(nombre) {
+    return new Promise(async (resolver) => {
+        const terminar = () => resolver(true);
+        setTimeout(() => resolver(false), 7000);   // no bloquear mas de 7 s
+
     try {
         const cap = window.Capacitor;
         const PN = cap && cap.Plugins && cap.Plugins.PushNotifications;
-        if (!PN) return;                      // fuera del APK: no aplica
+        if (!PN) { resolver(false); return; }   // fuera del APK: no aplica
 
         let permiso = await PN.checkPermissions();
         if (permiso.receive !== 'granted') permiso = await PN.requestPermissions();
-        if (permiso.receive !== 'granted') { mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.'); return; }
+        if (permiso.receive !== 'granted') { mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.'); resolver(false); return; }
 
         PN.addListener('registration', async (token) => {
             try {
@@ -82,8 +86,10 @@ async function registrarPush(nombre) {
                 try { localStorage.setItem('pushToken', token.value); } catch (e) {}
                 window.__pushListo = true;
                 mostrarAviso('Celular registrado para alarmas ✓');
+                resolver(true);
             } catch (e) {
                 mostrarAviso('No se pudo guardar el token: ' + e.message);
+                resolver(false);
             }
         });
 
@@ -108,7 +114,7 @@ function pedirPermisoUbicacion() {
     );
 }
 
-function iniciarTurno() {
+async function iniciarTurno() {
     const unidad = document.getElementById('sel-unidad').value;
     const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
 
@@ -125,16 +131,24 @@ function iniciarTurno() {
     // Pedir el permiso de ubicacion en este momento
     pedirPermisoUbicacion();
 
-    // Registrar el celular para recibir alarmas de evacuacion
-    registrarPush(nombre);
+
 
     // Activar el servicio nativo (sigue enviando con la app cerrada)
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
         window.AndroidUbicacion.iniciarServicio(nombre, unidad);
     }
 
-    mostrarAviso('Turno iniciado. Abriendo el mapa…');
-    window.location.href = 'mapa.html';
+    const boton = document.getElementById('btn-entrar');
+    boton.disabled = true;
+    boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando…';
+    mostrarAviso('Registrando el celular para alarmas…');
+
+    const listo = await registrarPush(nombre);
+    mostrarAviso(listo
+        ? 'Turno iniciado y celular registrado. Abriendo el mapa…'
+        : 'Turno iniciado, pero el celular no se registró para alarmas.');
+
+    setTimeout(() => { window.location.href = 'mapa.html'; }, listo ? 600 : 1500);
 }
 
 cargar();
