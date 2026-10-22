@@ -49,6 +49,11 @@ function iniciarMapa() {
 
     dibujarCapa();
     cargarCapaGuardada();
+    if (window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes) {
+        const b = document.getElementById('btn-ajustes-ubicacion');
+        if (b) b.style.display = 'inline-flex';
+    }
+
     cargarUnidades();
     cargarUnidadesLista();
     setInterval(cargarUnidades, 30000);
@@ -356,6 +361,17 @@ async function enviarUbicacion(lat, lon, precision) {
     document.getElementById('estado').textContent =
         'Enviando ' + (unidad || 'sin unidad') + ' · ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
     cargarUnidades();
+}
+
+
+
+/* Abre los ajustes de la app para elegir "Permitir todo el tiempo" */
+function abrirAjustesUbicacion() {
+    if (window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes) {
+        window.AndroidUbicacion.abrirAjustes();
+    } else {
+        alert('Esta opción solo está disponible dentro de la app instalada.');
+    }
 }
 
 

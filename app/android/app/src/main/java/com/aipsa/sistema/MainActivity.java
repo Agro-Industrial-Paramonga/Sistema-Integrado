@@ -10,6 +10,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
+import android.webkit.JavascriptInterface;
+import android.provider.Settings;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import androidx.core.app.ActivityCompat;
@@ -76,6 +78,18 @@ public class MainActivity extends BridgeActivity {
                 // diagrama de flujo del plan de contingencia).
                 android.webkit.WebSettings ajustes = webView.getSettings();
                 ajustes.setGeolocationEnabled(true);
+
+                // Permitir que la web abra los ajustes de ubicacion de la app
+                webView.addJavascriptInterface(new Object() {
+                    @JavascriptInterface
+                    public void abrirAjustes() {
+                        runOnUiThread(() -> {
+                            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            i.setData(Uri.parse("package:" + getPackageName()));
+                            startActivity(i);
+                        });
+                    }
+                }, "AndroidUbicacion");
                 ajustes.setSupportZoom(true);
                 ajustes.setBuiltInZoomControls(true);
                 ajustes.setDisplayZoomControls(false);
