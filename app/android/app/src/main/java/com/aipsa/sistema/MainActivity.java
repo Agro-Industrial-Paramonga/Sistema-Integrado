@@ -8,10 +8,37 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
+import android.webkit.GeolocationPermissions;
+import android.webkit.PermissionRequest;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import androidx.activity.OnBackPressedCallback;
 
 public class MainActivity extends BridgeActivity {
+
+    private GeolocationPermissions.Callback callbackUbicacion;
+    private String origenUbicacion;
+    private static final int CODIGO_UBICACION = 4711;
+
+    private boolean tienePermisoUbicacion() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CODIGO_UBICACION && callbackUbicacion != null) {
+            boolean concedido = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            callbackUbicacion.invoke(origenUbicacion, concedido, false);
+            callbackUbicacion = null;
+            origenUbicacion = null;
+        }
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -48,9 +75,26 @@ public class MainActivity extends BridgeActivity {
                 // Permitir agrandar/achicar con dos dedos (por ejemplo el
                 // diagrama de flujo del plan de contingencia).
                 android.webkit.WebSettings ajustes = webView.getSettings();
+                ajustes.setGeolocationEnabled(true);
                 ajustes.setSupportZoom(true);
                 ajustes.setBuiltInZoomControls(true);
                 ajustes.setDisplayZoomControls(false);
+
+                webView.setWebChromeClient(new com.getcapacitor.BridgeWebChromeClient(getBridge()) {
+                    @Override
+                    public void onGeolocationPermissionsShowPrompt(String origin,
+                            GeolocationPermissions.Callback callback) {
+                        if (tienePermisoUbicacion()) {
+                            callback.invoke(origin, true, false);
+                        } else {
+                            callbackUbicacion = callback;
+                            origenUbicacion = origin;
+                            ActivityCompat.requestPermissions(MainActivity.this,
+                                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                    CODIGO_UBICACION);
+                        }
+                    }
+                });
 
                 webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
                     @Override
