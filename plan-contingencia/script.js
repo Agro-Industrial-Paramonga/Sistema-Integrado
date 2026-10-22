@@ -726,6 +726,8 @@ async function cerrarSesion() {
     resetCustomSelect();
     mostrarPantalla('screen-login');
     document.getElementById('main-header').style.display = 'none';
+    mostrarModoBotones(false);
+    mostrarMenuLogin(true);
 
     await cargarAreasEnLogin();
     resetCustomSelect();
