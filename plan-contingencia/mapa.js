@@ -231,4 +231,44 @@ function centrarEnDatos() {
     }
 }
 
+
+/* ------------------------------------------------------------
+   Simulacion de unidad (para pruebas)
+   ------------------------------------------------------------ */
+let simulando = false;
+
+function alternarSimulacion() {
+    simulando = !simulando;
+    document.getElementById('btn-simular').classList.toggle('activo', simulando);
+    document.getElementById('leyenda-sim').style.display = simulando ? 'block' : 'none';
+    document.getElementById('mapa').style.cursor = simulando ? 'crosshair' : '';
+}
+
+mapa.on('click', async (e) => {
+    if (!simulando) return;
+    await moverSimulacion(e.latlng.lat, e.latlng.lng);
+});
+
+async function moverSimulacion(lat, lon) {
+    const fila = {
+        user_id: 'SIMULACION',
+        lat,
+        lon,
+        precision_m: 8,
+        bateria: 90,
+        actualizado_en: new Date().toISOString()
+    };
+    const { error } = await db.from('ubicaciones').upsert(fila, { onConflict: 'user_id' });
+    if (error) { document.getElementById('estado').textContent = 'Error: ' + error.message; return; }
+    document.getElementById('estado').textContent = 'Ubicación simulada en ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    cargarUnidades();
+}
+
+async function borrarSimulacion() {
+    await db.from('ubicaciones').delete().eq('user_id', 'SIMULACION');
+    document.getElementById('estado').textContent = 'Simulación borrada';
+    cargarUnidades();
+}
+
+
 iniciarMapa();
