@@ -89,6 +89,21 @@ public class MainActivity extends BridgeActivity {
                             startActivity(i);
                         });
                     }
+
+                    @JavascriptInterface
+                    public void iniciarServicio(String usuario, String unidad) {
+                        UbicacionScheduler.iniciar(getApplicationContext(), usuario, unidad);
+                    }
+
+                    @JavascriptInterface
+                    public void cambiarUnidad(String unidad) {
+                        UbicacionScheduler.cambiarUnidad(getApplicationContext(), unidad);
+                    }
+
+                    @JavascriptInterface
+                    public void detenerServicio() {
+                        UbicacionScheduler.detener(getApplicationContext());
+                    }
                 }, "AndroidUbicacion");
                 ajustes.setSupportZoom(true);
                 ajustes.setBuiltInZoomControls(true);

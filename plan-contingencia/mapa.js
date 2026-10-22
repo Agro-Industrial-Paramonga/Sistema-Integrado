@@ -255,6 +255,12 @@ async function cargarUnidadesLista() {
         (data || []).map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('');
 }
 
+document.addEventListener('change', (ev) => {
+    if (ev.target && ev.target.id === 'sel-unidad' && window.AndroidUbicacion && window.AndroidUbicacion.cambiarUnidad) {
+        window.AndroidUbicacion.cambiarUnidad(ev.target.value || '');
+    }
+});
+
 function unidadSeleccionada() {
     const sel = document.getElementById('sel-unidad');
     return sel && sel.value ? sel.value : null;
@@ -321,6 +327,11 @@ function alternarRastreo() {
     document.getElementById('btn-rastreo').classList.add('activo');
     document.getElementById('btn-rastreo').innerHTML = '<i class="fas fa-stop"></i> Detener ubicación';
 
+    // Servicio nativo: sigue enviando aunque se cierre la app
+    if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
+        window.AndroidUbicacion.iniciarServicio(usuarioActual(), unidadSeleccionada() || '');
+    }
+
     watchId = navigator.geolocation.watchPosition(
         (pos) => enviarUbicacion(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
         (err) => {
@@ -334,6 +345,9 @@ function detenerRastreo() {
     rastreando = false;
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     document.getElementById('btn-rastreo').classList.remove('activo');
+    if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
+        window.AndroidUbicacion.detenerServicio();
+    }
     document.getElementById('btn-rastreo').innerHTML = '<i class="fas fa-satellite-dish"></i> Compartir mi ubicación';
     document.getElementById('estado').textContent = 'Ubicación detenida';
 }
