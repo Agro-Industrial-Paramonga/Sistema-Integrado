@@ -1686,6 +1686,7 @@ function abrirModalEditar(tabla, id) {
     document.getElementById('agregar-periodo').value = item.periodo || '';
     document.getElementById('agregar-costo').value = formatearCosto(item.costo);
     document.getElementById('areas-lista').innerHTML = '';
+    pintarSelectSegmento(tabla, item.segmento_id || null);
 
     const areas = (item.area || '').split('/').map(a => a.trim()).filter(Boolean);
     areas.slice(0, 2).forEach((a, i) => agregarAreaFila(a, false, i === 0));
@@ -1800,6 +1801,7 @@ async function guardarNuevaMedida() {
     } else {
         const payload = {
             actividad, periodo, area, costo,
+            segmento_id: document.getElementById('agregar-segmento')?.value || null,
             updated_at: new Date().toISOString()
         };
         const { error } = await db.from(nombreTabla)
