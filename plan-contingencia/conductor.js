@@ -75,11 +75,20 @@ async function registrarPush(nombre) {
         if (permiso.receive !== 'granted') { mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.'); return; }
 
         PN.addListener('registration', async (token) => {
-            await db.from('push_subscriptions').delete().eq('user_id', nombre);
-            await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
-            // guardar el token junto a la ubicacion para alarmas puntuales
-            await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
+            try {
+                await db.from('push_subscriptions').delete().eq('user_id', nombre);
+                await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
+                await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
+                window.__pushListo = true;
+                mostrarAviso('Celular registrado para alarmas ✓');
+            } catch (e) {
+                mostrarAviso('No se pudo guardar el token: ' + e.message);
+            }
         });
+
+        setTimeout(() => {
+            if (!window.__pushListo) mostrarAviso('Aún registrando el celular para alarmas…');
+        }, 8000);
 
         PN.addListener('registrationError', (e) => console.warn('Push error', e));
 

@@ -240,6 +240,7 @@ async function cargarUnidades() {
             const unSeguro = String(u.unidad || '').replace(/'/g, '');
             const tokSeguro = String(u.token || '').replace(/'/g, '');
             marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br>` +
+                `${tokSeguro ? '' : '<div style="font-size:.7rem;color:#b45309;margin-bottom:6px;">Sin celular registrado</div>'}` +
                 `<button onclick="alertarUnidad('${uSeguro}','${unSeguro}','${tokSeguro}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`);
             marcadoresUnidades.push(marcador);
         });
@@ -525,12 +526,13 @@ async function alertarUnidad(usuario, unidad, token) {
         alert('Esta unidad no tiene un celular registrado para recibir alarmas.');
         return;
     }
+    if (!token) {
+        console.warn('La unidad no tiene token guardado; se intentara por usuario: ' + usuario);
+    }
     if (!confirm('¿Alertar a ' + quien + ' para que evacue a un lugar seguro?')) return;
 
     const cuerpo = 'Evacue de inmediato y diríjase a un lugar seguro.';
     const titulo = 'EVACUACIÓN · ' + quien;
-
-    hablar(titulo + '. ' + cuerpo);
 
     try {
         const resp = await fetch(FUNC_PUSH, {
