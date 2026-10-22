@@ -2525,3 +2525,16 @@ body.modo-lectura .seg-acciones,
 body.modo-lectura .btn-remove-area,
 body.modo-lectura .btn-add-area { display: none !important; }
 body.modo-lectura .input-costo { pointer-events: none; background: transparent; border-color: transparent; }
+
+
+/* ===== AJUSTES MOVIL ===== */
+@media (max-width: 768px) {
+    .fila-segmento td { text-align: left !important; padding: 10px 14px !important; }
+    .seg-nombre { font-size: .72rem; line-height: 1.35; display: block; }
+    .data-table td.acciones-cell:not(:has(button)) { display: none !important; }
+    .btn-alarma-fila { width: 40px; height: 40px; font-size: 15px; }
+    .btn-editar-fila { width: 40px; height: 40px; font-size: 15px; }
+    .section-back { font-size: .85rem; }
+    #section-antes h1, #section-durante h1, #section-despues h1 { font-size: 1.6rem !important; }
+    .progreso-panel, .avance-panel { padding: 12px 14px !important; }
+}
