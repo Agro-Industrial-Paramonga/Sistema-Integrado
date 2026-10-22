@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingreso de conductores</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 60%, #eef2ff 100%);
+            display: flex; align-items: center; justify-content: center; padding: 18px;
+        }
+        .tarjeta {
+            width: 100%; max-width: 420px; background: #fff; border-radius: 20px;
+            padding: 26px 22px; box-shadow: 0 18px 50px rgba(15,23,42,.14);
+        }
+        .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+        .logo img { height: 40px; }
+        .logo div span { display: block; font-size: .58rem; letter-spacing: .12em; color: #64748b; font-weight: 700; }
+        .logo div strong { font-size: .95rem; color: #0f172a; }
+        h1 { font-size: 1.25rem; margin: 0 0 4px; color: #0f172a; }
+        .sub { font-size: .83rem; color: #64748b; margin: 0 0 20px; }
+        label { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .06em; color: #64748b; margin: 14px 0 6px; }
+        select, input {
+            width: 100%; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 12px;
+            font-size: .95rem; color: #0f172a; background: #fff; outline: none;
+        }
+        select:focus, input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+        button {
+            width: 100%; margin-top: 22px; padding: 14px; border: none; border-radius: 12px;
+            background: #10b981; color: #fff; font-size: .95rem; font-weight: 700; cursor: pointer;
+        }
+        button:disabled { background: #cbd5e1; cursor: not-allowed; }
+        .aviso { margin-top: 14px; font-size: .76rem; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 12px; line-height: 1.45; display: none; }
+        .volver { display: inline-block; margin-top: 18px; font-size: .8rem; color: #64748b; text-decoration: none; }
+        .paso { font-size: .7rem; color: #94a3b8; font-weight: 700; letter-spacing: .05em; }
+    </style>
+</head>
+<body>
+    <div class="tarjeta">
+        <div class="logo">
+            <img src="assets/logo.png" alt="Logo">
+            <div>
+                <span>CENTRO DE OPERACIONES</span>
+                <strong>Plan de Contingencia</strong>
+            </div>
+        </div>
+
+        <h1>Ingreso de conductores</h1>
+        <p class="sub">Identifica tu unidad para compartir tu ubicación durante el turno.</p>
+
+        <span class="paso">PASO 1</span>
+        <label>Serie de la unidad</label>
+        <select id="sel-prefijo">
+            <option value="">Selecciona la serie</option>
+        </select>
+
+        <span class="paso">PASO 2</span>
+        <label>Unidad</label>
+        <select id="sel-unidad" disabled>
+            <option value="">Primero elige la serie</option>
+        </select>
+
+        <label>Nombre del colaborador</label>
+        <input id="inp-nombre" type="text" placeholder="Nombres y apellidos" autocomplete="name">
+
+        <button id="btn-entrar" onclick="iniciarTurno()" disabled>
+            <i class="fas fa-play"></i> Iniciar turno
+        </button>
+
+        <div class="aviso" id="aviso"></div>
+
+        <a class="volver" href="mapa.html"><i class="fas fa-arrow-left"></i> Volver al mapa</a>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="conductor.js"></script>
+</body>
+</html>

@@ -56,6 +56,7 @@ function iniciarMapa() {
 
     cargarUnidades();
     cargarUnidadesLista();
+    aplicarSesionConductor();
     setInterval(cargarUnidades, 30000);
 }
 
@@ -357,9 +358,10 @@ async function enviarUbicacion(lat, lon, precision) {
     if (ahora - ultimoEnvio < 60000) return;   // maximo un envio por minuto
     ultimoEnvio = ahora;
 
+    const c = sesionConductor();
     const unidad = unidadSeleccionada();
     const fila = {
-        user_id: usuarioActual(),
+        user_id: c ? c.nombre : usuarioActual(),
         unidad: unidad,
         lat,
         lon,
@@ -386,6 +388,69 @@ function abrirAjustesUbicacion() {
     } else {
         alert('Esta opción solo está disponible dentro de la app instalada.');
     }
+}
+
+
+
+/* ------------------------------------------------------------
+   Sesion de conductor: comparte sin poder detenerse
+   ------------------------------------------------------------ */
+function sesionConductor() {
+    try { return JSON.parse(localStorage.getItem('conductor') || 'null'); } catch (e) { return null; }
+}
+
+function aplicarSesionConductor() {
+    const c = sesionConductor();
+    if (!c) return;
+
+    // Unidad fija
+    const sel = document.getElementById('sel-unidad');
+    if (sel) {
+        if (![...sel.options].some(o => o.value === c.unidad)) {
+            const op = document.createElement('option');
+            op.value = c.unidad; op.textContent = c.unidad;
+            sel.appendChild(op);
+        }
+        sel.value = c.unidad;
+        sel.disabled = true;
+    }
+
+    // Ocultar controles de detener y mostrar cerrar turno
+    const b = document.getElementById('btn-rastreo');
+    if (b) b.style.display = 'none';
+    const sim = document.getElementById('btn-simular');
+    if (sim) sim.style.display = 'none';
+    const ct = document.getElementById('btn-cerrar-turno');
+    if (ct) ct.style.display = 'inline-flex';
+
+    iniciarRastreoSilencioso(c);
+}
+
+function iniciarRastreoSilencioso(c) {
+    if (!navigator.geolocation) return;
+    rastreando = true;
+
+    if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
+        window.AndroidUbicacion.iniciarServicio(c.nombre, c.unidad);
+    }
+
+    if (watchId === null) {
+        watchId = navigator.geolocation.watchPosition(
+            (pos) => enviarUbicacion(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+            (err) => { document.getElementById('estado').textContent = 'Ubicación: ' + err.message; },
+            { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+        );
+    }
+}
+
+function cerrarTurno() {
+    if (!confirm('¿Finalizar el turno? Se dejará de compartir la ubicación.')) return;
+    if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
+        window.AndroidUbicacion.detenerServicio();
+    }
+    localStorage.removeItem('conductor');
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    window.location.href = 'conductor.html';
 }
 
 
