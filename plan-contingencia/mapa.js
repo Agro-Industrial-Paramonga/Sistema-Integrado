@@ -241,7 +241,7 @@ async function cargarUnidades() {
             const tokSeguro = String(u.token || '').replace(/'/g, '');
             marcador.bindPopup(
                 `<strong>${u.user_id || titulo}</strong><br>` +
-                `<span style="color:#16a34a;font-weight:700">🚚 ${u.unidad || 'sin unidad'}</span><br>` +
+                `<span style="color:#16a34a;font-weight:700">🚚 ${u.unidad || (sesionConductor() && sesionConductor().unidad) || 'sin unidad'}</span><br>` +
                 `Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br>` +
                 `<button onclick="alertarUnidad('${uSeguro}','${unSeguro}','${tokSeguro}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`
             );
@@ -355,7 +355,7 @@ function alternarRastreo() {
 
     // Servicio nativo: sigue enviando aunque se cierre la app
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
-        window.AndroidUbicacion.iniciarServicio(usuarioActual(), unidadSeleccionada() || '');
+        window.AndroidUbicacion.iniciarServicio(usuarioActual(), c.unidad || '');
     }
 
     watchId = navigator.geolocation.watchPosition(
@@ -385,7 +385,8 @@ async function enviarUbicacion(lat, lon, precision) {
     ultimoEnvio = ahora;
 
     const c = sesionConductor();
-    const unidad = unidadSeleccionada();
+    // La unidad viene de la sesion del conductor (el selector ya no existe en el mapa)
+    const unidad = (c && c.unidad) || unidadSeleccionada() || null;
     let tokenGuardado = null;
     try { tokenGuardado = localStorage.getItem('pushToken'); } catch (e) {}
 
