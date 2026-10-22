@@ -61,50 +61,9 @@ function mostrarAviso(texto) {
     a.style.display = texto ? 'block' : 'none';
 }
 
-
-
-/* Registra el celular para recibir alarmas (FCM) a nombre del conductor */
-async function registrarPush(nombre) {
-    return new Promise(async (resolver) => {
-        const terminar = () => resolver(true);
-        setTimeout(() => resolver(false), 7000);   // no bloquear mas de 7 s
-
-    try {
-        const cap = window.Capacitor;
-        const PN = cap && cap.Plugins && cap.Plugins.PushNotifications;
-        if (!PN) { resolver(false); return; }   // fuera del APK: no aplica
-
-        let permiso = await PN.checkPermissions();
-        if (permiso.receive !== 'granted') permiso = await PN.requestPermissions();
-        if (permiso.receive !== 'granted') { mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.'); resolver(false); return; }
-
-        PN.addListener('registration', async (token) => {
-            try {
-                await db.from('push_subscriptions').delete().eq('user_id', nombre);
-                await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
-                await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
-                try { localStorage.setItem('pushToken', token.value); } catch (e) {}
-                window.__pushListo = true;
-                mostrarAviso('Celular registrado para alarmas ✓');
-                resolver(true);
-            } catch (e) {
-                mostrarAviso('No se pudo guardar el token: ' + e.message);
-                resolver(false);
-            }
-        });
-
-        setTimeout(() => {
-            if (!window.__pushListo) mostrarAviso('Aún registrando el celular para alarmas…');
-        }, 8000);
-
-        PN.addListener('registrationError', (e) => console.warn('Push error', e));
-
-        await PN.register();
-    } catch (e) {
-        console.warn('Push no disponible:', e);
-    }
-}
-
+/* ------------------------------------------------------------
+   Permiso de ubicacion
+   ------------------------------------------------------------ */
 function pedirPermisoUbicacion() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -114,29 +73,72 @@ function pedirPermisoUbicacion() {
     );
 }
 
+/* ------------------------------------------------------------
+   Registro del celular para alarmas (FCM)
+   Devuelve true si logro guardar el token
+   ------------------------------------------------------------ */
+function registrarPush(nombre) {
+    return new Promise(async (resolver) => {
+        let terminado = false;
+        const fin = (ok) => { if (!terminado) { terminado = true; resolver(ok); } };
+
+        setTimeout(() => fin(false), 8000);   // no bloquear mas de 8 s
+
+        try {
+            const cap = window.Capacitor;
+            const PN = (window.capacitorPushNotifications && window.capacitorPushNotifications.PushNotifications)
+                || (cap && cap.Plugins && cap.Plugins.PushNotifications);
+
+            if (!PN) { fin(false); return; }
+
+            let permiso = await PN.checkPermissions();
+            if (permiso.receive !== 'granted') permiso = await PN.requestPermissions();
+            if (permiso.receive !== 'granted') {
+                mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.');
+                fin(false);
+                return;
+            }
+
+            PN.addListener('registration', async (token) => {
+                try {
+                    await db.from('push_subscriptions').delete().eq('user_id', nombre);
+                    await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
+                    await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
+                    try { localStorage.setItem('pushToken', token.value); } catch (e) {}
+                    mostrarAviso('Celular registrado para alarmas ✓');
+                    fin(true);
+                } catch (e) {
+                    mostrarAviso('No se pudo guardar el token: ' + e.message);
+                    fin(false);
+                }
+            });
+
+            PN.addListener('registrationError', (e) => {
+                console.warn('Push error', e);
+                fin(false);
+            });
+
+            await PN.register();
+        } catch (e) {
+            console.warn('Push no disponible:', e);
+            fin(false);
+        }
+    });
+}
+
+/* ------------------------------------------------------------
+   Iniciar turno
+   ------------------------------------------------------------ */
 async function iniciarTurno() {
     const unidad = document.getElementById('sel-unidad').value;
     const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
 
     if (!unidad || !nombre) return;
 
-    const sesion = {
-        unidad,
-        nombre,
-        inicio: new Date().toISOString()
-    };
-
+    const sesion = { unidad, nombre, inicio: new Date().toISOString() };
     localStorage.setItem('conductor', JSON.stringify(sesion));
 
-    // Pedir el permiso de ubicacion en este momento
     pedirPermisoUbicacion();
-
-
-
-    // Activar el servicio nativo (sigue enviando con la app cerrada)
-    if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
-        window.AndroidUbicacion.iniciarServicio(nombre, unidad);
-    }
 
     const boton = document.getElementById('btn-entrar');
     boton.disabled = true;
@@ -144,11 +146,17 @@ async function iniciarTurno() {
     mostrarAviso('Registrando el celular para alarmas…');
 
     const listo = await registrarPush(nombre);
+
+    // Servicio nativo: sigue enviando con la app cerrada
+    if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
+        window.AndroidUbicacion.iniciarServicio(nombre, unidad);
+    }
+
     mostrarAviso(listo
         ? 'Turno iniciado y celular registrado. Abriendo el mapa…'
         : 'Turno iniciado, pero el celular no se registró para alarmas.');
 
-    setTimeout(() => { window.location.href = 'mapa.html'; }, listo ? 600 : 1500);
+    setTimeout(() => { window.location.href = 'mapa.html'; }, listo ? 700 : 1800);
 }
 
 cargar();
