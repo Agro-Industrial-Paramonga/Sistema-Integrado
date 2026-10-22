@@ -77,6 +77,10 @@ function pedirPermisoUbicacion() {
    Registro del celular para alarmas (FCM)
    Devuelve true si logro guardar el token
    ------------------------------------------------------------ */
+async function registrarLog(paso, detalle) {
+    try { await db.from('app_log').insert({ origen: 'conductor.push', detalle: paso + ' :: ' + (detalle || '') }); } catch (e) {}
+}
+
 function registrarPush(nombre) {
     return new Promise(async (resolver) => {
         let terminado = false;
@@ -89,17 +93,24 @@ function registrarPush(nombre) {
             const PN = (window.capacitorPushNotifications && window.capacitorPushNotifications.PushNotifications)
                 || (cap && cap.Plugins && cap.Plugins.PushNotifications);
 
-            if (!PN) { fin(false); return; }
+            await registrarLog('PN disponible', cap && cap.Plugins ? Object.keys(cap.Plugins).join(',') : 'sin capacitor');
 
+            if (!PN) { await registrarLog('SIN PLUGIN', 'PushNotifications no disponible'); fin(false); return; }
+
+            await registrarLog('consultando permiso', '');
             let permiso = await PN.checkPermissions();
+            await registrarLog('permiso', JSON.stringify(permiso));
             if (permiso.receive !== 'granted') permiso = await PN.requestPermissions();
             if (permiso.receive !== 'granted') {
+                await registrarLog('PERMISO DENEGADO', JSON.stringify(permiso));
                 mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.');
                 fin(false);
                 return;
             }
 
+            await registrarLog('registrando...', '');
             PN.addListener('registration', async (token) => {
+                await registrarLog('TOKEN RECIBIDO', String(token.value).slice(0, 25));
                 try {
                     await db.from('push_subscriptions').delete().eq('user_id', nombre);
                     await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
@@ -113,13 +124,15 @@ function registrarPush(nombre) {
                 }
             });
 
-            PN.addListener('registrationError', (e) => {
+            PN.addListener('registrationError', async (e) => {
+                await registrarLog('ERROR REGISTRO', JSON.stringify(e));
                 console.warn('Push error', e);
                 fin(false);
             });
 
             await PN.register();
         } catch (e) {
+            await registrarLog('EXCEPCION', String(e && e.message ? e.message : e));
             console.warn('Push no disponible:', e);
             fin(false);
         }
