@@ -46,6 +46,7 @@
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
         <button id="btn-simular" onclick="alternarSimulacion()"><i class="fas fa-vial"></i> Simular unidad</button>
         <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
+        <label style="gap:4px;">Unidad <select id="sel-unidad" style="border:1px solid #e2e8f0;border-radius:8px;padding:5px 8px;font-size:.8rem;"></select></label>
         <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
         <span class="sep"></span>
         <span class="estado" id="estado">Cargando…</span>

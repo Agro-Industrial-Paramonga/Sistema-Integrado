@@ -50,6 +50,7 @@ function iniciarMapa() {
     dibujarCapa();
     cargarCapaGuardada();
     cargarUnidades();
+    cargarUnidadesLista();
     setInterval(cargarUnidades, 30000);
 }
 
@@ -215,7 +216,8 @@ async function cargarUnidades() {
                 })
             }).addTo(mapa);
 
-            marcador.bindPopup(`<strong>${u.user_id}</strong><br>Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m`);
+            const titulo = u.unidad || u.user_id;
+            marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m`);
             marcadoresUnidades.push(marcador);
         });
 
@@ -237,6 +239,22 @@ function centrarEnDatos() {
 }
 
 
+
+/* ------------------------------------------------------------
+   Lista de unidades + asignacion de unidad en la simulacion
+   ------------------------------------------------------------ */
+async function cargarUnidadesLista() {
+    const sel = document.getElementById('sel-unidad');
+    const { data } = await db.from('unidades').select('nombre').eq('activo', true).order('nombre');
+    sel.innerHTML = '<option value="">— sin unidad —</option>' +
+        (data || []).map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('');
+}
+
+function unidadSeleccionada() {
+    const sel = document.getElementById('sel-unidad');
+    return sel && sel.value ? sel.value : null;
+}
+
 /* ------------------------------------------------------------
    Simulacion de unidad (para pruebas)
    ------------------------------------------------------------ */
@@ -250,8 +268,10 @@ function alternarSimulacion() {
 }
 
 async function moverSimulacion(lat, lon) {
+    const unidad = unidadSeleccionada() || 'SIMULACION';
     const fila = {
         user_id: 'SIMULACION',
+        unidad: unidad,
         lat,
         lon,
         precision_m: 8,
@@ -260,7 +280,7 @@ async function moverSimulacion(lat, lon) {
     };
     const { error } = await db.from('ubicaciones').upsert(fila, { onConflict: 'user_id' });
     if (error) { document.getElementById('estado').textContent = 'Error: ' + error.message; return; }
-    document.getElementById('estado').textContent = 'Ubicación simulada en ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    document.getElementById('estado').textContent = (unidad === 'SIMULACION' ? 'Unidad simulada' : unidad) + ' en ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
     cargarUnidades();
 }
 
