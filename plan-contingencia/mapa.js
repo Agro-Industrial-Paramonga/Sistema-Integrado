@@ -34,9 +34,10 @@ function iniciarMapa() {
         return;
     }
 
-    if (esSeguridadIndustrial()) {
-        const b = document.getElementById('btn-ajustar');
-        if (b) b.style.display = 'inline-flex';
+    const botonAjustar = document.getElementById('btn-ajustar');
+    if (botonAjustar) {
+        const esMovil = window.innerWidth < 900 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        botonAjustar.style.display = (esSeguridadIndustrial() && !esMovil) ? 'inline-flex' : 'none';
     }
 
     mapa = L.map('mapa', { zoomControl: true }).setView([-10.7100, -77.7900], 13);
@@ -415,6 +416,8 @@ function sesionConductor() {
 
 function aplicarSesionConductor() {
     const c = sesionConductor();
+    const botonCerrar = document.getElementById('btn-cerrar-turno');
+    if (botonCerrar) botonCerrar.style.display = c ? 'inline-flex' : 'none';
     if (!c) return;
 
     // Unidad fija
