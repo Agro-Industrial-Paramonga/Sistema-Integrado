@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { title, body, userId, token } = await req.json();
+    const { title, body, userId, token, excluir } = await req.json();
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -111,6 +111,13 @@ Deno.serve(async (req) => {
 
     // Envio directo a un solo celular (alerta a una unidad concreta)
     if (token) {
+      if (excluir && token === excluir) {
+        return new Response(JSON.stringify({ ok: true, fcm_enviados: 0, notialarm_disparados: 0, total_subs: 0,
+          nota: 'El destinatario es el mismo dispositivo que envia' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       const soloEse = (todos || []).filter((s) => s.token === token);
       const lista = soloEse.length ? soloEse : [{ token, notialarm_webhook: null }];
 
@@ -138,13 +145,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    const subsFiltrados = (todos || []).filter((s) => !excluir || s.token !== excluir);
+
     const subs = userId
-      ? (todos || []).filter((s) => {
+      ? subsFiltrados.filter((s) => {
           const buscado = norm(userId);
           const claves = clavesDe(s);
           return claves.includes(buscado) || claves.includes('__global__');
         })
-      : (todos || []);
+      : subsFiltrados;
 
     let enviados = 0;
     const tituloFinal = title || 'ðŸš¨ ALERTA DE HUAYCO';

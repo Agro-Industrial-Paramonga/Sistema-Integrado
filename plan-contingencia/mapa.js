@@ -552,7 +552,12 @@ async function alertarUnidad(usuario, unidad, token) {
         const resp = await fetch(FUNC_PUSH, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: titulo, body: cuerpo, userId: usuario || null, token: token || null })
+            body: JSON.stringify({
+                title: titulo, body: cuerpo,
+                userId: usuario || null,
+                token: token || null,
+                excluir: (localStorage.getItem('pushToken') || null)
+            })
         });
         const datos = await resp.json().catch(() => ({}));
         document.getElementById('estado').textContent =
