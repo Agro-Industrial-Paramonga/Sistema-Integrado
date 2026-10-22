@@ -291,4 +291,72 @@ async function borrarSimulacion() {
 }
 
 
+
+/* ------------------------------------------------------------
+   Ubicacion REAL del celular
+   ------------------------------------------------------------ */
+let rastreando = false;
+let watchId = null;
+let ultimoEnvio = 0;
+
+function usuarioActual() {
+    try {
+        const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
+        return u && u.area ? u.area : 'UNIDAD MOVIL';
+    } catch (e) { return 'UNIDAD MOVIL'; }
+}
+
+function alternarRastreo() {
+    if (rastreando) { detenerRastreo(); return; }
+    if (!navigator.geolocation) {
+        document.getElementById('estado').textContent = 'Este dispositivo no permite geolocalización';
+        return;
+    }
+    rastreando = true;
+    document.getElementById('btn-rastreo').classList.add('activo');
+    document.getElementById('btn-rastreo').innerHTML = '<i class="fas fa-stop"></i> Detener ubicación';
+
+    watchId = navigator.geolocation.watchPosition(
+        (pos) => enviarUbicacion(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+        (err) => {
+            document.getElementById('estado').textContent = 'Permiso de ubicación: ' + err.message;
+        },
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+    );
+}
+
+function detenerRastreo() {
+    rastreando = false;
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    document.getElementById('btn-rastreo').classList.remove('activo');
+    document.getElementById('btn-rastreo').innerHTML = '<i class="fas fa-satellite-dish"></i> Compartir mi ubicación';
+    document.getElementById('estado').textContent = 'Ubicación detenida';
+}
+
+async function enviarUbicacion(lat, lon, precision) {
+    const ahora = Date.now();
+    if (ahora - ultimoEnvio < 60000) return;   // maximo un envio por minuto
+    ultimoEnvio = ahora;
+
+    const unidad = unidadSeleccionada();
+    const fila = {
+        user_id: usuarioActual(),
+        unidad: unidad,
+        lat,
+        lon,
+        precision_m: precision || null,
+        actualizado_en: new Date().toISOString()
+    };
+
+    const { error } = await db.from('ubicaciones').upsert(fila, { onConflict: 'user_id' });
+    if (error) {
+        document.getElementById('estado').textContent = 'No se pudo enviar: ' + error.message;
+        return;
+    }
+    document.getElementById('estado').textContent =
+        'Enviando ' + (unidad || 'sin unidad') + ' · ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    cargarUnidades();
+}
+
+
 iniciarMapa();
