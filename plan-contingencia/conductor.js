@@ -61,6 +61,16 @@ function mostrarAviso(texto) {
     a.style.display = texto ? 'block' : 'none';
 }
 
+
+function pedirPermisoUbicacion() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+        () => {},
+        (err) => { mostrarAviso('Activa el permiso de ubicación: ' + err.message); },
+        { enableHighAccuracy: true, timeout: 20000 }
+    );
+}
+
 function iniciarTurno() {
     const unidad = document.getElementById('sel-unidad').value;
     const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
@@ -74,6 +84,9 @@ function iniciarTurno() {
     };
 
     localStorage.setItem('conductor', JSON.stringify(sesion));
+
+    // Pedir el permiso de ubicacion en este momento
+    pedirPermisoUbicacion();
 
     // Activar el servicio nativo (sigue enviando con la app cerrada)
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {

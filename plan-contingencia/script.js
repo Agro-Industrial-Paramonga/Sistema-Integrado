@@ -737,6 +737,21 @@ function mostrarPantalla(id) {
     window.scrollTo(0, 0);
 }
 
+
+function mostrarBotonMapa() {
+    const b = document.getElementById('btn-mapa-plan');
+    if (!b) return;
+    const u = obtenerSesion();
+    if (!u) { b.style.display = 'none'; return; }
+
+    const dentro = (u.rol === 'gerente_general' || u.rol === 'gerencial_legal');
+    const texto = String((u.seccion || '') + ' ' + (u.area || ''))
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const porArea = texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
+
+    b.style.display = (dentro || porArea) ? 'flex' : 'none';
+}
+
 function aplicarVisibilidadGerente() {
     const vistaCompleta = esVistaCompleta();
     const gerenteReal   = esGerente();
@@ -791,6 +806,7 @@ async function entrarApp() {
     document.getElementById('user-name').textContent = u.area;
 
     aplicarVisibilidadGerente();
+    mostrarBotonMapa();
 
     mostrarPantalla('screen-home');
     aplicarModoGuardado();

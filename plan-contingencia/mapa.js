@@ -27,6 +27,18 @@ let marcadoresUnidades = [];
    Inicio
    ------------------------------------------------------------ */
 function iniciarMapa() {
+    if (!accesoPermitido()) {
+        const m = document.getElementById('sin-acceso');
+        if (m) { m.style.display = 'flex'; }
+        document.querySelector('.barra').style.display = 'none';
+        return;
+    }
+
+    if (esSeguridadIndustrial()) {
+        const b = document.getElementById('btn-ajustar');
+        if (b) b.style.display = 'inline-flex';
+    }
+
     mapa = L.map('mapa', { zoomControl: true }).setView([-10.7100, -77.7900], 13);
 
     L.tileLayer(
@@ -443,14 +455,51 @@ function iniciarRastreoSilencioso(c) {
     }
 }
 
-function cerrarTurno() {
+async function cerrarTurno() {
     if (!confirm('¿Finalizar el turno? Se dejará de compartir la ubicación.')) return;
+    const c = sesionConductor();
+
     if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
         window.AndroidUbicacion.detenerServicio();
     }
-    localStorage.removeItem('conductor');
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+
+    if (c && c.nombre) {
+        await db.from('ubicaciones').delete().eq('user_id', c.nombre);
+    }
+
+    localStorage.removeItem('conductor');
     window.location.href = 'conductor.html';
+}
+
+
+
+/* ------------------------------------------------------------
+   Permisos del mapa
+   ------------------------------------------------------------ */
+function usuarioPlan() {
+    try { return JSON.parse(localStorage.getItem('pc_user') || 'null'); } catch (e) { return null; }
+}
+
+function accesoPermitido() {
+    if (sesionConductor()) return true;          // conductor en turno
+    const u = usuarioPlan();
+    if (!u) return false;
+
+    if (u.rol === 'gerente_general' || u.rol === 'gerencial_legal') return true;
+
+    const texto = String((u.seccion || '') + ' ' + (u.area || ''))
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+    return texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
+}
+
+function esSeguridadIndustrial() {
+    const u = usuarioPlan();
+    if (!u) return false;
+    const texto = String((u.seccion || '') + ' ' + (u.area || ''))
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return texto.includes('seguridad industrial');
 }
 
 

@@ -39,19 +39,17 @@
 </head>
 <body>
     <div id="mapa"></div>
+    <div id="sin-acceso" style="display:none;position:absolute;inset:0;background:#f8fafc;z-index:1500;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;"><div><h2 style="color:#0f172a">Acceso restringido</h2><p style="color:#64748b;max-width:420px">Este mapa es solo para Operaciones Agrícolas, Seguridad Industrial, Gerencia General y Gerencia Legal.</p><a href="index.html" style="color:#16a34a;font-weight:700">Volver</a></div></div>
 
     <div class="barra">
-        <a href="conductor.html" style="border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;padding:8px 12px;font-size:.82rem;font-weight:600;text-decoration:none;"><i class="fas fa-id-card"></i> Ingreso de conductores</a>
-        <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
+                <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
         <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
-        <button id="btn-ajustar" onclick="alternarAjuste()"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
+        <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
-        <button id="btn-ajustes-ubicacion" onclick="abrirAjustesUbicacion()" style="display:none;border-color:#fcd34d;background:#fffbeb;color:#92400e;"><i class="fas fa-gear"></i> Permitir siempre</button>
-        <button id="btn-rastreo" onclick="alternarRastreo()"><i class="fas fa-satellite-dish"></i> Compartir mi ubicación</button>
+                <button id="btn-rastreo" onclick="alternarRastreo()"><i class="fas fa-satellite-dish"></i> Compartir mi ubicación</button>
         <button id="btn-simular" onclick="alternarSimulacion()"><i class="fas fa-vial"></i> Simular unidad</button>
         <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
-        <label style="gap:4px;">Unidad <select id="sel-unidad" style="border:1px solid #e2e8f0;border-radius:8px;padding:5px 8px;font-size:.8rem;"></select></label>
-        <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
+                <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
         <span class="sep"></span>
         <span class="estado" id="estado">Cargando…</span>
         <a href="index.html"><i class="fas fa-arrow-left"></i> Volver</a>
