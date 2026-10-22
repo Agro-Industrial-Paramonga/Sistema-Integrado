@@ -2291,10 +2291,22 @@ async function abrirModalAvance(tabla, medidaId) {
     document.getElementById('avance-actividad').textContent = medida ? medida.actividad : '';
     document.getElementById('avance-texto').value = '';
     const puede = puedeEditar(medida);
-    const finalizado = medida && medida.estado === 'finalizado';
+    const estado = medida ? medida.estado : 'no-iniciado';
+    const finalizado = estado === 'finalizado';
+
     document.getElementById('avance-form').style.display = (puede && !finalizado) ? 'block' : 'none';
     const reinicio = document.getElementById('avance-reiniciar');
     if (reinicio) reinicio.style.display = (puede && finalizado) ? 'block' : 'none';
+
+    const btnIniciar = document.getElementById('btn-avance-iniciar');
+    const btnFinalizar = document.getElementById('btn-avance-finalizar');
+    if (btnIniciar) btnIniciar.style.display = (puede && !finalizado && estado !== 'en-ejecucion') ? 'inline-block' : 'none';
+    if (btnFinalizar) btnFinalizar.style.display = (puede && estado === 'en-ejecucion') ? 'inline-block' : 'none';
+
+    const titulo = document.getElementById('avance-titulo');
+    const etiqueta = document.getElementById('avance-etiqueta');
+    if (titulo) titulo.textContent = (estado === 'no-iniciado') ? 'Compromisos de la actividad' : 'Avance de ejecución';
+    if (etiqueta) etiqueta.textContent = (estado === 'no-iniciado') ? 'NUEVO COMPROMISO' : 'NUEVO AVANCE';
     document.getElementById('modal-avance').style.display = 'flex';
     await cargarAvances();
 }
@@ -2367,6 +2379,17 @@ async function eliminarAvance(id) {
 }
 
 
+
+async function iniciarDesdeAvance() {
+    const ok = await mostrarConfirm('¿Iniciar la ejecución de esta actividad?', 'Iniciar ejecución', 'info');
+    if (!ok) return;
+    const tabla = avanceCtx.tabla === 'antes' ? 'medidas_antes'
+        : avanceCtx.tabla === 'durante' ? 'medidas_durante' : 'medidas_despues';
+    await db.from(tabla).update({ estado: 'en-ejecucion', updated_at: new Date().toISOString() }).eq('id', avanceCtx.medidaId);
+    cerrarModalAvance();
+    recargarTabla(avanceCtx.tabla);
+}
+
 async function reiniciarDesdeAvance() {
     const ok = await mostrarConfirm('¿Volver esta actividad a "No iniciado"?', 'Reiniciar ejecución', 'warn');
     if (!ok) return;
@@ -2396,7 +2419,7 @@ document.addEventListener('click', (e) => {
         : medidasDespuesCache.some(m => String(m.id) === String(id)) ? 'despues' : null;
     if (!tabla) return;
     const medida = medidaDeCache(tabla, id);
-    if (medida && (medida.estado === 'en-ejecucion' || medida.estado === 'finalizado')) {
+    if (medida && (medida.estado === 'en-ejecucion' || medida.estado === 'finalizado' || medida.estado === 'no-iniciado')) {
         e.stopPropagation();
         e.preventDefault();
         abrirModalAvance(tabla, id);
