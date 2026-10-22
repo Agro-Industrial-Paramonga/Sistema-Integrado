@@ -62,6 +62,31 @@ function mostrarAviso(texto) {
 }
 
 
+
+/* Registra el celular para recibir alarmas (FCM) a nombre del conductor */
+async function registrarPush(nombre) {
+    try {
+        const cap = window.Capacitor;
+        const PN = cap && cap.Plugins && cap.Plugins.PushNotifications;
+        if (!PN) return;                      // fuera del APK: no aplica
+
+        let permiso = await PN.checkPermissions();
+        if (permiso.receive !== 'granted') permiso = await PN.requestPermissions();
+        if (permiso.receive !== 'granted') { mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.'); return; }
+
+        PN.addListener('registration', async (token) => {
+            await db.from('push_subscriptions').delete().eq('user_id', nombre);
+            await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
+        });
+
+        PN.addListener('registrationError', (e) => console.warn('Push error', e));
+
+        await PN.register();
+    } catch (e) {
+        console.warn('Push no disponible:', e);
+    }
+}
+
 function pedirPermisoUbicacion() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -87,6 +112,9 @@ function iniciarTurno() {
 
     // Pedir el permiso de ubicacion en este momento
     pedirPermisoUbicacion();
+
+    // Registrar el celular para recibir alarmas de evacuacion
+    registrarPush(nombre);
 
     // Activar el servicio nativo (sigue enviando con la app cerrada)
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {

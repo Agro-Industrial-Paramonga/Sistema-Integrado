@@ -236,7 +236,7 @@ async function cargarUnidades() {
             }).addTo(mapa);
 
             const titulo = u.unidad || u.user_id;
-            marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m`);
+            marcador.bindPopup(`<strong>${titulo}</strong><br>${u.user_id && u.user_id !== titulo ? u.user_id + '<br>' : ''}Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br><button onclick="alertarUnidad('${(u.user_id || '').replace(/'/g, "")}','${(u.unidad || '').replace(/'/g, "")}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`);
             marcadoresUnidades.push(marcador);
         });
 
@@ -505,6 +505,51 @@ function esSeguridadIndustrial() {
     const texto = String((u.seccion || '') + ' ' + (u.area || ''))
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     return texto.includes('seguridad industrial');
+}
+
+
+
+/* ------------------------------------------------------------
+   Alertar a una unidad: alarma + voz en su celular
+   ------------------------------------------------------------ */
+const FUNC_PUSH = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
+
+async function alertarUnidad(usuario, unidad) {
+    const quien = unidad || usuario;
+    if (!quien) { alert('La unidad no tiene identificacion.'); return; }
+    if (!confirm('¿Alertar a ' + quien + ' para que evacue a un lugar seguro?')) return;
+
+    const cuerpo = 'Evacue de inmediato y dirijase a un lugar seguro.';
+    const titulo = 'EVACUACION · ' + quien;
+
+    // 1) Hablar en este dispositivo (confirmacion para el operador)
+    hablar(titulo + '. ' + cuerpo);
+
+    // 2) Enviar la alarma al celular de la unidad
+    try {
+        const resp = await fetch(FUNC_PUSH, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: titulo, body: cuerpo, userId: usuario || quien })
+        });
+        const datos = await resp.json().catch(() => ({}));
+        document.getElementById('estado').textContent =
+            'Alerta enviada a ' + quien + ' · equipos alcanzados: ' + (datos.fcm_enviados ?? 0);
+    } catch (e) {
+        document.getElementById('estado').textContent = 'No se pudo enviar la alerta: ' + e.message;
+    }
+}
+
+function hablar(texto) {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const voz = new SpeechSynthesisUtterance(texto);
+        voz.lang = 'es-PE';
+        voz.rate = 0.95;
+        voz.volume = 1;
+        window.speechSynthesis.speak(voz);
+    } catch (e) { console.warn('voz:', e); }
 }
 
 
