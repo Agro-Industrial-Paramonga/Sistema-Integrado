@@ -93,7 +93,6 @@ public class AlarmaNotificacion {
         canal.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         // Canal SIN sonido: el audio lo produce la pantalla de alarma (sirena + voz).
         canal.setSound(null, null);
-        }
 
         try {
             nm.createNotificationChannel(canal);
