@@ -49,8 +49,13 @@ public class UbicacionService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        crearCanal();
-        iniciarForeground();
+        try {
+            crearCanal();
+            iniciarForeground();
+        } catch (Exception e) {
+            Log.e(TAG, "No se pudo iniciar en primer plano", e);
+            stopSelf();
+        }
     }
 
     @Override
@@ -117,11 +122,16 @@ public class UbicacionService extends Service {
                 .setContentIntent(pi)
                 .build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(ID_NOTIFICACION, notificacion,
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
-        } else {
-            startForeground(ID_NOTIFICACION, notificacion);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(ID_NOTIFICACION, notificacion,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(ID_NOTIFICACION, notificacion);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "startForeground fallo", e);
+            stopSelf();
         }
     }
 

@@ -109,7 +109,11 @@ public class MainActivity extends BridgeActivity {
 
                     @JavascriptInterface
                     public void iniciarServicio(String usuario, String unidad) {
-                        UbicacionScheduler.iniciar(getApplicationContext(), usuario, unidad);
+                        try {
+                            UbicacionScheduler.iniciar(getApplicationContext(), usuario, unidad);
+                        } catch (Exception e) {
+                            android.util.Log.e("MainActivity", "iniciarServicio fallo", e);
+                        }
                     }
 
                     @JavascriptInterface
@@ -119,7 +123,11 @@ public class MainActivity extends BridgeActivity {
 
                     @JavascriptInterface
                     public void detenerServicio() {
-                        UbicacionScheduler.detener(getApplicationContext());
+                        try {
+                            UbicacionScheduler.detener(getApplicationContext());
+                        } catch (Exception e) {
+                            android.util.Log.e("MainActivity", "detenerServicio fallo", e);
+                        }
                     }
                 }, "AndroidUbicacion");
                 ajustes.setSupportZoom(true);

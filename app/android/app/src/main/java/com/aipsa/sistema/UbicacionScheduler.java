@@ -28,9 +28,20 @@ public class UbicacionScheduler {
                 .putString("unidad", unidad == null ? "" : unidad)
                 .apply();
 
-        // Servicio en primer plano: envia cada 5 minutos con la app cerrada
-        Intent servicio = new Intent(ctx, UbicacionService.class);
-        ContextCompat.startForegroundService(ctx, servicio);
+        // Servicio en primer plano SOLO si ya hay permiso de ubicacion.
+        // Sin permiso, Android lanza SecurityException y cierra la app.
+        boolean tieneUbicacion = ContextCompat.checkSelfPermission(ctx,
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+        if (tieneUbicacion) {
+            try {
+                Intent servicio = new Intent(ctx, UbicacionService.class);
+                ContextCompat.startForegroundService(ctx, servicio);
+            } catch (Exception e) {
+                android.util.Log.w("UbicacionScheduler", "No se pudo iniciar el servicio", e);
+            }
+        }
 
         // Respaldo: si el servicio se detiene, WorkManager lo reactiva cada hora
         Constraints restricciones = new Constraints.Builder()
