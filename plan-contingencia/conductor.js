@@ -11,9 +11,10 @@ let unidades = [];
 
 async function cargar() {
     const { data, error } = await db.from('unidades')
-        .select('nombre, prefijo')
+        .select('nombre, prefijo, orden')
         .eq('activo', true)
-        .order('nombre');
+        .order('orden', { ascending: true })
+        .order('nombre', { ascending: true });
 
     if (error) {
         mostrarAviso('No se pudo cargar la lista de unidades: ' + error.message);
@@ -22,7 +23,7 @@ async function cargar() {
 
     unidades = data || [];
 
-    const prefijos = [...new Set(unidades.map(u => u.prefijo).filter(Boolean))].sort();
+    const prefijos = [...new Set(unidades.map(u => u.prefijo).filter(Boolean))];
     const sel = document.getElementById('sel-prefijo');
     sel.innerHTML = '<option value="">Selecciona la serie</option>' +
         prefijos.map(p => `<option value="${p}">${p}</option>`).join('');
