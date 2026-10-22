@@ -919,8 +919,10 @@ function filtrarVisibles(medidas, filtroArea) {
 /* ============================================================
    NAVEGACIÓN
    ============================================================ */
-function abrirPlan() {
-    document.getElementById('screen-home').classList.remove('active');
+
+/* ===== NAVEGACION CON HISTORIAL (atras por pestaña) ===== */
+function _verPlan() {
+    document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('active'));
     document.getElementById('screen-plan').classList.add('active');
     document.querySelectorAll('.section-view').forEach(v => v.classList.remove('active'));
     document.getElementById('section-menu').classList.add('active');
@@ -929,13 +931,8 @@ function abrirPlan() {
     window.scrollTo(0, 0);
 }
 
-function volverInicio() {
-    document.getElementById('screen-plan').classList.remove('active');
-    document.getElementById('screen-home').classList.add('active');
-    window.scrollTo(0, 0);
-}
-
-function irASeccion(nombre) {
+function _verSeccion(nombre) {
+    _verPlan();
     document.querySelectorAll('.section-view').forEach(v => v.classList.remove('active'));
     document.getElementById('section-' + nombre).classList.add('active');
     const bc = document.getElementById('breadcrumb-menu');
@@ -943,12 +940,40 @@ function irASeccion(nombre) {
     window.scrollTo(0, 0);
 }
 
-function volverAlMenuPlan() {
-    document.querySelectorAll('.section-view').forEach(v => v.classList.remove('active'));
-    document.getElementById('section-menu').classList.add('active');
-    const bc = document.getElementById('breadcrumb-menu');
-    if (bc) bc.style.display = 'block';
+function _verInicio() {
+    document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('active'));
+    document.getElementById('screen-home').classList.add('active');
     window.scrollTo(0, 0);
+}
+
+window.addEventListener('popstate', (e) => {
+    const st = e.state || { v: 'home' };
+    if (st.v === 'seccion') _verSeccion(st.s);
+    else if (st.v === 'plan') _verPlan();
+    else _verInicio();
+});
+
+function abrirPlan() {
+    _verPlan();
+    try { history.pushState({ v: 'plan' }, ''); } catch (e) {}
+}
+
+function volverInicio() {
+    const st = history.state || {};
+    if (st.v === 'plan' || st.v === 'seccion') { history.back(); return; }
+    _verInicio();
+}
+
+function irASeccion(nombre) {
+    if (nombre === 'menu') { abrirPlan(); return; }
+    _verSeccion(nombre);
+    try { history.pushState({ v: 'seccion', s: nombre }, ''); } catch (e) {}
+}
+
+function volverAlMenuPlan() {
+    const st = history.state || {};
+    if (st.v === 'seccion') { history.back(); return; }
+    _verPlan();
 }
 
 /* ============================================================
@@ -2391,4 +2416,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosArea();
     verificarSesion();
     activarNumerosLlamables();
+
+    if (!history.state) { try { history.replaceState({ v: 'home' }, ''); } catch (e) {} }
 });
