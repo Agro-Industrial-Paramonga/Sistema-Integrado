@@ -2616,3 +2616,42 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
     .btn-fotos { padding: 4px 8px !important; font-size: .74rem !important; }
     .btn-alarma-fila, .btn-editar-fila { width: 34px !important; height: 34px !important; font-size: 13px !important; }
 }
+
+
+/* ===== MOVIL: ENCABEZADO DE SEGMENTO ===== */
+@media (max-width: 768px) {
+    .data-table tr.fila-segmento {
+        background: #ecfdf5 !important;
+        border: 1px solid #bbf7d0 !important;
+        border-radius: 12px !important;
+        padding: 0 !important;
+        margin: 6px 0 8px !important;
+    }
+    .data-table tr.fila-segmento td {
+        display: block !important;
+        text-align: left !important;
+        padding: 8px 10px !important;
+        margin: 0 !important;
+        border: none !important;
+        background: transparent !important;
+    }
+    .fila-segmento td::before { display: none !important; }
+    .fila-segmento .seg-cabecera {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+    .fila-segmento .seg-nombre {
+        flex: 1 1 auto !important;
+        text-align: left !important;
+        font-size: .7rem !important;
+        line-height: 1.25 !important;
+        letter-spacing: .03em !important;
+        white-space: normal !important;
+        margin: 0 !important;
+    }
+    .fila-segmento .seg-acciones { flex: 0 0 auto !important; display: flex; gap: 4px; }
+    .fila-segmento .seg-flecha { width: 26px !important; height: 26px !important; font-size: .68rem !important; }
+}
