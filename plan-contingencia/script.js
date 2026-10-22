@@ -2320,13 +2320,14 @@ async function cargarAvances() {
         return;
     }
     const puede = puedeEditar(avanceCtx.medida);
+    const verMeta = esSeguridadIndustrial();   // solo Seguridad Industrial ve fecha y autor
     cont.innerHTML = data.map(a => {
         const f = new Date(a.created_at);
         const fecha = f.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) +
                       ' · ' + f.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
         return `<div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;">
             <div style="display:flex;justify-content:space-between;gap:8px;">
-                <span style="font-size:.72rem;color:#94a3b8;">${fecha} · ${a.autor || 'Sin autor'}</span>
+                <span style="font-size:.72rem;color:#94a3b8;">${verMeta ? fecha + ' · ' + (a.autor || 'Sin autor') : ''}</span>
                 ${puede ? `<span style="display:flex;gap:6px;">
                     <button type="button" onclick="editarAvance('${a.id}')" style="border:none;background:#f1f5f9;border-radius:8px;padding:4px 8px;font-size:.72rem;cursor:pointer;">Editar</button>
                     <button type="button" onclick="eliminarAvance('${a.id}')" style="border:none;background:#fef2f2;border-radius:8px;padding:4px 8px;font-size:.72rem;color:#b91c1c;cursor:pointer;">Eliminar</button>
