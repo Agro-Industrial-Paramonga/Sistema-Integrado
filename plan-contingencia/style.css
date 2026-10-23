@@ -2655,3 +2655,57 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
     .fila-segmento .seg-acciones { flex: 0 0 auto !important; display: flex; gap: 4px; }
     .fila-segmento .seg-flecha { width: 26px !important; height: 26px !important; font-size: .68rem !important; }
 }
+
+
+/* ===== MODAL MODERNO ===== */
+#modal-agregar .modal-body label {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: #64748b;
+    margin-top: 16px;
+    display: block;
+}
+
+#modal-agregar select,
+#modal-agregar input[type="text"],
+#modal-agregar input[type="date"],
+#modal-agregar input:not([type]),
+#modal-agregar textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: .92rem;
+    color: #0f172a;
+    background: #fff;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+    font-family: inherit;
+}
+
+#modal-agregar textarea { resize: vertical; min-height: 78px; }
+
+#modal-agregar select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round'><path d='M4 6l4 4 4-4'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
+    cursor: pointer;
+}
+
+#modal-agregar select:focus,
+#modal-agregar input:focus,
+#modal-agregar textarea:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16,185,129,.16);
+}
+
+#modal-agregar select:disabled { background-color: #f8fafc; color: #94a3b8; }
+
+#modal-agregar .areas-responsable-container select { margin-bottom: 8px; }
+#modal-agregar .btn-add-area { margin-bottom: 4px; }
+#modal-agregar .btn-add-area + label { margin-top: 18px; }

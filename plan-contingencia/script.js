@@ -839,6 +839,16 @@ async function entrarApp() {
 
 
 
+
+/* Mascara dd/mm/aaaa para el campo de periodo */
+function mascaraFecha(ev) {
+    const campo = ev.target;
+    let v = campo.value.replace(/[^0-9]/g, '').slice(0, 8);
+    if (v.length >= 5) v = v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
+    else if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+    campo.value = v;
+}
+
 function mostrarModoBotones(visible) {
     const m = document.getElementById('modo-toggle');
     if (m) m.style.display = visible ? 'flex' : 'none';
@@ -2505,6 +2515,9 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFiltrosDespues();
     inicializarFiltrosArea();
     mostrarModoBotones(false);
+    const campoPeriodo = document.getElementById('agregar-periodo');
+    if (campoPeriodo) campoPeriodo.addEventListener('input', mascaraFecha);
+
     verificarSesion();
     activarNumerosLlamables();
 
