@@ -472,6 +472,14 @@ function initCapasVectoriales() {
     cargarVectores();
 }
 
+
+/* Color y grosor segun el tipo de linea */
+function estiloLinea(color) {
+    if (color === '#06b6d4') return { color: '#06b6d4', weight: 4, borde: 0 };
+    if (color === '#eab308') return { color: '#eab308', weight: 8, borde: 12 };
+    return { color: '#dc2626', weight: 8, borde: 12 };
+}
+
 async function cargarVectores() {
     capaPuntos.clearLayers();
     capaLineas.clearLayers();
@@ -506,11 +514,16 @@ async function cargarVectores() {
     const { data: lineas } = await db.from('mapa_lineas').select('*');
     (lineas || []).forEach(l => {
         if (!Array.isArray(l.coords) || l.coords.length < 2) return;
-        L.polyline(l.coords, { color: 'rgba(0,0,0,.45)', weight: 12, opacity: 1,
-            lineCap: 'round', lineJoin: 'round' }).addTo(capaLineas);
+        const estilo = estiloLinea(l.color || '#dc2626');
+        const grosor = l.grosor || estilo.weight;
+
+        if (estilo.borde > 0) {
+            L.polyline(l.coords, { color: 'rgba(0,0,0,.45)', weight: grosor + 4, opacity: 1,
+                lineCap: 'round', lineJoin: 'round' }).addTo(capaLineas);
+        }
 
         const linea = L.polyline(l.coords, {
-            color: l.color || '#dc2626', weight: 8, opacity: 1,
+            color: estilo.color, weight: grosor, opacity: 1,
             lineCap: 'round', lineJoin: 'round'
         }).addTo(capaLineas);
         linea.on('click', async () => {
@@ -545,10 +558,10 @@ function setModoEditor(modo) {
     });
 
     document.getElementById('btn-terminar-linea').style.display =
-        (modo === 'roja' || modo === 'amarilla') ? 'inline-flex' : 'none';
+        (modo === 'roja' || modo === 'amarilla' || modo === 'turquesa') ? 'inline-flex' : 'none';
 
     // Precision: sin arrastre del mapa mientras se marca, cursor de cruz
-    if (modo === 'punto' || modo === 'roja' || modo === 'amarilla') {
+    if (modo === 'punto' || modo === 'roja' || modo === 'amarilla' || modo === 'turquesa') {
         mapa.dragging.disable();
         mapa.getContainer().style.cursor = 'crosshair';
     } else {
@@ -570,7 +583,7 @@ async function clickEditor(latlng) {
         return;
     }
 
-    if (modoEditor === 'roja' || modoEditor === 'amarilla') {
+    if (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa') {
         agregarVertice(latlng.lat, latlng.lng);
     }
 }
@@ -603,9 +616,12 @@ function redibujarTemporal() {
     if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
     if (verticesLinea.length < 2) return;
 
+    const cTmp = modoEditor === 'roja' ? '#dc2626' : (modoEditor === 'turquesa' ? '#06b6d4' : '#eab308');
+    const eTmp = estiloLinea(cTmp);
+
     lineaTemporal = L.polyline(verticesLinea, {
-        color: modoEditor === 'roja' ? '#dc2626' : '#eab308',
-        weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round'
+        color: eTmp.color, weight: eTmp.weight, opacity: 1,
+        lineCap: 'round', lineJoin: 'round'
     }).addTo(mapa);
 }
 
@@ -616,17 +632,23 @@ function limpiarVertices() {
 }
 
 async function terminarLinea(cancelar) {
-    if (modoEditor === 'roja' || modoEditor === 'amarilla') {
+    if (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa') {
         mapa.dragging.disable();
         mapa.getContainer().style.cursor = 'crosshair';
     }
 
     limpiarVertices();
 
-    if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla')) {
+    if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa')) {
+        const colorFinal = modoEditor === 'roja' ? '#dc2626'
+            : (modoEditor === 'turquesa' ? '#06b6d4' : '#eab308');
+        const eFinal = estiloLinea(colorFinal);
+
         await db.from('mapa_lineas').insert({
-            nombre: modoEditor === 'roja' ? 'Línea roja' : 'Línea amarilla',
-            color: modoEditor === 'roja' ? '#dc2626' : '#eab308',
+            nombre: modoEditor === 'roja' ? 'Línea roja'
+                : (modoEditor === 'turquesa' ? 'Línea turquesa' : 'Línea amarilla'),
+            color: colorFinal,
+            grosor: eFinal.weight,
             coords: verticesLinea
         });
         cargarVectores();
