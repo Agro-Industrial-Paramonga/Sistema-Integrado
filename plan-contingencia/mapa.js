@@ -70,7 +70,37 @@ function esMovil() {
 /* ------------------------------------------------------------
    Inicio
    ------------------------------------------------------------ */
+function aplicarModoPantallaConductor() {
+    const pantalla = document.getElementById('pantalla-conductor');
+    if (pantalla) pantalla.style.display = 'flex';
+    const barra = document.querySelector('.barra');
+    if (barra) barra.style.display = 'none';
+    const zonaMapa = document.getElementById('mapa');
+    if (zonaMapa) zonaMapa.style.display = 'none';
+
+    const c = sesionConductor();
+    if (c) {
+        const u = document.getElementById('pc-unidad');
+        const n = document.getElementById('pc-nombre');
+        const i = document.getElementById('pc-inicio');
+        if (u) u.textContent = c.unidad || '—';
+        if (n) n.textContent = c.nombre || '—';
+        if (i) {
+            const inicio = c.inicio ? new Date(c.inicio) : new Date();
+            i.textContent = inicio.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }) + ' · ' +
+                inicio.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+}
+
 function iniciarMapa() {
+    // Conductor: pantalla de turno, sin mapa
+    if (sesionConductor()) {
+        aplicarSesionConductor();
+        aplicarModoPantallaConductor();
+        return;
+    }
+
     if (!accesoPermitido()) {
         const m = document.getElementById('sin-acceso');
         if (m) m.style.display = 'flex';
@@ -372,17 +402,27 @@ async function alertarUnidad(usuario, unidad, token) {
 function aplicarSesionConductor() {
     const c = sesionConductor();
 
-    const botonCerrar = document.getElementById('btn-cerrar-turno');
-    if (botonCerrar) botonCerrar.style.display = c ? 'inline-flex' : 'none';
-
-    const volver = document.querySelector('.barra a[href="index.html"]');
-    if (volver) volver.style.display = c ? 'none' : 'inline-flex';
-
     if (!c) return;
 
-    const botonAjustar = document.getElementById('btn-ajustar');
-    if (botonAjustar) botonAjustar.style.display = 'none';
+    // El conductor NO ve el mapa: solo su pantalla de turno
+    const pantalla = document.getElementById('pantalla-conductor');
+    if (pantalla) pantalla.style.display = 'flex';
 
+    const barra = document.querySelector('.barra');
+    if (barra) barra.style.display = 'none';
+
+    const zonaMapa = document.getElementById('mapa');
+    if (zonaMapa) zonaMapa.style.display = 'none';
+
+    document.getElementById('pc-unidad').textContent = c.unidad || '—';
+    document.getElementById('pc-nombre').textContent = c.nombre || '—';
+
+    let inicio = c.inicio ? new Date(c.inicio) : new Date();
+    document.getElementById('pc-inicio').textContent =
+        inicio.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }) + ' · ' +
+        inicio.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+    // El envio de ubicacion y las alarmas siguen igual
     iniciarRastreoSilencioso(c);
 }
 
