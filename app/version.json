@@ -1,7 +1,7 @@
 {
-  "versionCode": 113,
-  "versionName": "1.13",
-  "notas": "Recuperar turno y servicio de ubicacion",
+  "versionCode": 114,
+  "versionName": "1.14",
+  "notas": "Actualización automática",
   "apk": "https://github.com/Agro-Industrial-Paramonga/Sistema-Integrado/releases/latest/download/app-debug.apk",
   "publicado": "2026-10-26"
 }
