@@ -28,11 +28,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Instalar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Calcular número de versión
         id: ver
         run: |
-          BASE=100
-          CODE=$((BASE + ${{ github.run_number }}))
+          CODE=$((100 + ${{ github.run_number }}))
           echo "code=$CODE" >> $GITHUB_OUTPUT
           echo "name=1.${{ github.run_number }}" >> $GITHUB_OUTPUT
 
@@ -42,6 +46,12 @@ jobs:
           cp -r plan-contingencia app/www/ || true
           cp -r hallazgos app/www/ || true
           cp index.html app/www/ || true
+
+      - name: Dependencias y sincronización de Capacitor
+        working-directory: app
+        run: |
+          npm install
+          npx cap sync android
 
       - name: Compilar APK
         working-directory: app/android
