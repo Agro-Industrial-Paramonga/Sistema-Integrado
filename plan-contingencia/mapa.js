@@ -487,7 +487,7 @@ async function cargarVectores() {
     const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
     (puntos || []).forEach(p => {
         const marcador = L.marker([p.lat, p.lon], {
-            draggable: true,
+            draggable: editorActivo,
             icon: L.divIcon({
                 className: '',
                 html: '<div class="punto-critico"><span>' + p.orden + '</span></div>',
@@ -497,9 +497,18 @@ async function cargarVectores() {
         }).addTo(capaPuntos);
 
         marcador.on('dragend', async (ev) => {
-            if (!editorActivo) return;
             const pos = ev.target.getLatLng();
-            await db.from('mapa_puntos').update({ lat: pos.lat, lon: pos.lng }).eq('id', p.id);
+            const { error } = await db.from('mapa_puntos')
+                .update({ lat: pos.lat, lon: pos.lng })
+                .eq('id', p.id);
+
+            const est = document.getElementById('estado');
+            if (error) {
+                if (est) est.textContent = '❌ No se guardó el punto ' + p.orden + ': ' + error.message;
+                return;
+            }
+            p.lat = pos.lat; p.lon = pos.lng;
+            if (est) est.textContent = '✓ Punto ' + p.orden + ' guardado en su nueva posición';
         });
 
         marcador.on('click', async () => {
@@ -549,6 +558,8 @@ function alternarEditor() {
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
     document.getElementById('btn-editar-puntos').classList.toggle('activo', editorActivo);
+
+    if (typeof cargarVectores === 'function') cargarVectores();
 
     if (!editorActivo) {
         setModoEditor(null);
