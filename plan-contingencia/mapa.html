@@ -55,6 +55,19 @@
         .tab-capa.activo { background: #0f172a; color: #fff; border-color: #0f172a; }
         @media (max-width: 900px) { .tab-capa { font-size: .72rem; padding: 7px 10px; } }
 
+        .punto-critico {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: #facc15; border: 2px solid #a16207;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 800; color: #422006;
+            box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: grab;
+        }
+        .punto-critico::after {
+            content: ""; position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent;
+            border-top: 10px solid #a16207;
+        }
+
         .num-punto {
             background: transparent !important; border: none !important; box-shadow: none !important;
             color: #422006; font-weight: 800; font-size: .72rem; padding: 0;
@@ -86,8 +99,9 @@
             <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed"><i class="fas fa-location-dot"></i> Punto</button>
             <button data-modo="roja" onclick="setModoEditor('roja')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#dc2626"></i> Línea roja</button>
             <button data-modo="amarilla" onclick="setModoEditor('amarilla')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#eab308"></i> Línea amarilla</button>
+            <button data-modo="borrar" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-eraser"></i> Borrar</button>
             <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981;">Terminar línea</button>
-            <button onclick="borrarTodo()" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;">Borrar todo</button>
+            <button onclick="borrarTodo()" style="font-size:.72rem;">Borrar todo</button>
         </span>
         <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
                 <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
@@ -117,6 +131,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=7"></script>
+    <script src="mapa.js?v=8"></script>
 </body>
 </html>

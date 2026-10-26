@@ -477,22 +477,42 @@ async function cargarVectores() {
 
     const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
     (puntos || []).forEach(p => {
-        L.circleMarker([p.lat, p.lon], {
-            radius: 12, color: '#a16207', weight: 2, fillColor: '#facc15', fillOpacity: 1
-        }).addTo(capaPuntos)
-          .bindTooltip(String(p.orden), { permanent: true, direction: 'center', className: 'num-punto' })
-          .on('click', () => { if (editorActivo && modoEditor === 'borrar') borrarPunto(p.id); });
-
-        // flecha hacia el sitio exacto
-        L.marker([p.lat, p.lon], {
-            icon: L.divIcon({ className: '', html: '<div class="flecha-punto"></div>', iconAnchor: [1, 18] })
+        const marcador = L.marker([p.lat, p.lon], {
+            draggable: true,
+            icon: L.divIcon({
+                className: '',
+                html: '<div class="punto-critico"><span>' + p.orden + '</span></div>',
+                iconSize: [30, 44],
+                iconAnchor: [15, 40]
+            })
         }).addTo(capaPuntos);
+
+        marcador.on('dragend', async (ev) => {
+            if (!editorActivo) return;
+            const pos = ev.target.getLatLng();
+            await db.from('mapa_puntos').update({ lat: pos.lat, lon: pos.lng }).eq('id', p.id);
+        });
+
+        marcador.on('click', async () => {
+            if (editorActivo && modoEditor === 'borrar') {
+                if (!confirm('¿Borrar el punto ' + p.orden + '?')) return;
+                await db.from('mapa_puntos').delete().eq('id', p.id);
+                cargarVectores();
+            }
+        });
     });
 
     const { data: lineas } = await db.from('mapa_lineas').select('*');
     (lineas || []).forEach(l => {
         if (!Array.isArray(l.coords) || l.coords.length < 2) return;
-        L.polyline(l.coords, { color: l.color || '#dc2626', weight: 5, opacity: .95 }).addTo(capaLineas);
+        const linea = L.polyline(l.coords, { color: l.color || '#dc2626', weight: 5, opacity: .95 }).addTo(capaLineas);
+        linea.on('click', async () => {
+            if (editorActivo && modoEditor === 'borrar') {
+                if (!confirm('¿Borrar esta línea (' + (l.nombre || '') + ')?')) return;
+                await db.from('mapa_lineas').delete().eq('id', l.id);
+                cargarVectores();
+            }
+        });
     });
 }
 
