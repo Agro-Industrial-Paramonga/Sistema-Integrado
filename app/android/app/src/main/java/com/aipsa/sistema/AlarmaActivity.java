@@ -41,6 +41,7 @@ import java.util.Locale;
 // prueba v108 16:18:30
 // prueba firma fija 16:28:12
 // prueba final de actualizacion 16:35
+// prueba actualizacion 26/10 17:12
 public class AlarmaActivity extends Activity {
 
     public static final int ID_NOTIFICACION = 1001;
