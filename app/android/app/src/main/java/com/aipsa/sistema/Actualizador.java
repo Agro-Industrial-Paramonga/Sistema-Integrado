@@ -31,6 +31,33 @@ public class Actualizador {
     private static final String URL_VERSION =
             "https://agro-industrial-paramonga.github.io/Sistema-Integrado/app/version.json";
 
+
+    /** Pide, al abrir la app, el permiso para instalar actualizaciones. */
+    public static void pedirPermisoInstalacion(final Activity actividad) {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+            if (actividad.getPackageManager().canRequestPackageInstalls()) return;
+
+            new AlertDialog.Builder(actividad)
+                    .setTitle("Permitir actualizaciones")
+                    .setMessage("Para recibir las actualizaciones del sistema, permite que esta app instale aplicaciones.\n\nSolo se hace una vez.")
+                    .setPositiveButton("Permitir", (d1, w) -> {
+                        try {
+                            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                            i.setData(Uri.parse("package:" + actividad.getPackageName()));
+                            actividad.startActivity(i);
+                        } catch (Exception e) {
+                            Log.e(TAG, "No se pudo abrir ajustes", e);
+                        }
+                    })
+                    .setNegativeButton("Ahora no", null)
+                    .setCancelable(false)
+                    .show();
+        } catch (Exception e) {
+            Log.e(TAG, "Error pidiendo permiso", e);
+        }
+    }
+
     public static void revisar(final Activity actividad) {
         new Thread(() -> {
             try {

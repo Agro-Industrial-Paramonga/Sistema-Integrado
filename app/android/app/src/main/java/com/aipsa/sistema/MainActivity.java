@@ -67,7 +67,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AlarmaPlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Revisar si hay una version nueva publicada (sin Play Store)
+        // Pedir permiso de instalacion y revisar si hay version nueva
+        try { Actualizador.pedirPermisoInstalacion(this); } catch (Exception e) { e.printStackTrace(); }
         try { Actualizador.revisar(this); } catch (Exception e) { e.printStackTrace(); }
 
         // Boton/gesto de retroceder:
