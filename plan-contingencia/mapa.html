@@ -41,6 +41,14 @@
         }
         .etiqueta-unidad::before { display: none; }
 
+        .tab-capa {
+            border: 1px solid #e2e8f0; background: #fff; color: #475569;
+            border-radius: 10px; padding: 8px 14px; font-size: .8rem; font-weight: 700;
+            cursor: pointer; white-space: nowrap;
+        }
+        .tab-capa.activo { background: #0f172a; color: #fff; border-color: #0f172a; }
+        @media (max-width: 900px) { .tab-capa { font-size: .72rem; padding: 7px 10px; } }
+
         .pin-unidad { font-size: 20px; color: #dc2626; text-shadow: 0 0 4px #fff; }
     </style>
 </head>
@@ -50,7 +58,11 @@
 
     <div class="barra">
                 <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
-        <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
+        <div class="tabs-capas" style="display:flex;gap:8px;width:100%;margin-bottom:4px;">
+            <button type="button" class="tab-capa activo" data-capa="canales" onclick="mostrarCapa('canales')">Seguimiento de maquinarias</button>
+            <button type="button" class="tab-capa" data-capa="puntos" onclick="mostrarCapa('puntos')">Puntos críticos para disponibilidad de maquinarias</button>
+        </div>
+                <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
         <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
                                 <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
@@ -67,13 +79,13 @@
     </div>
 
     <div class="leyenda" id="leyenda" style="display:none">
-        <strong>Modo ajuste</strong><br>
+        <strong id="leyenda-titulo">Modo ajuste</strong><br>
         Arrastra los dos puntos (NOROESTE y SURESTE) hasta que la imagen calce con el terreno.<br>
         Luego pulsa <strong>Guardar</strong>.
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=4"></script>
+    <script src="mapa.js?v=6"></script>
 </body>
 </html>
