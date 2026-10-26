@@ -31,6 +31,17 @@ public class MainActivity extends BridgeActivity {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
+    private void reanudarServicioSiHabiaTurno() {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("ubicacion", MODE_PRIVATE);
+        String usuario = prefs.getString("usuario", null);
+        if (usuario == null || usuario.isEmpty()) return;
+
+        String unidad = prefs.getString("unidad", "");
+        UbicacionScheduler.iniciar(getApplicationContext(), usuario, unidad);
+        android.util.Log.i("MainActivity", "Servicio de ubicacion reanudado para " + usuario);
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -66,6 +77,9 @@ public class MainActivity extends BridgeActivity {
         // IMPORTANTE: debe ir ANTES de super.onCreate().
         registerPlugin(AlarmaPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Si habia un turno activo, reactivar el envio de ubicacion al abrir
+        try { reanudarServicioSiHabiaTurno(); } catch (Exception e) { e.printStackTrace(); }
 
         // Pedir permiso de instalacion y revisar si hay version nueva
         try { Actualizador.pedirPermisoInstalacion(this); } catch (Exception e) { e.printStackTrace(); }
