@@ -31,6 +31,33 @@ public class MainActivity extends BridgeActivity {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
+    private void pedirPantallaCompletaAlIniciar() {
+        if (android.os.Build.VERSION.SDK_INT < 34) return;
+
+        android.app.NotificationManager nm =
+                (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null || nm.canUseFullScreenIntent()) return;
+
+        android.content.SharedPreferences prefs = getSharedPreferences("avisos", MODE_PRIVATE);
+        long ultima = prefs.getLong("pantalla_completa", 0);
+        if (System.currentTimeMillis() - ultima < 12L * 60 * 60 * 1000) return;   // cada 12 h
+        prefs.edit().putLong("pantalla_completa", System.currentTimeMillis()).apply();
+
+        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
+                .setTitle("Permitir alertas a pantalla completa")
+                .setMessage("Para que la alarma de evacuación aparezca aunque el teléfono esté bloqueado, activa \"Permitir pantalla completa\".")
+                .setPositiveButton("Abrir ajustes", (d1, w) -> {
+                    try {
+                        android.content.Intent i = new android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                        i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                        startActivity(i);
+                    } catch (Exception e) { e.printStackTrace(); }
+                })
+                .setNegativeButton("Ahora no", null)
+                .show());
+    }
+
     private void reanudarServicioSiHabiaTurno() {
         android.content.SharedPreferences prefs =
                 getSharedPreferences("ubicacion", MODE_PRIVATE);
@@ -77,6 +104,9 @@ public class MainActivity extends BridgeActivity {
         // IMPORTANTE: debe ir ANTES de super.onCreate().
         registerPlugin(AlarmaPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Permiso de pantalla completa para que la alarma salte sola
+        try { pedirPantallaCompletaAlIniciar(); } catch (Exception e) { e.printStackTrace(); }
 
         // Si habia un turno activo, reactivar el envio de ubicacion al abrir
         try { reanudarServicioSiHabiaTurno(); } catch (Exception e) { e.printStackTrace(); }
