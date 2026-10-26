@@ -1,7 +1,7 @@
 {
-  "versionCode": 6,
-  "versionName": "1.5",
-  "notas": "Actualizaciones del sistema",
+  "versionCode": 103,
+  "versionName": "1.3",
+  "notas": "Mejoras y correcciones",
   "apk": "https://github.com/Agro-Industrial-Paramonga/Sistema-Integrado/releases/latest/download/app-debug.apk",
-  "publicado": "2026-10-23"
+  "publicado": "2026-10-26"
 }
