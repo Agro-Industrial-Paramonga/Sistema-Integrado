@@ -505,7 +505,13 @@ async function cargarVectores() {
     const { data: lineas } = await db.from('mapa_lineas').select('*');
     (lineas || []).forEach(l => {
         if (!Array.isArray(l.coords) || l.coords.length < 2) return;
-        const linea = L.polyline(l.coords, { color: l.color || '#dc2626', weight: 5, opacity: .95 }).addTo(capaLineas);
+        L.polyline(l.coords, { color: 'rgba(0,0,0,.45)', weight: 12, opacity: 1,
+            lineCap: 'round', lineJoin: 'round' }).addTo(capaLineas);
+
+        const linea = L.polyline(l.coords, {
+            color: l.color || '#dc2626', weight: 8, opacity: 1,
+            lineCap: 'round', lineJoin: 'round'
+        }).addTo(capaLineas);
         linea.on('click', async () => {
             if (editorActivo && modoEditor === 'borrar') {
                 if (!confirm('¿Borrar esta línea (' + (l.nombre || '') + ')?')) return;
@@ -550,7 +556,8 @@ async function clickEditor(latlng) {
         verticesLinea.push([latlng.lat, latlng.lng]);
         if (lineaTemporal) mapa.removeLayer(lineaTemporal);
         lineaTemporal = L.polyline(verticesLinea, {
-            color: modoEditor === 'roja' ? '#dc2626' : '#eab308', weight: 5, dashArray: '6 6'
+            color: modoEditor === 'roja' ? '#dc2626' : '#eab308',
+            weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round', dashArray: '1 10'
         }).addTo(mapa);
     }
 }
