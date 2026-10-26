@@ -37,6 +37,7 @@ import java.util.Locale;
  * EN VOZ ALTA la alerta, hasta que el usuario pulsa el boton DETENER.
  */
 // version de prueba del actualizador: 2026-10-26
+// prueba de actualizacion 2026-10-26 16:09
 public class AlarmaActivity extends Activity {
 
     public static final int ID_NOTIFICACION = 1001;
