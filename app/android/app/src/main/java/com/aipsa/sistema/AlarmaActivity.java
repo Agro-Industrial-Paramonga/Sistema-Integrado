@@ -36,6 +36,7 @@ import java.util.Locale;
  * reproduce el sonido de alarma del celular EN BUCLE, VIBRA y ADEMAS DICE
  * EN VOZ ALTA la alerta, hasta que el usuario pulsa el boton DETENER.
  */
+// version de prueba del actualizador: 2026-10-26
 public class AlarmaActivity extends Activity {
 
     public static final int ID_NOTIFICACION = 1001;
