@@ -148,6 +148,7 @@ function mostrarCapa(clave) {
     });
 
     dibujarTodasLasCapas();
+    aplicarVisibilidadCapas();
 
     const barra = document.getElementById('opacidad');
     if (barra) barra.value = Math.round(CAPAS[clave].opacidad * 100);
@@ -263,7 +264,7 @@ async function cargarUnidades() {
             .order('actualizado_en', { ascending: false });
         if (error) throw error;
 
-        marcadoresUnidades.forEach(m => mapa.removeLayer(m));
+        marcadoresUnidades.forEach(m => capaUnidades.removeLayer(m));
         marcadoresUnidades = [];
 
         (data || []).forEach(u => {
@@ -277,7 +278,7 @@ async function cargarUnidades() {
                     html: `<div style="font-size:20px;color:${color};text-shadow:0 0 5px #fff"><i class="fas fa-truck-pickup"></i></div>`,
                     iconSize: [24, 24], iconAnchor: [12, 12]
                 })
-            }).addTo(mapa);
+            }).addTo(capaUnidades);
 
             const uSeguro = String(u.user_id || '').replace(/'/g, '');
             const unSeguro = String(u.unidad || '').replace(/'/g, '');
@@ -460,6 +461,7 @@ async function moverSimulacion(lat, lon) {
    ============================================================ */
 let editorActivo = false;
 let modoEditor = null;
+let capaUnidades = null;
 let capaPuntos = null;
 let capaLineas = null;
 let verticesLinea = [];
@@ -467,9 +469,28 @@ let lineaTemporal = null;
 let marcadoresVertices = [];
 
 function initCapasVectoriales() {
-    capaPuntos = L.layerGroup().addTo(mapa);
-    capaLineas = L.layerGroup().addTo(mapa);
+    capaUnidades = L.layerGroup().addTo(mapa);
+    capaPuntos = L.layerGroup();
+    capaLineas = L.layerGroup();
     cargarVectores();
+    aplicarVisibilidadCapas();
+}
+
+/* Muestra solo lo que corresponde a la pestaña activa */
+function aplicarVisibilidadCapas() {
+    if (!mapa || !capaUnidades) return;
+
+    const esSeguimiento = (capaActiva === 'canales');
+
+    if (esSeguimiento) {
+        if (!mapa.hasLayer(capaUnidades)) mapa.addLayer(capaUnidades);
+        if (mapa.hasLayer(capaPuntos)) mapa.removeLayer(capaPuntos);
+        if (mapa.hasLayer(capaLineas)) mapa.removeLayer(capaLineas);
+    } else {
+        if (mapa.hasLayer(capaUnidades)) mapa.removeLayer(capaUnidades);
+        if (!mapa.hasLayer(capaPuntos)) mapa.addLayer(capaPuntos);
+        if (!mapa.hasLayer(capaLineas)) mapa.addLayer(capaLineas);
+    }
 }
 
 
