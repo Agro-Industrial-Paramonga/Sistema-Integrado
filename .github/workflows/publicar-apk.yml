@@ -1,12 +1,19 @@
 name: Publicar APK
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/android/**'
   workflow_dispatch:
     inputs:
       notas:
         description: 'Qué cambió en esta versión'
         required: false
         default: 'Mejoras y correcciones'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,7 +28,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Preparar web en la app
+      - name: Calcular número de versión
+        id: ver
+        run: |
+          BASE=100
+          CODE=$((BASE + ${{ github.run_number }}))
+          echo "code=$CODE" >> $GITHUB_OUTPUT
+          echo "name=1.${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Preparar web dentro de la app
         run: |
           mkdir -p app/www
           cp -r plan-contingencia app/www/ || true
@@ -32,19 +47,39 @@ jobs:
         working-directory: app/android
         run: |
           chmod +x gradlew
+          sed -i "s/versionCode .*/versionCode ${{ steps.ver.outputs.code }}/" app/build.gradle
+          sed -i "s/versionName .*/versionName \"${{ steps.ver.outputs.name }}\"/" app/build.gradle
           ./gradlew :app:assembleDebug --no-daemon
 
-      - name: Renombrar APK
+      - name: Preparar archivo
         run: |
           mkdir -p salida
           cp app/android/app/build/outputs/apk/debug/app-debug.apk salida/app-debug.apk
 
-      - name: Publicar release
+      - name: Crear release con el APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: Versión ${{ github.run_number }}
-          body: ${{ github.event.inputs.notas }}
+          tag_name: v${{ steps.ver.outputs.code }}
+          name: Versión ${{ steps.ver.outputs.name }}
+          body: ${{ github.event.inputs.notas || 'Actualización automática' }}
           files: salida/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Actualizar version.json (aviso en las apps)
+        run: |
+          cat > app/version.json <<EOF
+          {
+            "versionCode": ${{ steps.ver.outputs.code }},
+            "versionName": "${{ steps.ver.outputs.name }}",
+            "notas": "${{ github.event.inputs.notas || 'Actualización automática' }}",
+            "apk": "https://github.com/Agro-Industrial-Paramonga/Sistema-Integrado/releases/latest/download/app-debug.apk",
+            "publicado": "$(date +%Y-%m-%d)"
+          }
+          EOF
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add app/version.json
+          git commit -m "Versión ${{ steps.ver.outputs.name }}" || echo "sin cambios"
+          git push
