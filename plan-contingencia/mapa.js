@@ -522,10 +522,18 @@ async function cargarVectores() {
                 lineCap: 'round', lineJoin: 'round' }).addTo(capaLineas);
         }
 
-        const linea = L.polyline(l.coords, {
-            color: estilo.color, weight: grosor, opacity: 1,
-            lineCap: 'round', lineJoin: 'round'
-        }).addTo(capaLineas);
+        let linea;
+        if (l.tipo === 'poligono') {
+            linea = L.polygon(l.coords, {
+                color: estilo.color, weight: grosor, opacity: 1,
+                fillColor: estilo.color, fillOpacity: 0.30
+            }).addTo(capaLineas);
+        } else {
+            linea = L.polyline(l.coords, {
+                color: estilo.color, weight: grosor, opacity: 1,
+                lineCap: 'round', lineJoin: 'round'
+            }).addTo(capaLineas);
+        }
         linea.on('click', async () => {
             if (editorActivo && modoEditor === 'borrar') {
                 if (!confirm('¿Borrar esta línea (' + (l.nombre || '') + ')?')) return;
@@ -557,17 +565,15 @@ function setModoEditor(modo) {
         b.classList.toggle('activo', b.dataset.modo === modo);
     });
 
-    document.getElementById('btn-terminar-linea').style.display =
-        (modo === 'roja' || modo === 'amarilla' || modo === 'turquesa') ? 'inline-flex' : 'none';
+    const esLinea = (modo === 'roja' || modo === 'amarilla' || modo === 'turquesa');
+    document.getElementById('btn-terminar-linea').style.display = esLinea ? 'inline-flex' : 'none';
+    document.getElementById('btn-cerrar-zona').style.display = esLinea ? 'inline-flex' : 'none';
 
-    // Precision: sin arrastre del mapa mientras se marca, cursor de cruz
-    if (modo === 'punto' || modo === 'roja' || modo === 'amarilla' || modo === 'turquesa') {
-        mapa.dragging.disable();
-        mapa.getContainer().style.cursor = 'crosshair';
-    } else {
-        mapa.dragging.enable();
-        mapa.getContainer().style.cursor = '';
-    }
+    // El mapa SIEMPRE se puede arrastrar; el clic (sin mover) marca el vertice
+    mapa.dragging.enable();
+    mapa.getContainer().style.cursor =
+        (modo === 'punto' || modo === 'roja' || modo === 'amarilla' || modo === 'turquesa')
+            ? 'crosshair' : '';
 
     if (modo !== 'roja' && modo !== 'amarilla') terminarLinea(true);
 }
@@ -593,11 +599,15 @@ async function clickEditor(latlng) {
 function agregarVertice(lat, lon) {
     verticesLinea.push([lat, lon]);
 
-    const marca = L.circleMarker([lat, lon], {
-        radius: 6, color: '#a16207', weight: 2, fillColor: '#ffffff', fillOpacity: 1
+    const marca = L.marker([lat, lon], {
+        draggable: true,
+        icon: L.divIcon({
+            className: '', html: '<div class="vertice-editor"></div>',
+            iconSize: [16, 16], iconAnchor: [8, 8]
+        })
     }).addTo(mapa);
 
-    // click derecho sobre el vertice: lo elimina
+    // click derecho: eliminar vertice
     marca.on('contextmenu', (ev) => {
         L.DomEvent.stopPropagation(ev);
         const idx = marcadoresVertices.findIndex(m => m.marca === marca);
@@ -605,6 +615,15 @@ function agregarVertice(lat, lon) {
         mapa.removeLayer(marca);
         marcadoresVertices.splice(idx, 1);
         verticesLinea.splice(idx, 1);
+        redibujarTemporal();
+    });
+
+    // arrastrar el vertice: moverlo
+    marca.on('drag', (ev) => {
+        const idx = marcadoresVertices.findIndex(m => m.marca === marca);
+        if (idx === -1) return;
+        const pos = ev.target.getLatLng();
+        verticesLinea[idx] = [pos.lat, pos.lng];
         redibujarTemporal();
     });
 
@@ -631,12 +650,31 @@ function limpiarVertices() {
     if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
 }
 
-async function terminarLinea(cancelar) {
-    if (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa') {
-        mapa.dragging.disable();
-        mapa.getContainer().style.cursor = 'crosshair';
+
+async function cerrarZona() {
+    if (verticesLinea.length < 3) {
+        alert('Marca al menos 3 vértices para cerrar una zona.');
+        return;
     }
 
+    const colorFinal = modoEditor === 'roja' ? '#dc2626'
+        : (modoEditor === 'turquesa' ? '#06b6d4' : '#eab308');
+    const eFinal = estiloLinea(colorFinal);
+
+    await db.from('mapa_lineas').insert({
+        nombre: 'Zona ' + (modoEditor === 'roja' ? 'roja' : (modoEditor === 'turquesa' ? 'turquesa' : 'amarilla')),
+        color: colorFinal,
+        grosor: eFinal.weight,
+        tipo: 'poligono',
+        coords: verticesLinea
+    });
+
+    limpiarVertices();
+    verticesLinea = [];
+    cargarVectores();
+}
+
+async function terminarLinea(cancelar) {
     limpiarVertices();
 
     if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa')) {
@@ -649,6 +687,7 @@ async function terminarLinea(cancelar) {
                 : (modoEditor === 'turquesa' ? 'Línea turquesa' : 'Línea amarilla'),
             color: colorFinal,
             grosor: eFinal.weight,
+            tipo: 'linea',
             coords: verticesLinea
         });
         cargarVectores();
