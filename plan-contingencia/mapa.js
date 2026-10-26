@@ -501,20 +501,58 @@ function estiloLinea(color) {
     return { color: '#dc2626', weight: 8, borde: 12 };
 }
 
+
+/* Iconos vectoriales de maquinaria (sin archivos externos) */
+function iconoMaquinaria(tipo) {
+    if (tipo === 'retro') {
+        return `<svg viewBox="0 0 64 48" width="46" height="35" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="26" width="30" height="12" rx="3" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+            <rect x="16" y="14" width="16" height="14" rx="3" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+            <rect x="19" y="17" width="10" height="7" rx="2" fill="#7dd3fc" stroke="#0369a1" stroke-width="1"/>
+            <circle cx="13" cy="40" r="6" fill="#334155" stroke="#0f172a" stroke-width="2"/>
+            <circle cx="31" cy="40" r="6" fill="#334155" stroke="#0f172a" stroke-width="2"/>
+            <path d="M38 30 L48 20 L54 24 L44 34 Z" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+            <path d="M6 30 L-2 34 L4 38 L10 34 Z" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+        </svg>`;
+    }
+    return `<svg viewBox="0 0 64 48" width="46" height="35" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="28" height="10" rx="3" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+        <rect x="14" y="18" width="14" height="11" rx="3" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+        <rect x="17" y="21" width="8" height="6" rx="1" fill="#7dd3fc" stroke="#0369a1" stroke-width="1"/>
+        <path d="M36 30 L48 12 L54 16 L44 34 Z" fill="#facc15" stroke="#a16207" stroke-width="2"/>
+        <path d="M46 12 L56 6 L60 12 L52 16 Z" fill="#a16207" stroke="#854d0e" stroke-width="1"/>
+        <rect x="6" y="38" width="32" height="6" rx="3" fill="#334155" stroke="#0f172a" stroke-width="2"/>
+        <circle cx="12" cy="41" r="2.5" fill="#94a3b8"/>
+        <circle cx="22" cy="41" r="2.5" fill="#94a3b8"/>
+        <circle cx="32" cy="41" r="2.5" fill="#94a3b8"/>
+    </svg>`;
+}
+
 async function cargarVectores() {
     capaPuntos.clearLayers();
     capaLineas.clearLayers();
 
     const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
     (puntos || []).forEach(p => {
-        const marcador = L.marker([p.lat, p.lon], {
-            draggable: editorActivo,
-            icon: L.divIcon({
+        const esMaquina = (p.tipo === 'retro' || p.tipo === 'excavadora');
+
+        const icono = esMaquina
+            ? L.divIcon({
+                className: '',
+                html: '<div class="icono-maquina">' + iconoMaquinaria(p.tipo) + '</div>',
+                iconSize: [46, 35],
+                iconAnchor: [23, 30]
+            })
+            : L.divIcon({
                 className: '',
                 html: '<div class="punto-critico"><span>' + p.orden + '</span></div>',
                 iconSize: [30, 44],
                 iconAnchor: [15, 40]
-            })
+            });
+
+        const marcador = L.marker([p.lat, p.lon], {
+            draggable: editorActivo,
+            icon: icono
         }).addTo(capaPuntos);
 
         marcador.on('dragend', async (ev) => {
@@ -530,6 +568,15 @@ async function cargarVectores() {
             }
             p.lat = pos.lat; p.lon = pos.lng;
             if (est) est.textContent = '✓ Punto ' + p.orden + ' guardado en su nueva posición';
+        });
+
+        marcador.on('contextmenu', async (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            if (!editorActivo) return;
+            const nombreTxt = esMaquina ? 'esta maquinaria' : ('el punto ' + p.orden);
+            if (!confirm('¿Borrar ' + nombreTxt + '?')) return;
+            await db.from('mapa_puntos').delete().eq('id', p.id);
+            cargarVectores();
         });
 
         marcador.on('click', async () => {
@@ -604,7 +651,8 @@ function setModoEditor(modo) {
     // El mapa SIEMPRE se puede arrastrar; el clic (sin mover) marca el vertice
     mapa.dragging.enable();
     mapa.getContainer().style.cursor =
-        (modo === 'punto' || modo === 'roja' || modo === 'amarilla' || modo === 'turquesa')
+        (modo === 'punto' || modo === 'retro' || modo === 'excavadora'
+         || modo === 'roja' || modo === 'amarilla' || modo === 'turquesa')
             ? 'crosshair' : '';
 
     if (modo !== 'roja' && modo !== 'amarilla') terminarLinea(true);
@@ -613,10 +661,13 @@ function setModoEditor(modo) {
 async function clickEditor(latlng) {
     if (!editorActivo || !modoEditor) return;
 
-    if (modoEditor === 'punto') {
+    if (modoEditor === 'punto' || modoEditor === 'retro' || modoEditor === 'excavadora') {
         const { data } = await db.from('mapa_puntos').select('orden').order('orden', { ascending: false }).limit(1);
         const orden = (data && data[0] ? data[0].orden : 0) + 1;
-        await db.from('mapa_puntos').insert({ lat: latlng.lat, lon: latlng.lng, orden });
+        await db.from('mapa_puntos').insert({
+            lat: latlng.lat, lon: latlng.lng, orden,
+            tipo: modoEditor === 'punto' ? 'punto' : modoEditor
+        });
         cargarVectores();
         return;
     }
