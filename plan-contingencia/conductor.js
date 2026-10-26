@@ -65,6 +65,17 @@ function mostrarAviso(texto) {
 /* ------------------------------------------------------------
    Permiso de ubicacion
    ------------------------------------------------------------ */
+function ubicacionLista() {
+    return new Promise((resolver) => {
+        if (!navigator.geolocation) { resolver(false); return; }
+        navigator.geolocation.getCurrentPosition(
+            () => resolver(true),
+            () => resolver(false),
+            { enableHighAccuracy: true, timeout: 12000 }
+        );
+    });
+}
+
 function pedirPermisoUbicacion() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -169,6 +180,11 @@ async function iniciarTurno() {
     boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando…';
     mostrarAviso('Registrando el celular para alarmas…');
 
+    const hayUbicacion = await ubicacionLista();
+    if (!hayUbicacion) {
+        mostrarAviso('⚠️ Sin ubicación: activa el permiso de ubicación para compartir tu posición.');
+    }
+
     const listo = await registrarPush(nombre);
 
     // Servicio nativo: sigue enviando con la app cerrada
@@ -181,9 +197,10 @@ async function iniciarTurno() {
         try { window.AndroidUbicacion.pedirPantallaCompleta(); } catch (e) {}
     }
 
-    mostrarAviso(listo
-        ? 'Turno iniciado y celular registrado. Abriendo el mapa…'
-        : 'Turno iniciado, pero el celular no se registró para alarmas.');
+    mostrarAviso(
+        (listo ? 'Turno iniciado y celular registrado.' : 'Turno iniciado, sin registro para alarmas.')
+        + (hayUbicacion ? '' : ' Sin permiso de ubicación.')
+    );
 
     setTimeout(() => { window.location.href = 'mapa.html'; }, listo ? 700 : 1800);
 }

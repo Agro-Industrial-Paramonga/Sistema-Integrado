@@ -397,7 +397,10 @@ function iniciarRastreoSilencioso(c) {
         window.__vigilando = true;
         navigator.geolocation.watchPosition(
             (pos) => enviarUbicacion(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
-            () => {},
+            (err) => {
+                const est = document.getElementById('estado');
+                if (est) est.textContent = 'GPS: ' + (err.message || 'sin permiso de ubicación');
+            },
             { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
         );
     }
