@@ -331,7 +331,16 @@ async function alertarUnidad(usuario, unidad, token) {
     if (!quien) { alert('La unidad no tiene identificación.'); return; }
 
     if (!token) token = await buscarToken(usuario);
-    if (!usuario && !token) { alert('Esta unidad no tiene un celular registrado.'); return; }
+
+    if (!token && usuario) {
+        const { data } = await db.from('ubicaciones').select('token').eq('user_id', usuario).maybeSingle();
+        if (data && data.token) token = data.token;
+    }
+
+    if (!token) {
+        alert('La unidad ' + (unidad || usuario) + ' no tiene celular registrado para alarmas.\n\nEl conductor debe cerrar turno y volver a iniciarlo aceptando las notificaciones.');
+        return;
+    }
 
     if (!confirm('¿Alertar a ' + quien + ' para que evacue a un lugar seguro?')) return;
 
@@ -406,11 +415,11 @@ async function enviarUbicacion(lat, lon, precision) {
     const fila = {
         user_id: c ? c.nombre : 'UNIDAD MOVIL',
         unidad: c ? c.unidad : null,
-        token: token,
         lat, lon,
         precision_m: precision || null,
         actualizado_en: new Date().toISOString()
     };
+    if (token) fila.token = token;   // solo se escribe si existe
 
     const { error } = await db.from('ubicaciones').upsert(fila, { onConflict: 'user_id' });
     if (error) {
