@@ -53,18 +53,17 @@ jobs:
           npm install
           npx cap sync android
 
-      - name: Usar la clave de firma fija
-        run: |
-          mkdir -p ~/.android
-          cp app/android/keystore/debug.keystore ~/.android/debug.keystore
-
-      - name: Compilar APK
+      - name: Compilar APK con la firma fija
         working-directory: app/android
         run: |
           chmod +x gradlew
           sed -i "s/versionCode .*/versionCode ${{ steps.ver.outputs.code }}/" app/build.gradle
           sed -i "s/versionName .*/versionName \"${{ steps.ver.outputs.name }}\"/" app/build.gradle
-          ./gradlew :app:assembleDebug --no-daemon
+          ./gradlew :app:assembleDebug --no-daemon \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/app/android/keystore/debug.keystore" \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=androiddebugkey \
+            -Pandroid.injected.signing.key.password=android
 
       - name: Preparar archivo
         run: |
