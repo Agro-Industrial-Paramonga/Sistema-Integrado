@@ -464,6 +464,7 @@ let capaPuntos = null;
 let capaLineas = null;
 let verticesLinea = [];
 let lineaTemporal = null;
+let marcadoresVertices = [];
 
 function initCapasVectoriales() {
     capaPuntos = L.layerGroup().addTo(mapa);
@@ -570,13 +571,48 @@ async function clickEditor(latlng) {
     }
 
     if (modoEditor === 'roja' || modoEditor === 'amarilla') {
-        verticesLinea.push([latlng.lat, latlng.lng]);
-        if (lineaTemporal) mapa.removeLayer(lineaTemporal);
-        lineaTemporal = L.polyline(verticesLinea, {
-            color: modoEditor === 'roja' ? '#dc2626' : '#eab308',
-            weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round', dashArray: '1 10'
-        }).addTo(mapa);
+        agregarVertice(latlng.lat, latlng.lng);
     }
+}
+
+
+/* Vertices de la linea en construccion (estilo Google Earth) */
+function agregarVertice(lat, lon) {
+    verticesLinea.push([lat, lon]);
+
+    const marca = L.circleMarker([lat, lon], {
+        radius: 6, color: '#a16207', weight: 2, fillColor: '#ffffff', fillOpacity: 1
+    }).addTo(mapa);
+
+    // click derecho sobre el vertice: lo elimina
+    marca.on('contextmenu', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        const idx = marcadoresVertices.findIndex(m => m.marca === marca);
+        if (idx === -1) return;
+        mapa.removeLayer(marca);
+        marcadoresVertices.splice(idx, 1);
+        verticesLinea.splice(idx, 1);
+        redibujarTemporal();
+    });
+
+    marcadoresVertices.push({ marca, lat, lon });
+    redibujarTemporal();
+}
+
+function redibujarTemporal() {
+    if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
+    if (verticesLinea.length < 2) return;
+
+    lineaTemporal = L.polyline(verticesLinea, {
+        color: modoEditor === 'roja' ? '#dc2626' : '#eab308',
+        weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round'
+    }).addTo(mapa);
+}
+
+function limpiarVertices() {
+    marcadoresVertices.forEach(m => mapa.removeLayer(m.marca));
+    marcadoresVertices = [];
+    if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
 }
 
 async function terminarLinea(cancelar) {
@@ -584,7 +620,8 @@ async function terminarLinea(cancelar) {
         mapa.dragging.disable();
         mapa.getContainer().style.cursor = 'crosshair';
     }
-    if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
+
+    limpiarVertices();
 
     if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla')) {
         await db.from('mapa_lineas').insert({
