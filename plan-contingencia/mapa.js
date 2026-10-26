@@ -462,6 +462,8 @@ async function moverSimulacion(lat, lon) {
 let editorActivo = false;
 let modoEditor = null;
 let capaUnidades = null;
+let capaMaquinas = null;
+let maquinasCache = [];
 let capaPuntos = null;
 let capaLineas = null;
 let verticesLinea = [];
@@ -470,10 +472,150 @@ let marcadoresVertices = [];
 
 function initCapasVectoriales() {
     capaUnidades = L.layerGroup().addTo(mapa);
+    capaMaquinas = L.layerGroup();
     capaPuntos = L.layerGroup();
     capaLineas = L.layerGroup();
     cargarVectores();
+    cargarMaquinas();
+    cargarListaMaquinas();
     aplicarVisibilidadCapas();
+}
+
+/* ================= MAQUINAS DE PUNTOS CRITICOS ================= */
+const RADIO_PUNTO_M = 150;
+
+function distanciaMetros(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const f1 = lat1 * Math.PI / 180, f2 = lat2 * Math.PI / 180;
+    const df = (lat2 - lat1) * Math.PI / 180;
+    const dl = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(df/2)**2 + Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)**2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function puntoMasCercano(lat, lon) {
+    const { data } = await db.from('mapa_puntos').select('orden, nombre, lat, lon');
+    let mejor = null;
+    (data || []).forEach(p => {
+        const dist = distanciaMetros(lat, lon, p.lat, p.lon);
+        if (dist <= RADIO_PUNTO_M && (!mejor || dist < mejor.dist)) mejor = { ...p, dist };
+    });
+    return mejor;
+}
+
+async function cargarListaMaquinas() {
+    const sel = document.getElementById('sel-maquina');
+    if (!sel) return;
+    const { data } = await db.from('unidades').select('nombre')
+        .eq('prefijo', 'PUNTOS CRITICOS').eq('activo', true).order('nombre');
+    sel.innerHTML = (data || []).map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('');
+}
+
+async function cargarMaquinas() {
+    if (!capaMaquinas) return;
+    capaMaquinas.clearLayers();
+
+    const { data } = await db.from('mapa_maquinas').select('*');
+    maquinasCache = data || [];
+
+    maquinasCache.forEach(m => {
+        const tipo = m.unidad.includes('EXCAVADORA DE ARRASTRE') ? 'excavadora'
+            : m.unidad.includes('EXCAVADORA') ? 'excavadora' : 'retro';
+        const tam = m.tamano || 40;
+
+        const marca = L.marker([m.lat, m.lon], {
+            draggable: editorActivo,
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="icono-maquina" style="width:${tam}px;height:${Math.round(tam*0.76)}px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">${iconoMaquinaria(tipo)}</div>`,
+                iconSize: [tam, Math.round(tam*0.76)],
+                iconAnchor: [Math.round(tam/2), Math.round(tam*0.68)]
+            })
+        }).addTo(capaMaquinas);
+
+        marca.bindTooltip(m.unidad + (m.punto_orden ? ' · punto ' + m.punto_orden : ''),
+            { permanent: false, direction: 'top' });
+
+        marca.on('contextmenu', async (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            if (!editorActivo) return;
+            if (!confirm('¿Quitar ' + m.unidad + ' del mapa?')) return;
+            await db.from('mapa_maquinas').delete().eq('id', m.id);
+            cargarMaquinas();
+        });
+
+        marca.on('dragend', async (ev) => {
+            const pos = ev.target.getLatLng();
+            const punto = await puntoMasCercano(pos.lat, pos.lng);
+            const nuevoOrden = punto ? punto.orden : null;
+
+            await db.from('mapa_maquinas').update({
+                lat: pos.lat, lon: pos.lng,
+                punto_orden: nuevoOrden,
+                actualizado_en: new Date().toISOString()
+            }).eq('id', m.id);
+
+            const est = document.getElementById('estado');
+
+            if (nuevoOrden && nuevoOrden !== m.punto_orden) {
+                await alertarMaquina(m.unidad, punto);
+                if (est) est.textContent = '✓ ' + m.unidad + ' asignada al punto ' + nuevoOrden + ' – ' + (punto.nombre || '');
+            } else if (nuevoOrden) {
+                if (est) est.textContent = '✓ ' + m.unidad + ' sigue en el punto ' + nuevoOrden;
+            } else {
+                if (est) est.textContent = '✓ ' + m.unidad + ' movida (sin punto cercano)';
+            }
+
+            cargarMaquinas();
+        });
+    });
+}
+
+/* Avisa al conductor logueado en esa maquina */
+async function alertarMaquina(unidad, punto) {
+    try {
+        const { data } = await db.from('ubicaciones').select('user_id, token, unidad');
+        const fila = (data || []).find(u => normalizar(u.unidad) === normalizar(unidad));
+        if (!fila) return;
+
+        await fetch(FUNC_PUSH, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: 'Dirígete al punto ' + punto.orden + ' – ' + (punto.nombre || ''),
+                body: 'Se te asignó este punto crítico. Dirígete de inmediato.',
+                userId: fila.user_id,
+                token: fila.token || null
+            })
+        });
+    } catch (e) { console.warn('alerta maquina', e); }
+}
+
+async function colocarMaquina(latlng) {
+    const sel = document.getElementById('sel-maquina');
+    const unidad = sel && sel.value ? sel.value : null;
+    if (!unidad) { alert('No hay máquinas de puntos críticos registradas.'); return; }
+
+    const punto = await puntoMasCercano(latlng.lat, latlng.lng);
+
+    await db.from('mapa_maquinas').upsert({
+        unidad,
+        lat: latlng.lat,
+        lon: latlng.lng,
+        punto_orden: punto ? punto.orden : null,
+        tamano: 40,
+        actualizado_en: new Date().toISOString()
+    }, { onConflict: 'unidad' });
+
+    cargarMaquinas();
+}
+
+async function cambiarTamanoMaquinas(valor) {
+    const tam = Number(valor);
+    for (const m of maquinasCache) {
+        await db.from('mapa_maquinas').update({ tamano: tam }).eq('id', m.id);
+    }
+    cargarMaquinas();
 }
 
 /* Muestra solo lo que corresponde a la pestaña activa */
@@ -486,10 +628,12 @@ function aplicarVisibilidadCapas() {
         if (!mapa.hasLayer(capaUnidades)) mapa.addLayer(capaUnidades);
         if (mapa.hasLayer(capaPuntos)) mapa.removeLayer(capaPuntos);
         if (mapa.hasLayer(capaLineas)) mapa.removeLayer(capaLineas);
+        if (mapa.hasLayer(capaMaquinas)) mapa.removeLayer(capaMaquinas);
     } else {
         if (mapa.hasLayer(capaUnidades)) mapa.removeLayer(capaUnidades);
         if (!mapa.hasLayer(capaPuntos)) mapa.addLayer(capaPuntos);
         if (!mapa.hasLayer(capaLineas)) mapa.addLayer(capaLineas);
+        if (!mapa.hasLayer(capaMaquinas)) mapa.addLayer(capaMaquinas);
     }
 }
 
@@ -624,6 +768,8 @@ async function cargarVectores() {
 function alternarEditor() {
     editorActivo = !editorActivo;
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
+    const cm = document.getElementById('ctrl-maquina');
+    if (cm) cm.style.display = editorActivo ? 'inline-flex' : 'none';
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
     document.getElementById('btn-editar-puntos').classList.toggle('activo', editorActivo);
 
@@ -669,6 +815,11 @@ async function clickEditor(latlng) {
             tipo: modoEditor === 'punto' ? 'punto' : modoEditor
         });
         cargarVectores();
+        return;
+    }
+
+    if (modoEditor === 'maquina') {
+        await colocarMaquina(latlng);
         return;
     }
 
