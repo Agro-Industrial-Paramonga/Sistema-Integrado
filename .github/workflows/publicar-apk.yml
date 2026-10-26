@@ -53,6 +53,11 @@ jobs:
           npm install
           npx cap sync android
 
+      - name: Usar la clave de firma fija
+        run: |
+          mkdir -p ~/.android
+          cp app/android/keystore/debug.keystore ~/.android/debug.keystore
+
       - name: Compilar APK
         working-directory: app/android
         run: |
