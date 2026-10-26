@@ -206,7 +206,7 @@ async function iniciarTurno() {
         + (hayUbicacion ? '' : ' Sin permiso de ubicación.')
     );
 
-    setTimeout(() => { window.location.href = 'mapa.html'; }, listo ? 700 : 1800);
+    setTimeout(() => { window.location.href = 'mapa.html?v=20'; }, listo ? 700 : 1800);
 }
 
 async function continuarTurno() {
@@ -231,7 +231,7 @@ async function continuarTurno() {
             window.AndroidUbicacion.iniciarServicio(sesion.nombre, sesion.unidad);
         }
         mostrarAviso('Turno activo: ' + sesion.nombre + ' · ' + sesion.unidad + '. Abriendo el mapa…');
-        setTimeout(() => { window.location.href = 'mapa.html'; }, 900);
+        setTimeout(() => { window.location.href = 'mapa.html?v=20'; }, 900);
         return true;
     }
     return false;

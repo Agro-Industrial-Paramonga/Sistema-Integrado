@@ -443,7 +443,7 @@ async function cerrarTurno() {
 
     localStorage.removeItem('conductor');
     localStorage.removeItem('pushToken');
-    window.location.href = 'conductor.html';
+    window.location.href = 'conductor.html?v=20';
 }
 
 /* ------------------------------------------------------------
