@@ -28,10 +28,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Instalar Node 20
+      - name: Instalar Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Calcular número de versión
         id: ver
