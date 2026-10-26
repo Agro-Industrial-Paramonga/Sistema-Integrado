@@ -528,16 +528,33 @@ function alternarEditor() {
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
     document.getElementById('btn-editar-puntos').classList.toggle('activo', editorActivo);
 
-    if (!editorActivo) { setModoEditor(null); terminarLinea(true); }
+    if (!editorActivo) {
+        setModoEditor(null);
+        terminarLinea(true);
+        mapa.dragging.enable();
+        mapa.getContainer().style.cursor = '';
+    }
 }
 
 function setModoEditor(modo) {
     modoEditor = modo;
+
     document.querySelectorAll('.btn-modo-ed').forEach(b => {
         b.classList.toggle('activo', b.dataset.modo === modo);
     });
+
     document.getElementById('btn-terminar-linea').style.display =
         (modo === 'roja' || modo === 'amarilla') ? 'inline-flex' : 'none';
+
+    // Precision: sin arrastre del mapa mientras se marca, cursor de cruz
+    if (modo === 'punto' || modo === 'roja' || modo === 'amarilla') {
+        mapa.dragging.disable();
+        mapa.getContainer().style.cursor = 'crosshair';
+    } else {
+        mapa.dragging.enable();
+        mapa.getContainer().style.cursor = '';
+    }
+
     if (modo !== 'roja' && modo !== 'amarilla') terminarLinea(true);
 }
 
@@ -563,6 +580,10 @@ async function clickEditor(latlng) {
 }
 
 async function terminarLinea(cancelar) {
+    if (modoEditor === 'roja' || modoEditor === 'amarilla') {
+        mapa.dragging.disable();
+        mapa.getContainer().style.cursor = 'crosshair';
+    }
     if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
 
     if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla')) {
