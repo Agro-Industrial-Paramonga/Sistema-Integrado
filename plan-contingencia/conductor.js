@@ -101,7 +101,16 @@ function registrarPush(nombre) {
             await registrarLog('consultando permiso', '');
             let permiso = await PN.checkPermissions();
             await registrarLog('permiso', JSON.stringify(permiso));
-            if (permiso.receive !== 'granted') permiso = await PN.requestPermissions();
+
+            if (permiso.receive !== 'granted') {
+                permiso = await PN.requestPermissions();
+                // si quedo en "prompt", dar tiempo al dialogo del sistema
+                for (let i = 0; i < 6 && permiso.receive === 'prompt'; i++) {
+                    await new Promise(r => setTimeout(r, 1200));
+                    permiso = await PN.checkPermissions();
+                }
+                await registrarLog('permiso tras pedir', JSON.stringify(permiso));
+            }
             if (permiso.receive !== 'granted') {
                 await registrarLog('PERMISO DENEGADO', JSON.stringify(permiso));
                 mostrarAviso('Sin permiso de notificaciones: no recibirás alarmas.');
@@ -154,10 +163,6 @@ async function iniciarTurno() {
 
     pedirPermisoUbicacion();
 
-    // Permiso de notificaciones (Android 13+): sin el, las alarmas no llegan
-    if (window.AndroidUbicacion && window.AndroidUbicacion.pedirNotificaciones) {
-        try { window.AndroidUbicacion.pedirNotificaciones(); } catch (e) {}
-    }
 
     const boton = document.getElementById('btn-entrar');
     boton.disabled = true;
