@@ -32,6 +32,21 @@ public class MainActivity extends BridgeActivity {
     }
 
     /** Si hay un turno activo y falta el permiso de ubicacion, no deja usar la app. */
+    private void limpiarCacheSiCambioVersion(android.webkit.WebView webView) {
+        try {
+            int version = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+            android.content.SharedPreferences prefs = getSharedPreferences("avisos", MODE_PRIVATE);
+            if (prefs.getInt("cache_version", -1) == version) return;
+
+            webView.clearCache(true);
+            webView.clearHistory();
+            prefs.edit().putInt("cache_version", version).apply();
+            android.util.Log.i("MainActivity", "Cache del WebView limpiada para version " + version);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void exigirUbicacionObligatoria() {
         android.content.SharedPreferences prefs = getSharedPreferences("ubicacion", MODE_PRIVATE);
         String usuario = prefs.getString("usuario", null);
@@ -205,6 +220,9 @@ public class MainActivity extends BridgeActivity {
                 // Permitir agrandar/achicar con dos dedos (por ejemplo el
                 // diagrama de flujo del plan de contingencia).
                 android.webkit.WebSettings ajustes = webView.getSettings();
+                // Limpiar cache una vez por version instalada (evita paginas viejas)
+                try { limpiarCacheSiCambioVersion(webView); } catch (Exception e) { e.printStackTrace(); }
+
                 ajustes.setGeolocationEnabled(true);
 
                 // Permitir que la web abra los ajustes de ubicacion de la app
