@@ -279,5 +279,28 @@
     <footer class="footer">
         Centro de Operaciones &middot; Seguridad y salud en el trabajo &copy; 2026
     </footer>
+
+    <script>
+    // Si el conductor tiene un turno activo, abrir el mapa directamente
+    (function () {
+        try {
+            var sesion = null;
+            try { sesion = JSON.parse(localStorage.getItem('conductor') || 'null'); } catch (e) {}
+
+            if (!sesion && window.AndroidUbicacion && window.AndroidUbicacion.obtenerSesionGuardada) {
+                var guardada = window.AndroidUbicacion.obtenerSesionGuardada();
+                if (guardada && guardada.indexOf('|') > 0) {
+                    var partes = guardada.split('|');
+                    sesion = { nombre: partes[0], unidad: partes[1] };
+                    localStorage.setItem('conductor', JSON.stringify(sesion));
+                }
+            }
+
+            if (sesion && sesion.unidad) {
+                window.location.replace('./plan-contingencia/mapa.html');
+            }
+        } catch (e) {}
+    })();
+    </script>
 </body>
 </html>
