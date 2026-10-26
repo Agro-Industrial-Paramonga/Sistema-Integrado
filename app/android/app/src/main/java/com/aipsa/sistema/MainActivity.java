@@ -67,6 +67,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AlarmaPlugin.class);
         super.onCreate(savedInstanceState);
 
+        // Revisar si hay una version nueva publicada (sin Play Store)
+        try { Actualizador.revisar(this); } catch (Exception e) { e.printStackTrace(); }
+
         // Boton/gesto de retroceder:
         //  - Si hay historial en el WebView, retrocede (p. ej. de Hallazgos
         //    o Plan de Contingencia vuelve al portal Seguridad y salud en el trabajo).
