@@ -96,4 +96,5 @@ jobs:
           git config user.email "github-actions@github.com"
           git add app/version.json
           git commit -m "Versión ${{ steps.ver.outputs.name }}" || echo "sin cambios"
-          git push
+          git pull --rebase origin main || true
+          git push || true
