@@ -182,7 +182,11 @@ async function iniciarTurno() {
 
     const hayUbicacion = await ubicacionLista();
     if (!hayUbicacion) {
-        mostrarAviso('⚠️ Sin ubicación: activa el permiso de ubicación para compartir tu posición.');
+        mostrarAviso('⛔ Debes permitir la ubicación para iniciar turno. Si no aparece el aviso, actívala en Ajustes → Aplicaciones → Permisos → Ubicación → Permitir todo el tiempo.');
+        const b = document.getElementById('btn-entrar');
+        b.disabled = false;
+        b.innerHTML = 'Iniciar turno';
+        return;   // no deja continuar sin ubicacion
     }
 
     const listo = await registrarPush(nombre);

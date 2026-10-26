@@ -31,6 +31,54 @@ public class MainActivity extends BridgeActivity {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
+    /** Si hay un turno activo y falta el permiso de ubicacion, no deja usar la app. */
+    private void exigirUbicacionObligatoria() {
+        android.content.SharedPreferences prefs = getSharedPreferences("ubicacion", MODE_PRIVATE);
+        String usuario = prefs.getString("usuario", null);
+        if (usuario == null || usuario.isEmpty()) return;   // sin turno, no se exige
+
+        boolean fina = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+        boolean fondo = true;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            fondo = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+
+        if (fina && fondo) return;
+        if (dialogoUbicacionVisible) return;
+        dialogoUbicacionVisible = true;
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Ubicación obligatoria")
+                .setMessage("Para usar la app durante el turno debes permitir la ubicación y elegir \"Permitir todo el tiempo\".\n\nSin este permiso no se puede compartir la posición de tu unidad.")
+                .setCancelable(false)
+                .setPositiveButton("Permitir", (d1, w) -> {
+                    dialogoUbicacionVisible = false;
+                    if (!fina) {
+                        androidx.core.app.ActivityCompat.requestPermissions(this,
+                                new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, CODIGO_UBICACION);
+                    } else {
+                        try {
+                            android.content.Intent i = new android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                            startActivity(i);
+                        } catch (Exception e) { e.printStackTrace(); }
+                    }
+                })
+                .setNegativeButton("Cerrar app", (d1, w) -> {
+                    dialogoUbicacionVisible = false;
+                    finishAffinity();
+                })
+                .show();
+    }
+
+    private boolean dialogoUbicacionVisible = false;
+
     private void pedirPantallaCompletaAlIniciar() {
         if (android.os.Build.VERSION.SDK_INT < 34) return;
 
@@ -89,6 +137,8 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+        try { exigirUbicacionObligatoria(); } catch (Exception e) { }
+
         if (requestCode == CODIGO_UBICACION && callbackUbicacion != null) {
             boolean concedido = grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED;
@@ -104,6 +154,18 @@ public class MainActivity extends BridgeActivity {
         // IMPORTANTE: debe ir ANTES de super.onCreate().
         registerPlugin(AlarmaPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Exigir ubicacion si hay un turno activo
+        try { exigirUbicacionObligatoria(); } catch (Exception e) { e.printStackTrace(); }
+
+        final android.os.Handler vigilante = new android.os.Handler(android.os.Looper.getMainLooper());
+        vigilante.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try { exigirUbicacionObligatoria(); } catch (Exception e) { }
+                vigilante.postDelayed(this, 4000);
+            }
+        }, 4000);
 
         // Permiso de pantalla completa para que la alarma salte sola
         try { pedirPantallaCompletaAlIniciar(); } catch (Exception e) { e.printStackTrace(); }
