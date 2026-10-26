@@ -187,6 +187,18 @@ async function continuarTurno() {
     let sesion = null;
     try { sesion = JSON.parse(localStorage.getItem('conductor') || 'null'); } catch (e) {}
 
+    // Si el navegador perdio la sesion, preguntar al celular
+    if (!sesion && window.AndroidUbicacion && window.AndroidUbicacion.obtenerSesionGuardada) {
+        try {
+            const guardada = window.AndroidUbicacion.obtenerSesionGuardada();
+            if (guardada && guardada.indexOf('|') > 0) {
+                const partes = guardada.split('|');
+                sesion = { nombre: partes[0], unidad: partes[1], inicio: new Date().toISOString() };
+                localStorage.setItem('conductor', JSON.stringify(sesion));
+            }
+        } catch (e) {}
+    }
+
     if (sesion && sesion.unidad && sesion.nombre) {
         // Turno vigente: reactivar el envio y seguir en el mapa
         if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {

@@ -136,6 +136,20 @@ public class MainActivity extends BridgeActivity {
                     }
 
                     @JavascriptInterface
+                    public String obtenerSesionGuardada() {
+                        try {
+                            android.content.SharedPreferences prefs =
+                                    getSharedPreferences("ubicacion", MODE_PRIVATE);
+                            String usuario = prefs.getString("usuario", null);
+                            if (usuario == null || usuario.isEmpty()) return "";
+                            String unidad = prefs.getString("unidad", "");
+                            return usuario + "|" + unidad;
+                        } catch (Exception e) {
+                            return "";
+                        }
+                    }
+
+                    @JavascriptInterface
                     public void pedirNotificaciones() {
                         try {
                             if (android.os.Build.VERSION.SDK_INT >= 33) {
