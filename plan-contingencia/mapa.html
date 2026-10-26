@@ -41,6 +41,12 @@
         }
         .etiqueta-unidad::before { display: none; }
 
+        .btn-modo-ed {
+            border: 1px solid #e2e8f0; background: #fff; color: #334155; border-radius: 10px;
+            padding: 7px 11px; font-size: .76rem; font-weight: 700; cursor: pointer;
+        }
+        .btn-modo-ed.activo { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+
         .tab-capa {
             border: 1px solid #e2e8f0; background: #fff; color: #475569;
             border-radius: 10px; padding: 8px 14px; font-size: .8rem; font-weight: 700;
@@ -48,6 +54,16 @@
         }
         .tab-capa.activo { background: #0f172a; color: #fff; border-color: #0f172a; }
         @media (max-width: 900px) { .tab-capa { font-size: .72rem; padding: 7px 10px; } }
+
+        .num-punto {
+            background: transparent !important; border: none !important; box-shadow: none !important;
+            color: #422006; font-weight: 800; font-size: .72rem; padding: 0;
+        }
+        .num-punto::before { display: none !important; }
+        .flecha-punto {
+            width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
+            border-top: 10px solid #a16207; margin: 0 auto;
+        }
 
         .pin-unidad { font-size: 20px; color: #dc2626; text-shadow: 0 0 4px #fff; }
     </style>
@@ -65,7 +81,15 @@
                 <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
         <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
-                                <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
+                                <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar puntos</button>
+        <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
+            <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed"><i class="fas fa-location-dot"></i> Punto</button>
+            <button data-modo="roja" onclick="setModoEditor('roja')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#dc2626"></i> Línea roja</button>
+            <button data-modo="amarilla" onclick="setModoEditor('amarilla')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#eab308"></i> Línea amarilla</button>
+            <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981;">Terminar línea</button>
+            <button onclick="borrarTodo()" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;">Borrar todo</button>
+        </span>
+        <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
                 <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
         <span class="sep"></span>
         <span class="estado" id="estado">Cargando…</span>
@@ -78,6 +102,13 @@
         <a href="#" onclick="borrarSimulacion();return false;" style="color:#b91c1c">Borrar simulación</a>
     </div>
 
+    <div class="leyenda" id="leyenda-editor" style="display:none">
+        <strong>Editor de puntos críticos</strong><br>
+        1. Elige <strong>Punto</strong> y toca el mapa en cada sitio (se numera solo).<br>
+        2. Para las líneas elige <strong>roja</strong> o <strong>amarilla</strong> y toca cada vértice.<br>
+        3. Pulsa <strong>Terminar línea</strong> al acabar.
+    </div>
+
     <div class="leyenda" id="leyenda" style="display:none">
         <strong id="leyenda-titulo">Modo ajuste</strong><br>
         Arrastra los dos puntos (NOROESTE y SURESTE) hasta que la imagen calce con el terreno.<br>
@@ -86,6 +117,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=6"></script>
+    <script src="mapa.js?v=7"></script>
 </body>
 </html>

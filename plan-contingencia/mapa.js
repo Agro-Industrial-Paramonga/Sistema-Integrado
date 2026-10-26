@@ -88,11 +88,13 @@ function iniciarMapa() {
         { maxZoom: 19, opacity: 0.85 }).addTo(mapa);
 
     mapa.on('click', async (e) => {
+        if (editorActivo) { await clickEditor(e.latlng); return; }
         if (!simulando) return;
         await moverSimulacion(e.latlng.lat, e.latlng.lng);
     });
 
     cargarCapas();
+    initCapasVectoriales();
     cargarUnidades();
     aplicarSesionConductor();
     setInterval(cargarUnidades, 30000);
@@ -158,6 +160,12 @@ function mostrarCapa(clave) {
 }
 
 function actualizarControles() {
+    const botonEd = document.getElementById('btn-editar-puntos');
+    if (botonEd) {
+        const puede = !esMovil() && !sesionConductor() && accesoPermitido();
+        botonEd.style.display = puede ? 'inline-flex' : 'none';
+    }
+
     const botonAjustar = document.getElementById('btn-ajustar');
     if (botonAjustar) botonAjustar.style.display = esMovil() ? 'none' : 'inline-flex';
 }
@@ -445,5 +453,114 @@ async function moverSimulacion(lat, lon) {
 
     cargarUnidades();
 }
+
+
+/* ============================================================
+   EDITOR DE PUNTOS CRITICOS (vectores)
+   ============================================================ */
+let editorActivo = false;
+let modoEditor = null;
+let capaPuntos = null;
+let capaLineas = null;
+let verticesLinea = [];
+let lineaTemporal = null;
+
+function initCapasVectoriales() {
+    capaPuntos = L.layerGroup().addTo(mapa);
+    capaLineas = L.layerGroup().addTo(mapa);
+    cargarVectores();
+}
+
+async function cargarVectores() {
+    capaPuntos.clearLayers();
+    capaLineas.clearLayers();
+
+    const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
+    (puntos || []).forEach(p => {
+        L.circleMarker([p.lat, p.lon], {
+            radius: 12, color: '#a16207', weight: 2, fillColor: '#facc15', fillOpacity: 1
+        }).addTo(capaPuntos)
+          .bindTooltip(String(p.orden), { permanent: true, direction: 'center', className: 'num-punto' })
+          .on('click', () => { if (editorActivo && modoEditor === 'borrar') borrarPunto(p.id); });
+
+        // flecha hacia el sitio exacto
+        L.marker([p.lat, p.lon], {
+            icon: L.divIcon({ className: '', html: '<div class="flecha-punto"></div>', iconAnchor: [1, 18] })
+        }).addTo(capaPuntos);
+    });
+
+    const { data: lineas } = await db.from('mapa_lineas').select('*');
+    (lineas || []).forEach(l => {
+        if (!Array.isArray(l.coords) || l.coords.length < 2) return;
+        L.polyline(l.coords, { color: l.color || '#dc2626', weight: 5, opacity: .95 }).addTo(capaLineas);
+    });
+}
+
+function alternarEditor() {
+    editorActivo = !editorActivo;
+    document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
+    document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
+    document.getElementById('btn-editar-puntos').classList.toggle('activo', editorActivo);
+
+    if (!editorActivo) { setModoEditor(null); terminarLinea(true); }
+}
+
+function setModoEditor(modo) {
+    modoEditor = modo;
+    document.querySelectorAll('.btn-modo-ed').forEach(b => {
+        b.classList.toggle('activo', b.dataset.modo === modo);
+    });
+    document.getElementById('btn-terminar-linea').style.display =
+        (modo === 'roja' || modo === 'amarilla') ? 'inline-flex' : 'none';
+    if (modo !== 'roja' && modo !== 'amarilla') terminarLinea(true);
+}
+
+async function clickEditor(latlng) {
+    if (!editorActivo || !modoEditor) return;
+
+    if (modoEditor === 'punto') {
+        const { data } = await db.from('mapa_puntos').select('orden').order('orden', { ascending: false }).limit(1);
+        const orden = (data && data[0] ? data[0].orden : 0) + 1;
+        await db.from('mapa_puntos').insert({ lat: latlng.lat, lon: latlng.lng, orden });
+        cargarVectores();
+        return;
+    }
+
+    if (modoEditor === 'roja' || modoEditor === 'amarilla') {
+        verticesLinea.push([latlng.lat, latlng.lng]);
+        if (lineaTemporal) mapa.removeLayer(lineaTemporal);
+        lineaTemporal = L.polyline(verticesLinea, {
+            color: modoEditor === 'roja' ? '#dc2626' : '#eab308', weight: 5, dashArray: '6 6'
+        }).addTo(mapa);
+    }
+}
+
+async function terminarLinea(cancelar) {
+    if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
+
+    if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla')) {
+        await db.from('mapa_lineas').insert({
+            nombre: modoEditor === 'roja' ? 'Línea roja' : 'Línea amarilla',
+            color: modoEditor === 'roja' ? '#dc2626' : '#eab308',
+            coords: verticesLinea
+        });
+        cargarVectores();
+    }
+    verticesLinea = [];
+}
+
+async function borrarPunto(id) {
+    if (!confirm('¿Borrar este punto?')) return;
+    await db.from('mapa_puntos').delete().eq('id', id);
+    cargarVectores();
+}
+
+async function borrarTodo() {
+    if (!confirm('¿Borrar TODOS los puntos y líneas?')) return;
+    await db.from('mapa_puntos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await db.from('mapa_lineas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    cargarVectores();
+}
+
 
 iniciarMapa();
