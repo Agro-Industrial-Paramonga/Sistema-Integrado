@@ -408,6 +408,8 @@ function aplicarSesionConductor() {
     const pantalla = document.getElementById('pantalla-conductor');
     if (pantalla) pantalla.style.display = 'flex';
 
+    if (!pantalla) { iniciarMapaNormal(); return; }
+
     const barra = document.querySelector('.barra');
     if (barra) barra.style.display = 'none';
 
