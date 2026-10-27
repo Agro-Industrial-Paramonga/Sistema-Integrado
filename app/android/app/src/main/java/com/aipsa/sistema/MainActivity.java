@@ -94,61 +94,137 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    private void exigirUbicacionObligatoria() {
+    private boolean hayTurnoActivo() {
         android.content.SharedPreferences prefs = getSharedPreferences("ubicacion", MODE_PRIVATE);
         String usuario = prefs.getString("usuario", null);
-        if (usuario == null || usuario.isEmpty()) return;   // sin turno, no se exige
+        return usuario != null && !usuario.isEmpty();
+    }
 
+    /** Devuelve el primer permiso que falta, o null si ya estan todos. */
+    private String permisoFaltante() {
+        // 1) Ubicacion precisa
         boolean fina = androidx.core.content.ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION)
                 == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (!fina) return "ubicacion";
 
-        boolean fondo = true;
+        // 2) Interruptor de ubicacion del celular
+        if (!ubicacionEncendida()) return "apagada";
+
+        // 3) Ubicacion todo el tiempo
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            fondo = androidx.core.content.ContextCompat.checkSelfPermission(this,
+            boolean fondo = androidx.core.content.ContextCompat.checkSelfPermission(this,
                     android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                     == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!fondo) return "fondo";
         }
 
-        // El interruptor de ubicacion del celular debe estar encendido
-        final boolean encendida = ubicacionEncendida();
+        // 4) Notificaciones
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            boolean notificaciones = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                    "android.permission.POST_NOTIFICATIONS")
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!notificaciones) return "notificaciones";
+        }
 
-        // Tambien exigir exencion del ahorro de bateria
-        boolean bateriaTemp = true;
+        // 5) Alerta a pantalla completa (obligatorio desde Android 14)
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            android.app.NotificationManager nm =
+                    (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null && !nm.canUseFullScreenIntent()) return "pantalla_completa";
+        }
+
+        // 6) Exencion del ahorro de bateria
         try {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
-            bateriaTemp = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) return "bateria";
         } catch (Exception e) { }
-        final boolean bateriaOk = bateriaTemp;
 
-        if (fina && fondo && encendida && bateriaOk) return;
+        return null;
+    }
+
+    /**
+     * Con turno activo no se entra sin los permisos que hacen falta:
+     * ubicacion, "todo el tiempo", interruptor encendido, notificaciones,
+     * pantalla completa y exencion de bateria.
+     */
+    private void exigirUbicacionObligatoria() {
+        if (!hayTurnoActivo()) return;   // sin turno, no se exige
+
+        final String falta = permisoFaltante();
+        if (falta == null) { dialogoUbicacionVisible = false; return; }
         if (dialogoUbicacionVisible) return;
         dialogoUbicacionVisible = true;
 
-        final String mensaje = !encendida
-                ? "La ubicación del celular está desactivada.\n\nActívala para que la unidad siga reportando su posición durante el turno."
-                : "Para usar la app durante el turno necesitas:\n\n• Ubicación en \"Permitir todo el tiempo\"\n• Exención del ahorro de batería\n\nSin ambos, la posición de tu unidad deja de compartirse.";
+        String titulo;
+        String mensaje;
+        String boton;
+
+        switch (falta) {
+            case "ubicacion":
+                titulo = "Permiso de ubicación";
+                mensaje = "La app necesita tu ubicación para compartir la posición de la unidad.";
+                boton = "Permitir";
+                break;
+            case "apagada":
+                titulo = "Activa la ubicación";
+                mensaje = "El interruptor de ubicación del celular está apagado.\n\nActívalo para que la unidad siga reportando su posición.";
+                boton = "Activar ubicación";
+                break;
+            case "fondo":
+                titulo = "Ubicación todo el tiempo";
+                mensaje = "En los permisos de ubicación elige \"Permitir todo el tiempo\".\n\nSi queda en \"Solo mientras se usa la app\", deja de reportar al cerrarla.";
+                boton = "Abrir ajustes";
+                break;
+            case "notificaciones":
+                titulo = "Permiso de notificaciones";
+                mensaje = "Sin notificaciones no pueden aparecer las alertas de evacuación.";
+                boton = "Permitir";
+                break;
+            case "pantalla_completa":
+                titulo = "Alerta a pantalla completa";
+                mensaje = "Para que la alarma aparezca aunque la app esté cerrada o el teléfono bloqueado, activa \"Permitir pantalla completa\".";
+                boton = "Abrir ajustes";
+                break;
+            default:
+                titulo = "Sin restricciones de batería";
+                mensaje = "Android puede cerrar la app y dejar de enviar la ubicación.\n\nElige \"Sin restricciones\" / \"No optimizar\".";
+                boton = "Permitir";
+                break;
+        }
 
         new android.app.AlertDialog.Builder(this)
-                .setTitle(!encendida ? "Activa la ubicación" : "Ubicación obligatoria")
+                .setTitle(titulo)
                 .setMessage(mensaje)
                 .setCancelable(false)
-                .setPositiveButton(!encendida ? "Activar ubicación" : "Permitir", (d1, w) -> {
+                .setPositiveButton(boton, (d1, w) -> {
                     dialogoUbicacionVisible = false;
-                    if (!encendida) {
-                        abrirAjustesUbicacionSistema();
-                    } else if (!fina) {
-                        androidx.core.app.ActivityCompat.requestPermissions(this,
-                                new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, CODIGO_UBICACION);
-                    } else if (!bateriaOk) {
-                        pedirExencionBateriaDirecto();
-                    } else {
-                        try {
-                            android.content.Intent i = new android.content.Intent(
-                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                            i.setData(android.net.Uri.parse("package:" + getPackageName()));
-                            startActivity(i);
-                        } catch (Exception e) { e.printStackTrace(); }
+                    switch (falta) {
+                        case "ubicacion":
+                            androidx.core.app.ActivityCompat.requestPermissions(this,
+                                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, CODIGO_UBICACION);
+                            break;
+                        case "apagada":
+                            abrirAjustesUbicacionSistema();
+                            break;
+                        case "fondo":
+                            abrirAjustesApp();
+                            break;
+                        case "notificaciones":
+                            androidx.core.app.ActivityCompat.requestPermissions(this,
+                                    new String[]{"android.permission.POST_NOTIFICATIONS"}, CODIGO_NOTIFICACIONES);
+                            break;
+                        case "pantalla_completa":
+                            try {
+                                android.content.Intent i = new android.content.Intent(
+                                        android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                                i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                                startActivity(i);
+                            } catch (Exception e) { abrirAjustesApp(); }
+                            break;
+                        default:
+                            pedirExencionBateriaDirecto();
+                            break;
                     }
                 })
                 .setNegativeButton("Cerrar app", (d1, w) -> {
@@ -220,6 +296,9 @@ public class MainActivity extends BridgeActivity {
      */
     private void verificarAlarmaEmergente(boolean alAbrir) {
         try {
+            // Con turno activo, exigirUbicacionObligatoria() ya pide todo esto
+            if (hayTurnoActivo()) return;
+
             // 1) Permiso de notificaciones (Android 13+)
             if (android.os.Build.VERSION.SDK_INT >= 33) {
                 boolean notificaciones = androidx.core.content.ContextCompat.checkSelfPermission(
