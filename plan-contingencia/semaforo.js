@@ -200,21 +200,17 @@
     }
 
     /* ¿Puede declarar este nivel de alerta? */
-    function semPuedeDeclarar(nuevo, esGuardia) {
+    function semPuedeDeclarar(nuevo) {
         if (nuevo === 'verde') return false;
-        if (rol === 'gerencia') return true;
-        if (rol !== 'sst') return false;
-        if (nuevo === 'rojo') return false; /* solo el Coordinador General */
-        if (nuevo === 'naranja') return !!esGuardia; /* guardia de fin de semana */
-        return nuevo === 'amarillo';
+        if (rol !== 'gerencia' && rol !== 'sst') return false;
+        /* Del rojo solo se sale reiniciando a verde */
+        return estado.nivel !== 'rojo';
     }
 
     /* Volver a vigilancia normal es un cierre de alerta, no una declaración */
     function semPuedeNormalizar() {
         if (estado.nivel === 'verde') return false;
-        if (rol === 'gerencia') return true;
-        if (rol === 'sst') return estado.nivel === 'amarillo';
-        return false;
+        return rol === 'gerencia' || rol === 'sst';
     }
 
     function semPuedeVerBoton() {
@@ -324,16 +320,16 @@
         }
     }
 
-    async function semGuardar(nivel, motivo, esGuardia, verifico) {
+    async function semGuardar(nivel, verifico) {
         const anterior = estado.nivel;
         const ahora = new Date().toISOString();
         const nuevo = {
             nivel: nivel,
             nivel_anterior: anterior,
-            motivo: motivo,
+            motivo: '',
             declarado_por: semNombre(usuario),
             declarado_por_rol: rol,
-            es_guardia: !!esGuardia,
+            es_guardia: false,
             vigente_desde: ahora,
             verifico: !!verifico,
         };
@@ -346,10 +342,10 @@
                     {
                         id: 1,
                         nivel: nivel,
-                        motivo: motivo,
+                        motivo: null,
                         declarado_por: nuevo.declarado_por,
                         declarado_por_rol: rol,
-                        es_guardia: !!esGuardia,
+                        es_guardia: false,
                         vigente_desde: ahora,
                         actualizado_en: ahora,
                     },
@@ -360,10 +356,9 @@
                     await cliente.from('semaforo_eventos').insert({
                         nivel: nivel,
                         nivel_anterior: anterior,
-                        motivo: motivo,
                         declarado_por: nuevo.declarado_por,
                         declarado_por_rol: rol,
-                        es_guardia: !!esGuardia,
+                        es_guardia: false,
                         verificado: !!verifico,
                     });
                     subio = true;
@@ -861,7 +856,6 @@
             '<div class="sem-datos">' +
             datos +
             '</div>' +
-            (!esBase && estado.motivo ? '<p class="sem-motivo">' + semEscape(estado.motivo) + '</p>' : '') +
             '<p class="sem-sub">Qué hacer en este nivel</p>' +
             '<ul class="sem-pasos">' +
             n.pasos
@@ -890,12 +884,10 @@
     }
 
     function semHtmlDeclarar() {
-        const marcada = !!(panel.querySelector('#sem-guardia') && panel.querySelector('#sem-guardia').checked);
-
         const opciones = semNivelesAlerta()
             .map((clave) => {
                 const n = NIVELES[clave];
-                const permitido = semPuedeDeclarar(clave, marcada);
+                const permitido = semPuedeDeclarar(clave);
                 return (
                     '<button type="button" class="sem-opcion' +
                     (clave === estado.nivel ? ' elegido' : '') +
@@ -919,8 +911,8 @@
             .join('');
 
         const avisoBajar =
-            estado.nivel === 'naranja' || estado.nivel === 'rojo'
-                ? '<label class="sem-check"><input type="checkbox" id="sem-verifico"> Verifiqué en campo (obligatorio si bajas de nivel)</label>'
+            estado.nivel === 'naranja'
+                ? '<label class="sem-check"><input type="checkbox" id="sem-verifico"> Verifiqué en campo antes de bajar de nivel</label>'
                 : '';
 
         return (
@@ -937,11 +929,6 @@
             '<div class="sem-opciones" id="sem-opciones">' +
             opciones +
             '</div>' +
-            '<p class="sem-sub">Motivo (obligatorio)</p>' +
-            '<textarea id="sem-motivo" maxlength="400" placeholder="Ej.: quebrada Rinconada-Choque cargada de abundante agua a las 14:20; reporte de Administración 1 y Seguridad Patrimonial."></textarea>' +
-            (rol === 'sst'
-                ? '<label class="sem-check"><input type="checkbox" id="sem-guardia"> Declaro en calidad de guardia (feriado o fin de semana)</label>'
-                : '') +
             avisoBajar +
             '<p class="sem-error" id="sem-error"></p>' +
             '<div class="sem-acciones">' +
@@ -949,11 +936,9 @@
             '<button type="button" class="sem-btn principal" id="sem-guardar"><i class="fas fa-check"></i> Confirmar y publicar</button>' +
             '</div>' +
             '<p class="sem-nota">' +
-            (rol === 'gerencia'
-                ? 'Como gerencia puedes declarar cualquier nivel de alerta, incluido el rojo.'
-                : rol === 'sst'
-                  ? 'Como Jefe de Seguridad Industrial puedes declarar amarillo; naranja solo como guardia; el rojo lo declara el Coordinador General.'
-                  : 'No tienes permiso para declarar alertas.') +
+            (semPuedeVerBoton()
+                ? 'Puedes declarar cualquier nivel de alerta. Del rojo solo se sale cerrando la alerta.'
+                : 'No tienes permiso para declarar alertas.') +
             ' El verde no se declara: es el estado normal.' +
             '</p>' +
             '</div>' +
@@ -978,9 +963,7 @@
             '<p class="sem-sub">Nivel actual: ' +
             NIVELES[estado.nivel].nombre +
             '</p>' +
-            '<p class="sem-motivo">El semáforo vuelve a VERDE, que es el estado base. Queda registrado quién cierra la alerta, a qué hora y con qué verificación.</p>' +
-            '<p class="sem-sub">Verificación (obligatoria)</p>' +
-            '<textarea id="sem-motivo" maxlength="400" placeholder="Ej.: quebrada Rinconada-Choque sin agua a las 06:40; verificado por Administración 1 y Seguridad Patrimonial."></textarea>' +
+            '<p class="sem-motivo">El semáforo vuelve a VERDE, que es el estado base. Queda registrado quién cierra la alerta y a qué hora.</p>' +
             '<label class="sem-check"><input type="checkbox" id="sem-verifico"> Verifiqué en campo que el riesgo cesó</label>' +
             '<p class="sem-error" id="sem-error"></p>' +
             '<div class="sem-acciones">' +
@@ -1028,7 +1011,6 @@
         const guardar = panel.querySelector('#sem-guardar');
         if (guardar) {
             guardar.addEventListener('click', async () => {
-                const motivo = (panel.querySelector('#sem-motivo').value || '').trim();
                 const verifico = !!panel.querySelector('#sem-verifico').checked;
                 const err = panel.querySelector('#sem-error');
                 const fallo = (texto) => {
@@ -1039,11 +1021,10 @@
 
                 if (!semPuedeNormalizar()) return fallo('No tienes autoridad para cerrar esta alerta.');
                 if (!verifico) return fallo('Marca que verificaste en campo.');
-                if (!motivo || motivo.length < 8) return fallo('Escribe la verificación (mínimo 8 caracteres).');
 
                 guardar.disabled = true;
                 guardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cerrando…';
-                await semGuardar('verde', motivo, false, true);
+                await semGuardar('verde', true);
                 vista = 'detalle';
                 semPintarPanel();
             });
@@ -1064,17 +1045,6 @@
                 semPintarPanel();
             });
 
-        const guardia = panel.querySelector('#sem-guardia');
-        if (guardia) {
-            guardia.addEventListener('change', () => {
-                /* Repinta los botones: el permiso de naranja depende de la guardia */
-                const marcado = guardia.checked;
-                panel.querySelectorAll('.sem-opcion').forEach((b) => {
-                    b.disabled = !semPuedeDeclarar(b.dataset.nivel, marcado);
-                });
-            });
-        }
-
         const opciones = panel.querySelectorAll('.sem-opcion');
         opciones.forEach((b) => {
             b.addEventListener('click', () => {
@@ -1090,11 +1060,7 @@
         if (guardar) {
             guardar.addEventListener('click', async () => {
                 const elegido = panel.querySelector('.sem-opcion.elegido');
-                const motivo = (panel.querySelector('#sem-motivo').value || '').trim();
                 const err = panel.querySelector('#sem-error');
-                const esGuardia = !!(
-                    panel.querySelector('#sem-guardia') && panel.querySelector('#sem-guardia').checked
-                );
                 const verifico = !!(
                     panel.querySelector('#sem-verifico') && panel.querySelector('#sem-verifico').checked
                 );
@@ -1107,9 +1073,8 @@
 
                 if (!semPuedeVerBoton()) return fallo('Tu usuario no puede declarar alertas.');
                 if (!elegido) return fallo('Elige el nivel de alerta.');
-                if (!motivo || motivo.length < 8) return fallo('Escribe el motivo (mínimo 8 caracteres).');
-                if (!semPuedeDeclarar(elegido.dataset.nivel, esGuardia))
-                    return fallo('No tienes autoridad para ese nivel.');
+                if (!semPuedeDeclarar(elegido.dataset.nivel))
+                    return fallo('No puedes declarar ese nivel ahora.');
 
                 /* Bajar de nivel exige verificación en campo */
                 const ordenNuevo = NIVELES[elegido.dataset.nivel].orden;
@@ -1120,7 +1085,7 @@
 
                 guardar.disabled = true;
                 guardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publicando…';
-                await semGuardar(elegido.dataset.nivel, motivo, esGuardia, verifico);
+                await semGuardar(elegido.dataset.nivel, verifico);
                 vista = 'detalle';
                 semPintarPanel();
             });
