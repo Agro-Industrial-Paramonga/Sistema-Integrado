@@ -517,6 +517,8 @@ async function cerrarTurno() {
         await db.from('ubicaciones').delete().eq('user_id', c.nombre);
         // El celular deja de estar suscrito a esa persona
         await db.from('push_subscriptions').delete().eq('user_id', c.nombre);
+        // Y la unidad queda libre (aunque haya quedado alguna fila vieja)
+        if (c.unidad) await db.from('push_subscriptions').delete().eq('unidad', c.unidad);
     }
 
     localStorage.removeItem('conductor');
@@ -816,37 +818,39 @@ async function cargarMaquinas() {
     });
 }
 
-/* Celulares de una unidad: manda la suscripcion hecha al iniciar turno */
+/* Celular de la ULTIMA sesion de la unidad (una sola persona) */
 async function tokensDeUnidad(unidad) {
     const buscado = normalizar(unidad);
-    const ahora = Date.now();
-    const tokens = new Set();
-    const conductores = [];
 
-    // 1) Suscripcion del turno (se escribe al iniciar sesion y al abrir el mapa)
+    // 1) Suscripcion del turno: se toma la mas reciente de esa unidad
     const { data: subs } = await db.from('push_subscriptions')
         .select('user_id, token, unidad, created_at');
 
-    (subs || []).forEach(s => {
-        if (!s.unidad || normalizar(s.unidad) !== buscado) return;
-        if (!s.token || String(s.token).length < 30) return;
-        // Sin caducidad: un turno puede quedar abierto varios dias y debe seguir recibiendo
-        tokens.add(s.token);
-        if (s.user_id) conductores.push(s.user_id);
-    });
+    const propias = (subs || []).filter(s =>
+        s.unidad && normalizar(s.unidad) === buscado &&
+        s.token && String(s.token).length > 30
+    );
 
-    // 2) Respaldo: fila de ubicacion de esa unidad, solo si esta reportando
+    if (propias.length) {
+        propias.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        const ultima = propias[0];
+        return { tokens: [ultima.token], conductores: ultima.user_id ? [ultima.user_id] : [] };
+    }
+
+    // 2) Respaldo: fila de ubicacion vigente (unidades con sesion anterior al cambio)
+    const ahora = Date.now();
     const { data } = await db.from('ubicaciones').select('user_id, unidad, token, actualizado_en');
 
-    (data || []).forEach(u => {
-        if (normalizar(u.unidad) !== buscado) return;
-        const t = new Date(u.actualizado_en).getTime();
-        if (!isFinite(t) || (ahora - t) > 15 * 60 * 1000) return;
-        if (u.token && String(u.token).length > 30) tokens.add(u.token);
-        if (u.user_id) conductores.push(u.user_id);
-    });
+    const fila = (data || []).find(u =>
+        normalizar(u.unidad) === buscado &&
+        u.token && String(u.token).length > 30 &&
+        isFinite(new Date(u.actualizado_en).getTime()) &&
+        (ahora - new Date(u.actualizado_en).getTime()) <= 15 * 60 * 1000
+    );
 
-    return { tokens: [...tokens], conductores };
+    return fila
+        ? { tokens: [fila.token], conductores: fila.user_id ? [fila.user_id] : [] }
+        : { tokens: [], conductores: [] };
 }
 
 /* Avisa a TODOS los conductores de esa maquina. Devuelve cuantos celulares recibieron */

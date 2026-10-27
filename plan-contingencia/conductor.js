@@ -204,6 +204,20 @@ function conectarEventos() {
     validar();
 }
 
+/* Devuelve la sesion abierta de esa unidad, o null si esta libre */
+async function turnoActivoDeUnidad(unidad) {
+    if (!unidad) return null;
+    try {
+        const { data } = await db.from('push_subscriptions')
+            .select('user_id, unidad')
+            .eq('unidad', unidad)
+            .limit(1);
+        return (data && data.length) ? data[0] : null;
+    } catch (e) {
+        return null;
+    }
+}
+
 function validar() {
     const unidad = document.getElementById('sel-unidad').value;
     const boton = document.getElementById('btn-entrar');
@@ -461,6 +475,15 @@ async function iniciarTurno() {
 
     if (!unidad || !nombre) {
         mostrarAviso('Elige tu unidad y selecciona tu nombre de la lista.');
+        return;
+    }
+
+    // La unidad no puede tener dos sesiones a la vez
+    const ocupada = await turnoActivoDeUnidad(unidad);
+    if (ocupada) {
+        mostrarAviso('⛔ La unidad ' + unidad + ' está en turno con ' +
+            (ocupada.user_id || 'otro conductor') +
+            '. Debe cerrar sesión para liberarla.');
         return;
     }
 
