@@ -587,13 +587,13 @@ async function cargarMaquinas() {
         marca.bindTooltip(m.unidad + (m.punto_orden ? ' · punto ' + m.punto_orden : ''),
             { permanent: false, direction: 'top' });
 
-        marca.on('click', async () => {
+        marca.on('click', () => {
             if (!editorActivo) return;
-            if (!confirm('¿Eliminar ' + m.unidad + ' del mapa?')) return;
-            await db.from('mapa_maquinas').delete().eq('id', m.id);
-            const est = document.getElementById('estado');
-            if (est) est.textContent = '✓ ' + m.unidad + ' eliminada';
-            cargarMaquinas();
+            marca.bindPopup(
+                '<strong>' + m.unidad + '</strong><br>Punto: ' + (m.punto_orden || 'sin asignar') +
+                '<br><br><button onclick="eliminarMaquina(\'' + m.id + '\',\'' + m.unidad.replace(/'/g, '') + '\')" ' +
+                'style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:.76rem;font-weight:700;cursor:pointer;">Eliminar maquinaria</button>'
+            ).openPopup();
         });
 
         marca.on('contextmenu', async (ev) => {
@@ -656,6 +656,14 @@ async function alertarMaquina(unidad, punto) {
             })
         });
     } catch (e) { console.warn('alerta maquina', e); }
+}
+
+async function eliminarMaquina(id, unidad) {
+    if (!confirm('¿Eliminar ' + unidad + ' del mapa?')) return;
+    await db.from('mapa_maquinas').delete().eq('id', id);
+    const est = document.getElementById('estado');
+    if (est) est.textContent = '✓ ' + unidad + ' eliminada';
+    cargarMaquinas();
 }
 
 async function colocarMaquina(latlng) {
@@ -859,6 +867,9 @@ function alternarEditor() {
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
     const bg = document.getElementById('btn-guardar-editor');
     if (bg) bg.style.display = editorActivo ? 'inline-flex' : 'none';
+
+    // recrear maquinas y puntos para que el arrastre quede habilitado/deshabilitado
+    try { cargarMaquinas(); cargarVectores(); } catch (e) {}
     const cm = document.getElementById('ctrl-maquina');
     if (cm) cm.style.display = editorActivo ? 'inline-flex' : 'none';
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
