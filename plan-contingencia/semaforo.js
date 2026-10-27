@@ -37,11 +37,7 @@
             frase: 'Sin novedad · Vigilancia normal',
             color: '#16a34a',
             color2: '#0f7a35',
-            pasos: [
-                'Contacto diario con la minera Castor (924823461) durante la época de lluvias.',
-                'Monitoreo de las quebradas Julquillas y Rinconada-Choque por Administración 1 y 3 con Seguridad Patrimonial.',
-                'Radios, linternas, botas y lampas operativas; botiquines abastecidos.',
-            ],
+            pasos: ['Vigilar diariamente los datos que emite el pluviómetro.'],
         },
         amarillo: {
             orden: 1,
@@ -50,10 +46,12 @@
             color: '#eab308',
             color2: '#a16207',
             pasos: [
+                'Monitoreo de las quebradas Julquillas y Rinconada-Choque por Administración 1 y 3 con Seguridad Patrimonial.',
+                'Contacto con la minera Castor (924823461) durante la época de lluvias.',
                 'Aviso inmediato al Jefe de Seguridad y a las gerencias.',
                 'Cuadrillas a los puntos de vigilancia: quebrada cargada de agua, turbiedad o crecida.',
                 'Aviso preventivo a la Junta de Usuarios del Valle de Pativilca (997009846).',
-                'Alistar maquinaria, personal de guardia y equipos de contención.',
+                'Alistar maquinaria, personal de guardia, radios, linternas y lampas; botiquines abastecidos.',
             ],
         },
         naranja: {
@@ -104,7 +102,8 @@
     let usuario = null;
     let rol = 'ninguno';
     let banda = null;
-    let pildora = null;
+    let luces = null;
+    let barraMapa = null;
     let encabezado = null;
     let panel = null;
     let vista = 'detalle';
@@ -536,27 +535,34 @@
         .sem-error { color: #b91c1c; font-size: .74rem; margin-top: 8px; display: none; }
         .sem-error.visible { display: block; }
 
-        /* Modo encabezado: la barra superior del portal toma el color del nivel */
-        .top-bar.sem-encabezado { transition: border-color .25s ease, background .25s ease; }
-        .top-bar.sem-encabezado::after { display: none; }
-        #sem-pildora {
-            display: inline-flex; align-items: center; gap: 9px;
-            margin-left: 12px; border: none; border-radius: 999px;
-            padding: 6px 14px; cursor: pointer; color: #fff; font-family: inherit;
-            text-align: left; box-shadow: 0 2px 10px rgba(15,23,42,.18);
-            transition: background .25s ease;
+        /* Semáforo horizontal: cuatro luces, una por nivel */
+        #sem-luces {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 5px 10px; border-radius: 999px;
+            background: #0f172a; border: 1px solid #1e293b;
+            box-shadow: inset 0 1px 4px rgba(0,0,0,.55), 0 2px 8px rgba(15,23,42,.20);
+            cursor: pointer; flex: 0 0 auto;
         }
-        #sem-pildora:focus-visible { outline: 3px solid #0f172a; outline-offset: 2px; }
-        #sem-pildora .sem-luz {
-            width: 10px; height: 10px; border-radius: 50%;
-            background: #fff; flex: 0 0 auto;
+        #sem-luces:focus-visible { outline: 3px solid #0f172a; outline-offset: 2px; }
+        #sem-luces .foco {
+            width: 15px; height: 15px; border-radius: 50%;
+            background: var(--c); opacity: .22; filter: grayscale(.65);
+            transition: opacity .22s ease, box-shadow .22s ease, filter .22s ease, transform .22s ease;
         }
-        #sem-pildora b { display: block; font-size: .68rem; letter-spacing: .06em; line-height: 1.15; }
-        #sem-pildora small { display: block; font-size: .58rem; opacity: .95; line-height: 1.15; }
-        #sem-pildora.sem-pulso .sem-luz { animation: semLatido 1.1s ease-in-out infinite; }
+        #sem-luces .foco.on {
+            opacity: 1; filter: none; transform: scale(1.08);
+            box-shadow: 0 0 9px var(--c), 0 0 18px var(--c);
+        }
+        #sem-luces.sem-pulso .foco.on { animation: semLatido 1.1s ease-in-out infinite; }
+        #sem-luces.chico { padding: 4px 8px; gap: 6px; }
+        #sem-luces.chico .foco { width: 12px; height: 12px; }
+        #sem-grupo { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; }
+        #sem-grupo-txt { font-size: .66rem; font-weight: 800; letter-spacing: .06em; color: #334155; }
         @media (max-width: 900px) {
-            #sem-pildora { padding: 5px 11px; margin-left: 6px; }
-            #sem-pildora small { display: none; }
+            #sem-grupo { margin-left: 8px; }
+            #sem-grupo-txt { display: none; }
+            #sem-luces .foco { width: 12px; height: 12px; }
+            #sem-luces { gap: 5px; padding: 4px 7px; }
         }
 
         /* Aviso flotante propio (cuando mapa.js no está) */
@@ -609,31 +615,62 @@
         return 'rgba(' + r + ',' + g + ',' + b + ',' + alfa + ')';
     }
 
+    /* Semáforo horizontal: un foco por nivel */
+    function semMontarLuces(destino, chico) {
+        const caja = document.createElement('span');
+        caja.id = 'sem-luces';
+        if (chico) caja.classList.add('chico');
+        caja.setAttribute('role', 'button');
+        caja.tabIndex = 0;
+        caja.title = 'Semáforo de contingencia: ver detalle';
+        caja.innerHTML = Object.keys(NIVELES)
+            .map(function (k) {
+                return (
+                    '<span class="foco" data-nivel="' +
+                    k +
+                    '" style="--c:' +
+                    NIVELES[k].color +
+                    '"></span>'
+                );
+            })
+            .join('');
+        caja.addEventListener('click', semAbrirPanel);
+        caja.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                semAbrirPanel();
+            }
+        });
+        destino.appendChild(caja);
+        luces = caja;
+        return caja;
+    }
+
+    function semPintarLuces() {
+        if (!luces) return;
+        const nivel = estado.nivel;
+        luces.querySelectorAll('.foco').forEach(function (f) {
+            f.classList.toggle('on', f.dataset.nivel === nivel);
+        });
+        luces.classList.toggle('sem-pulso', nivel === 'naranja' || nivel === 'rojo');
+    }
+
+    /* Portal: encabezado con el color del nivel + semáforo al lado del logo */
     function semMontarEncabezado(cabecera) {
         encabezado = cabecera;
         cabecera.classList.add('sem-encabezado');
-
-        if (document.getElementById('sem-pildora')) return;
-
-        const p = document.createElement('button');
-        p.id = 'sem-pildora';
-        p.type = 'button';
-        p.title = 'Semáforo de contingencia: ver detalle';
-        p.innerHTML =
-            '<span class="sem-luz"></span>' +
-            '<span class="sem-pildora-txt">' +
-            '<b id="sem-pildora-niv">VERDE</b>' +
-            '<small id="sem-pildora-frase">Vigilancia normal</small>' +
-            '</span>';
-        p.addEventListener('click', semAbrirPanel);
+        if (document.getElementById('sem-luces')) return;
 
         const marca = cabecera.querySelector('.logo-area');
-        const derecha = cabecera.querySelector('.header-right');
-        if (marca) marca.appendChild(p);
-        else if (derecha) cabecera.insertBefore(p, derecha);
-        else cabecera.appendChild(p);
+        const grupo = document.createElement('span');
+        grupo.id = 'sem-grupo';
+        semMontarLuces(grupo, false);
+        const txt = document.createElement('span');
+        txt.id = 'sem-grupo-txt';
+        grupo.appendChild(txt);
 
-        pildora = p;
+        if (marca) marca.appendChild(grupo);
+        else cabecera.appendChild(grupo);
     }
 
     function semPintarEncabezado() {
@@ -644,46 +681,75 @@
             encabezado.style.background =
                 'linear-gradient(180deg, #ffffff 52%, ' + semRgba(n.color, 0.14) + ' 100%)';
         }
+        const txt = document.getElementById('sem-grupo-txt');
+        if (txt) txt.textContent = n.nombre;
+        semPintarLuces();
+    }
 
-        if (!pildora) return;
-        pildora.style.background = 'linear-gradient(180deg,' + n.color + ',' + n.color2 + ')';
-        pildora.classList.toggle(
-            'sem-pulso',
-            estado.nivel === 'naranja' || estado.nivel === 'rojo'
-        );
+    /* Mapa: la barra blanca se rodea del color del nivel y lleva el semáforo */
+    function semMontarMapaBarra(barra) {
+        barraMapa = barra;
+        barra.classList.add('sem-barra');
+        if (document.getElementById('sem-luces')) return;
 
-        const niv = document.getElementById('sem-pildora-niv');
-        const frase = document.getElementById('sem-pildora-frase');
-        if (niv) niv.textContent = n.nombre;
-        if (frase) frase.textContent = n.frase;
+        const sep = barra.querySelector('.sep');
+        if (sep) {
+            sep.style.display = 'flex';
+            sep.style.alignItems = 'center';
+            sep.style.justifyContent = 'center';
+            semMontarLuces(sep, false);
+        } else {
+            semMontarLuces(barra, true);
+        }
+    }
+
+    function semPintarMapa() {
+        const n = NIVELES[estado.nivel] || NIVELES.verde;
+        if (barraMapa) {
+            barraMapa.style.border = '3px solid ' + n.color;
+            barraMapa.style.boxShadow =
+                '0 6px 24px rgba(15,23,42,.18), 0 0 0 4px ' + semRgba(n.color, 0.16);
+        }
+        semPintarLuces();
     }
 
     function semPintar() {
-        const n = NIVELES[estado.nivel] || NIVELES.verde;
+        if (banda) {
+            const n = NIVELES[estado.nivel] || NIVELES.verde;
+            banda.style.background = 'linear-gradient(90deg,' + n.color + ',' + n.color2 + ')';
+            banda.classList.toggle(
+                'sem-pulso',
+                estado.nivel === 'naranja' || estado.nivel === 'rojo'
+            );
 
-        if (!banda) {
-            if (pildora) semPintarEncabezado();
+            const niv = document.getElementById('sem-niv');
+            const frase = document.getElementById('sem-frase');
+            const meta = document.getElementById('sem-meta');
+            if (niv) niv.textContent = n.nombre;
+            if (frase) frase.textContent = n.frase;
+            if (meta) {
+                if (estado.nivel === 'verde') {
+                    /* El verde es el estado base: no tiene autor ni hora que mostrar */
+                    meta.innerHTML = '';
+                } else {
+                    const quien = estado.declarado_por ? semEscape(estado.declarado_por) : '';
+                    meta.innerHTML =
+                        (quien ? '<b>' + quien + '</b>' : '') + (semHace(estado.vigente_desde) || '');
+                }
+            }
+            semAjustarAlto();
             return;
         }
-        banda.style.background = 'linear-gradient(90deg,' + n.color + ',' + n.color2 + ')';
-        banda.classList.toggle('sem-pulso', estado.nivel === 'naranja' || estado.nivel === 'rojo');
 
-        const niv = document.getElementById('sem-niv');
-        const frase = document.getElementById('sem-frase');
-        const meta = document.getElementById('sem-meta');
-        if (niv) niv.textContent = n.nombre;
-        if (frase) frase.textContent = n.frase;
-        if (meta) {
-            if (estado.nivel === 'verde') {
-                /* El verde es el estado base: no tiene autor ni hora que mostrar */
-                meta.innerHTML = '';
-            } else {
-                const quien = estado.declarado_por ? semEscape(estado.declarado_por) : '';
-                meta.innerHTML = (quien ? '<b>' + quien + '</b>' : '') + (semHace(estado.vigente_desde) || '');
-            }
+        if (barraMapa) {
+            semPintarMapa();
+            return;
         }
-
-        semAjustarAlto();
+        if (encabezado) {
+            semPintarEncabezado();
+            return;
+        }
+        semPintarLuces();
     }
 
     function semAjustarAlto() {
@@ -1072,13 +1138,17 @@
         await semCargar();
 
         const cabecera = document.querySelector('.top-bar');
-        if (cabecera && !document.querySelector('.barra')) {
-            /* Portal del plan: el encabezado toma el color del nivel */
+        const barra = document.querySelector('.barra');
+        if (barra) {
+            /* Mapa: se rodea la barra y el semáforo va en el espacio libre */
+            semMontarMapaBarra(barra);
+        } else if (cabecera) {
+            /* Portal del plan: encabezado con el color del nivel */
             semMontarEncabezado(cabecera);
         } else {
-            /* Mapa e ingreso de conductores: banda fija arriba */
+            /* Ingreso de conductores: banda fija arriba */
             semMontarBanda();
-            if (!document.querySelector('.barra')) document.body.classList.add('sem-pagina-centrada');
+            document.body.classList.add('sem-pagina-centrada');
         }
 
         semPintar();
