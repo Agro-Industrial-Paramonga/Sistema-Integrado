@@ -1,6 +1,6 @@
 /* ============================================================
    INGRESO DE CONDUCTORES
-   Seleccion en dos pasos: serie -> unidad -> nombre
+   Serie -> Unidad -> Conductor (buscador por nombre o DNI)
    ============================================================ */
 
 const SUPABASE_URL = 'https://bfhfnldqwsrcpsdqpyat.supabase.co';
@@ -8,8 +8,33 @@ const SUPABASE_KEY = 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let unidades = [];
+let conductores = [];
+let conductorSel = null;
+let listaFiltrada = [];
+let modoLibre = false;   // si la tabla conductores no se puede leer
+
+function norm(v) {
+    return String(v || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function escapar(v) {
+    return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 async function cargar() {
+    await cargarUnidades();
+    await cargarConductores();
+    conectarEventos();
+}
+
+/* ------------------------------------------------------------
+   Unidades (serie -> unidad)
+   ------------------------------------------------------------ */
+async function cargarUnidades() {
     const { data, error } = await db.from('unidades')
         .select('nombre, prefijo, orden')
         .eq('activo', true)
@@ -26,8 +51,100 @@ async function cargar() {
     const prefijos = [...new Set(unidades.map(u => u.prefijo).filter(Boolean))];
     const sel = document.getElementById('sel-prefijo');
     sel.innerHTML = '<option value="">Selecciona la serie</option>' +
-        prefijos.map(p => `<option value="${p}">${p}</option>`).join('');
+        prefijos.map(p => `<option value="${escapar(p)}">${escapar(p)}</option>`).join('');
+}
 
+/* ------------------------------------------------------------
+   Conductores (89 registros con DNI)
+   ------------------------------------------------------------ */
+async function cargarConductores() {
+    const { data, error } = await db.from('conductores')
+        .select('nombre, dni, activo')
+        .eq('activo', true)
+        .order('nombre', { ascending: true })
+        .limit(1000);
+
+    if (error || !(data || []).length) {
+        modoLibre = true;
+        const inp = document.getElementById('inp-buscar');
+        if (inp) inp.placeholder = 'Nombres y apellidos';
+        mostrarAviso('No se pudo cargar la lista de conductores' +
+            (error ? ': ' + error.message : '') + '. Escribe tu nombre completo.');
+        return;
+    }
+
+    conductores = data;
+}
+
+function filtrarConductores() {
+    const inp = document.getElementById('inp-buscar');
+    const texto = norm(inp.value);
+    const digitos = String(inp.value || '').replace(/\D/g, '');
+
+    if (!texto && !digitos) return conductores.slice(0, 8);
+
+    return conductores.filter(c => {
+        const nombre = norm(c.nombre);
+        if (texto && nombre.includes(texto)) return true;
+        if (digitos && String(c.dni || '').includes(digitos)) return true;
+        return false;
+    }).slice(0, 8);
+}
+
+function renderLista() {
+    const caja = document.getElementById('lista-conductores');
+    if (!caja) return;
+
+    if (modoLibre) {
+        caja.classList.remove('visible');
+        caja.innerHTML = '';
+        return;
+    }
+
+    listaFiltrada = filtrarConductores();
+
+    if (!listaFiltrada.length) {
+        caja.innerHTML = '<div class="item-conductor sin">Sin coincidencias. Revisa tu nombre o DNI.</div>';
+        caja.classList.add('visible');
+        return;
+    }
+
+    caja.innerHTML = listaFiltrada.map((c, i) =>
+        `<div class="item-conductor" data-i="${i}">
+            <span>${escapar(c.nombre)}</span>
+            <span class="dni">DNI ${escapar(c.dni || '—')}</span>
+        </div>`).join('');
+    caja.classList.add('visible');
+}
+
+function ocultarLista() {
+    const caja = document.getElementById('lista-conductores');
+    if (caja) caja.classList.remove('visible');
+}
+
+function elegirConductor(c) {
+    conductorSel = c;
+
+    const inp = document.getElementById('inp-buscar');
+    inp.value = c.nombre;
+
+    ocultarLista();
+
+    const chip = document.getElementById('chip-conductor');
+    if (chip) {
+        chip.style.display = 'inline-flex';
+        chip.innerHTML = '<i class="fas fa-circle-check"></i> ' + escapar(c.nombre) +
+            ' · DNI ' + escapar(c.dni || '—');
+    }
+
+    validar();
+}
+
+/* ------------------------------------------------------------
+   Eventos de la pantalla
+   ------------------------------------------------------------ */
+function conectarEventos() {
+    const sel = document.getElementById('sel-prefijo');
     sel.addEventListener('change', () => {
         const prefijo = sel.value;
         const selU = document.getElementById('sel-unidad');
@@ -41,23 +158,67 @@ async function cargar() {
 
         const lista = unidades.filter(u => u.prefijo === prefijo);
         selU.innerHTML = '<option value="">Selecciona la unidad</option>' +
-            lista.map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('');
+            lista.map(u => `<option value="${escapar(u.nombre)}">${escapar(u.nombre)}</option>`).join('');
         selU.disabled = false;
         validar();
     });
 
     document.getElementById('sel-unidad').addEventListener('change', validar);
-    document.getElementById('inp-nombre').addEventListener('input', validar);
+
+    const inp = document.getElementById('inp-buscar');
+    const caja = document.getElementById('lista-conductores');
+
+    inp.addEventListener('input', () => {
+        if (conductorSel && norm(inp.value) !== norm(conductorSel.nombre)) {
+            conductorSel = null;
+            const chip = document.getElementById('chip-conductor');
+            if (chip) chip.style.display = 'none';
+        }
+        renderLista();
+        validar();
+    });
+
+    inp.addEventListener('focus', () => { if (!conductorSel) renderLista(); });
+
+    inp.addEventListener('blur', () => { setTimeout(ocultarLista, 180); });
+
+    inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (listaFiltrada.length && !conductorSel) elegirConductor(listaFiltrada[0]);
+        }
+        if (e.key === 'Escape') ocultarLista();
+    });
+
+    // pointerdown en vez de click: elige antes de que el input pierda el foco
+    caja.addEventListener('pointerdown', (e) => {
+        const item = e.target.closest('.item-conductor');
+        if (!item || item.classList.contains('sin')) return;
+        e.preventDefault();
+        const i = Number(item.dataset.i);
+        if (listaFiltrada[i]) elegirConductor(listaFiltrada[i]);
+    });
+
+    validar();
 }
 
 function validar() {
     const unidad = document.getElementById('sel-unidad').value;
-    const nombre = document.getElementById('inp-nombre').value.trim();
-    document.getElementById('btn-entrar').disabled = !(unidad && nombre.length >= 5);
+    const boton = document.getElementById('btn-entrar');
+    if (!boton) return;
+
+    if (modoLibre) {
+        const nombre = document.getElementById('inp-buscar').value.trim();
+        boton.disabled = !(unidad && nombre.length >= 5);
+        return;
+    }
+
+    boton.disabled = !(unidad && conductorSel);
 }
 
 function mostrarAviso(texto) {
     const a = document.getElementById('aviso');
+    if (!a) return;
     a.textContent = texto;
     a.style.display = texto ? 'block' : 'none';
 }
@@ -165,15 +326,26 @@ function registrarPush(nombre) {
    ------------------------------------------------------------ */
 async function iniciarTurno() {
     const unidad = document.getElementById('sel-unidad').value;
-    const nombre = document.getElementById('inp-nombre').value.trim().toUpperCase();
 
-    if (!unidad || !nombre) return;
+    let nombre = '';
+    let dni = null;
 
-    const sesion = { unidad, nombre, inicio: new Date().toISOString() };
+    if (conductorSel) {
+        nombre = conductorSel.nombre;
+        dni = conductorSel.dni || null;
+    } else if (modoLibre) {
+        nombre = document.getElementById('inp-buscar').value.trim().toUpperCase();
+    }
+
+    if (!unidad || !nombre) {
+        mostrarAviso('Elige tu unidad y selecciona tu nombre de la lista.');
+        return;
+    }
+
+    const sesion = { unidad, nombre, dni, inicio: new Date().toISOString() };
     localStorage.setItem('conductor', JSON.stringify(sesion));
 
     pedirPermisoUbicacion();
-
 
     const boton = document.getElementById('btn-entrar');
     boton.disabled = true;

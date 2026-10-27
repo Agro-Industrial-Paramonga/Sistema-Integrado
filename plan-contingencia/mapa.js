@@ -301,7 +301,9 @@ async function cargarUnidades() {
         });
 
         const est = document.getElementById('estado');
-        if (est) est.textContent = (data || []).length + ' unidad(es) en el mapa';
+        if (est && Date.now() > estadoBloqueadoHasta) {
+            est.textContent = (data || []).length + ' unidad(es) en el mapa';
+        }
     } catch (e) {
         console.warn('Unidades:', e);
     }
@@ -406,6 +408,8 @@ function mostrarPantallaTurno(c) {
                 <div style="font-size:1.02rem;font-weight:700;color:#166534;margin-bottom:10px">${(c.unidad || '—')}</div>
                 <div style="font-size:.62rem;letter-spacing:.09em;color:#94a3b8;font-weight:700">CONDUCTOR</div>
                 <div style="font-size:.9rem;font-weight:600;color:#0f172a;margin-bottom:10px">${(c.nombre || '—')}</div>
+                ${c.dni ? `<div style="font-size:.62rem;letter-spacing:.09em;color:#94a3b8;font-weight:700">DNI</div>
+                <div style="font-size:.84rem;color:#334155;margin-bottom:10px">${c.dni}</div>` : ''}
                 <div style="font-size:.62rem;letter-spacing:.09em;color:#94a3b8;font-weight:700">INICIO DEL TURNO</div>
                 <div style="font-size:.84rem;color:#334155">${fecha} · ${hora}</div>
             </div>
@@ -533,7 +537,8 @@ function initCapasVectoriales() {
 }
 
 /* ================= MAQUINAS DE PUNTOS CRITICOS ================= */
-const RADIO_PUNTO_M = 150;
+const RADIO_PUNTO_M = 150;      // distancia para asignar la maquina al punto
+const RADIO_AYUDA_M = 600;      // dentro de este radio se muestra la ayuda visual
 
 function distanciaMetros(lat1, lon1, lat2, lon2) {
     const R = 6371000;
@@ -544,14 +549,100 @@ function distanciaMetros(lat1, lon1, lat2, lon2) {
     return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-async function puntoMasCercano(lat, lon) {
-    const { data } = await db.from('mapa_puntos').select('orden, nombre, lat, lon');
+/* Coordenadas de los puntos en memoria: el arrastre NO consulta la nube */
+let puntosCache = [];
+let marcadoresPuntos = {};
+let guiaPunto = null;
+let estadoBloqueadoHasta = 0;
+
+function fijarEstado(ms) {
+    estadoBloqueadoHasta = Date.now() + (ms || 20000);
+}
+
+function esPuntoNumerado(p) {
+    return p && p.tipo !== 'retro' && p.tipo !== 'excavadora';
+}
+
+/* Punto numerado mas cercano, calculado en el celular (sin red) */
+function puntoMasCercanoLocal(lat, lon) {
     let mejor = null;
-    (data || []).forEach(p => {
-        const dist = distanciaMetros(lat, lon, p.lat, p.lon);
-        if (dist <= RADIO_PUNTO_M && (!mejor || dist < mejor.dist)) mejor = { ...p, dist };
-    });
+    for (const p of puntosCache) {
+        if (!esPuntoNumerado(p)) continue;
+        const d = distanciaMetros(lat, lon, Number(p.lat), Number(p.lon));
+        if (!isFinite(d)) continue;
+        if (!mejor || d < mejor.dist) mejor = Object.assign({}, p, { dist: d });
+    }
     return mejor;
+}
+
+/* Compatibilidad: solo consulta la nube si la cache esta vacia */
+async function puntoMasCercano(lat, lon) {
+    await asegurarPuntos();
+    const mejor = puntoMasCercanoLocal(lat, lon);
+    return (mejor && mejor.dist <= RADIO_PUNTO_M) ? mejor : null;
+}
+
+/* Si la cache quedo vacia (red lenta al abrir), se carga al empezar a arrastrar */
+async function asegurarPuntos() {
+    if (puntosCache.length) return true;
+    try {
+        const { data } = await db.from('mapa_puntos').select('*').order('orden');
+        if (data && data.length) { puntosCache = data; return true; }
+    } catch (e) { console.warn('puntos', e); }
+    return false;
+}
+
+function iconoMaquinaDe(marca) {
+    try {
+        const el = marca.getElement();
+        return el ? el.querySelector('.icono-maquina') : null;
+    } catch (e) { return null; }
+}
+
+/* Resalta el punto objetivo mientras se arrastra la maquina */
+function resaltarPuntoCercano(orden) {
+    Object.keys(marcadoresPuntos).forEach(k => {
+        const marca = marcadoresPuntos[k];
+        const div = marca && marca.getElement ? marca.getElement().querySelector('.punto-critico') : null;
+        if (div) div.classList.toggle('cerca', Number(k) === Number(orden));
+    });
+}
+
+/* Linea punteada entre la maquina y el punto mas cercano */
+function actualizarGuia(marca, cerca, dentro) {
+    retirarGuia();
+    if (!cerca || cerca.dist > RADIO_AYUDA_M) return;
+    const pos = marca.getLatLng();
+    guiaPunto = L.polyline([[pos.lat, pos.lng], [Number(cerca.lat), Number(cerca.lon)]], {
+        color: dentro ? '#dc2626' : '#f59e0b',
+        weight: dentro ? 3 : 2,
+        opacity: .9,
+        dashArray: '7 7',
+        className: 'linea-guia',
+        interactive: false
+    }).addTo(mapa);
+}
+
+function retirarGuia() {
+    if (guiaPunto) { try { mapa.removeLayer(guiaPunto); } catch (e) {} guiaPunto = null; }
+}
+
+/* Aviso flotante: confirma en pantalla que paso con la alerta */
+let temporizadorAviso = null;
+function avisar(texto, tipo) {
+    let caja = document.getElementById('toast-mapa');
+    if (!caja) {
+        caja = document.createElement('div');
+        caja.id = 'toast-mapa';
+        document.body.appendChild(caja);
+    }
+    caja.textContent = texto;
+    caja.className = 'visible ' + (tipo || 'info');
+    const est = document.getElementById('estado');
+    if (est) est.textContent = texto;
+    fijarEstado();
+    clearTimeout(temporizadorAviso);
+    temporizadorAviso = setTimeout(() => { caja.className = ''; }, 6000);
 }
 
 async function cargarListaMaquinas() {
@@ -605,58 +696,112 @@ async function cargarMaquinas() {
             cargarMaquinas();
         });
 
-        marca.on('drag', async (ev) => {
+        marca.on('dragstart', async () => {
+            const div = iconoMaquinaDe(marca);
+            if (div) div.classList.add('arrastrando');
+            if (!puntosCache.length) await asegurarPuntos();
+            avisar('Arrastra hasta el punto crítico. La animación avisa cuando ya está dentro del radio.', 'info');
+        });
+
+        // Arrastre: todo se calcula en el celular, sin consultar la nube
+        marca.on('drag', (ev) => {
             const pos = ev.target.getLatLng();
-            const punto = await puntoMasCercano(pos.lat, pos.lng);
-            const div = ev.target.getElement()?.querySelector('.icono-maquina');
-            if (div) div.classList.toggle('choque', !!punto);
+            const cerca = puntoMasCercanoLocal(pos.lat, pos.lng);
+            const dentro = !!(cerca && cerca.dist <= RADIO_PUNTO_M);
+
+            const div = iconoMaquinaDe(marca);
+            if (div) div.classList.toggle('choque', dentro);
+
+            resaltarPuntoCercano(dentro && cerca ? cerca.orden : null);
+            actualizarGuia(marca, cerca, dentro);
+
+            const est = document.getElementById('estado');
+            if (!est || !cerca || cerca.dist > RADIO_AYUDA_M) return;
+            est.textContent = dentro
+                ? '🎯 ' + m.unidad + ' dentro del punto ' + cerca.orden + ' – ' + (cerca.nombre || '') +
+                  ' (' + Math.round(cerca.dist) + ' m) · suelta para asignar y alertar'
+                : 'A ' + Math.round(cerca.dist) + ' m del punto ' + cerca.orden + ' – ' + (cerca.nombre || '') +
+                  ' (faltan ' + Math.max(0, Math.round(cerca.dist - RADIO_PUNTO_M)) + ' m)';
+            fijarEstado();
         });
 
         marca.on('dragend', async (ev) => {
             const pos = ev.target.getLatLng();
-            const punto = await puntoMasCercano(pos.lat, pos.lng);
+            const cerca = puntoMasCercanoLocal(pos.lat, pos.lng);
+            const dentro = !!(cerca && cerca.dist <= RADIO_PUNTO_M);
+            const punto = dentro ? cerca : null;
 
-            const div = (ev.target.getElement() || {}).querySelector
-                ? ev.target.getElement().querySelector('.icono-maquina') : null;
-            if (div) div.classList.remove('choque');
+            const div = iconoMaquinaDe(marca);
+            if (div) {
+                div.classList.remove('arrastrando');
+                div.classList.remove('choque');
+            }
+            resaltarPuntoCercano(null);
+            retirarGuia();
 
-            const anterior = m.punto_orden;
             m.lat = pos.lat; m.lon = pos.lng;
             m.punto_orden = punto ? punto.orden : null;
-            m.__dirty = true;
+            m.__dirty = false;
 
-            const est = document.getElementById('estado');
+            // Se guarda al instante: no hace falta pulsar Guardar
+            const { error } = await db.from('mapa_maquinas').update({
+                lat: m.lat, lon: m.lon, punto_orden: m.punto_orden,
+                actualizado_en: new Date().toISOString()
+            }).eq('id', m.id);
 
-            if (punto && punto.orden !== anterior) {
-                await alertarMaquina(m.unidad, punto);   // alarma a pantalla completa
-                if (est) est.textContent = '🚨 ' + m.unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '');
-            } else if (punto) {
-                if (est) est.textContent = m.unidad + ' en el punto ' + punto.orden + ' · pulsa Guardar';
-            } else {
-                if (est) est.textContent = m.unidad + ' movida (sin punto cercano) · pulsa Guardar';
+            if (error) {
+                avisar('No se pudo guardar la posición de ' + m.unidad + ': ' + error.message, 'warn');
+                return;
             }
+
+            if (!punto) {
+                avisar('ℹ️ ' + m.unidad + ' movida · sin punto a menos de ' + RADIO_PUNTO_M + ' m', 'info');
+                return;
+            }
+
+            // Animacion de choque + alerta a la unidad
+            if (div) {
+                div.classList.add('choque');
+                const quitar = () => { try { div.classList.remove('choque'); } catch (e) {} };
+                setTimeout(quitar, 2500);
+            }
+
+            const enviada = await alertarMaquina(m.unidad, punto);
+            avisar(
+                '🚨 ' + m.unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '') +
+                ' (' + Math.round(punto.dist) + ' m) · ' +
+                (enviada ? 'alerta enviada al celular del conductor'
+                         : 'SIN celular conectado: la alerta no se envió'),
+                enviada ? 'ok' : 'warn'
+            );
         });
     });
 }
 
-/* Avisa al conductor logueado en esa maquina */
+/* Avisa al conductor logueado en esa maquina. Devuelve true si el push salio */
 async function alertarMaquina(unidad, punto) {
     try {
         const { data } = await db.from('ubicaciones').select('user_id, token, unidad');
         const fila = (data || []).find(u => normalizar(u.unidad) === normalizar(unidad));
-        if (!fila) return;
+        if (!fila) return false;
 
-        await fetch(FUNC_PUSH, {
+        let token = fila.token || null;
+        if (!token || String(token).length < 30) token = await buscarToken(fila.user_id);
+
+        const resp = await fetch(FUNC_PUSH, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: 'Dirígete al punto ' + punto.orden + ' – ' + (punto.nombre || ''),
                 body: 'Se te asignó este punto crítico. Dirígete de inmediato.',
                 userId: fila.user_id,
-                token: fila.token || null
+                token: token,
+                excluir: (localStorage.getItem('pushToken') || null)
             })
         });
-    } catch (e) { console.warn('alerta maquina', e); }
+        const datos = await resp.json().catch(() => ({}));
+        return (datos.fcm_enviados ?? 0) > 0;
+    } catch (e) { console.warn('alerta maquina', e); return false; }
 }
 
 async function eliminarMaquina(id, unidad) {
@@ -672,7 +817,8 @@ async function colocarMaquina(latlng) {
     const unidad = sel && sel.value ? sel.value : null;
     if (!unidad) { alert('No hay máquinas de puntos críticos registradas.'); return; }
 
-    const punto = await puntoMasCercano(latlng.lat, latlng.lng);
+    const cerca = puntoMasCercanoLocal(latlng.lat, latlng.lng);
+    const punto = (cerca && cerca.dist <= RADIO_PUNTO_M) ? cerca : null;
 
     await db.from('mapa_maquinas').upsert({
         unidad,
@@ -684,6 +830,16 @@ async function colocarMaquina(latlng) {
     }, { onConflict: 'unidad' });
 
     cargarMaquinas();
+
+    if (!punto) {
+        avisar('ℹ️ ' + unidad + ' colocada sin punto a menos de ' + RADIO_PUNTO_M + ' m', 'info');
+        return;
+    }
+
+    const enviada = await alertarMaquina(unidad, punto);
+    avisar('🚨 ' + unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '') +
+        ' · ' + (enviada ? 'alerta enviada' : 'SIN celular conectado: alerta no enviada'),
+        enviada ? 'ok' : 'warn');
 }
 
 async function cambiarTamanoMaquinas(valor) {
@@ -751,8 +907,10 @@ function iconoMaquinaria(tipo) {
 async function cargarVectores() {
     capaPuntos.clearLayers();
     capaLineas.clearLayers();
+    marcadoresPuntos = {};
 
     const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
+    if (puntos) puntosCache = puntos;
     (puntos || []).forEach(p => {
         const esMaquina = (p.tipo === 'retro' || p.tipo === 'excavadora');
 
@@ -774,6 +932,8 @@ async function cargarVectores() {
             draggable: editorActivo,
             icon: icono
         }).addTo(capaPuntos);
+
+        marcadoresPuntos[p.orden] = marcador;
 
         marcador.on('dragend', (ev) => {
             const pos = ev.target.getLatLng();

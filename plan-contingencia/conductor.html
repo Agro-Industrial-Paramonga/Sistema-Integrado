@@ -38,6 +38,29 @@
         .aviso { margin-top: 14px; font-size: .76rem; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 12px; line-height: 1.45; display: none; }
         .volver { display: inline-block; margin-top: 18px; font-size: .8rem; color: #64748b; text-decoration: none; }
         .paso { font-size: .7rem; color: #94a3b8; font-weight: 700; letter-spacing: .05em; }
+
+        .combo { position: relative; }
+        .lista-conductores {
+            position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            box-shadow: 0 14px 34px rgba(15,23,42,.18); max-height: 246px; overflow: auto;
+            display: none;
+        }
+        .lista-conductores.visible { display: block; }
+        .item-conductor {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 11px 13px; font-size: .85rem; color: #0f172a; cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .item-conductor:last-child { border-bottom: none; }
+        .item-conductor:hover, .item-conductor:active { background: #ecfdf5; }
+        .item-conductor .dni { color: #64748b; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+        .item-conductor.sin { color: #94a3b8; cursor: default; justify-content: center; font-size: .8rem; }
+        .chip {
+            display: none; align-items: center; gap: 6px; margin-top: 10px;
+            background: #dcfce7; color: #166534; border: 1px solid #86efac;
+            border-radius: 999px; padding: 6px 11px; font-size: .74rem; font-weight: 700;
+        }
     </style>
 </head>
 <body>
@@ -65,8 +88,14 @@
             <option value="">Primero elige la serie</option>
         </select>
 
-        <label>Nombre del colaborador</label>
-        <input id="inp-nombre" type="text" placeholder="Nombres y apellidos" autocomplete="name">
+        <span class="paso">PASO 3</span>
+        <label>Conductor</label>
+        <div class="combo">
+            <input id="inp-buscar" type="text" placeholder="Escribe tu nombre o DNI"
+                   autocomplete="off" spellcheck="false" autocapitalize="characters">
+            <div id="lista-conductores" class="lista-conductores"></div>
+        </div>
+        <div class="chip" id="chip-conductor"></div>
 
         <button id="btn-entrar" onclick="iniciarTurno()" disabled>
             <i class="fas fa-play"></i> Iniciar turno
@@ -78,6 +107,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="conductor.js?v=13"></script>
+    <script src="conductor.js?v=14"></script>
 </body>
 </html>

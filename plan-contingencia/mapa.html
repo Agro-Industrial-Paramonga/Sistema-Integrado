@@ -63,15 +63,45 @@
 
         @keyframes choquePulso {
             0%   { filter: drop-shadow(0 0 0 rgba(220,38,38,0)); transform: scale(1); }
-            50%  { filter: drop-shadow(0 0 12px rgba(220,38,38,.95)); transform: scale(1.12); }
+            55%  { filter: drop-shadow(0 0 16px rgba(220,38,38,1)) saturate(1.6); transform: scale(1.28); }
             100% { filter: drop-shadow(0 0 0 rgba(220,38,38,0)); transform: scale(1); }
         }
-        .icono-maquina.choque { animation: choquePulso .55s infinite; }
+        .icono-maquina.choque { animation: choquePulso .6s infinite; }
 
         .icono-maquina {
             filter: drop-shadow(0 2px 4px rgba(0,0,0,.45));
-            cursor: move;
+            cursor: grab;
+            transform-origin: 50% 70%;
         }
+        .icono-maquina.arrastrando { cursor: grabbing; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
+
+        /* El punto critico late cuando la maquina esta dentro de los 150 m */
+        @keyframes puntoLatido {
+            0%, 100% { transform: scale(1); }
+            50%      { transform: scale(1.25); }
+        }
+        .punto-critico.cerca {
+            animation: puntoLatido .8s infinite;
+            box-shadow: 0 0 0 7px rgba(250,204,21,.5), 0 0 20px rgba(220,38,38,.95);
+        }
+
+        /* Guia punteada maquina -> punto */
+        .linea-guia { animation: guiaMover .5s linear infinite; }
+        @keyframes guiaMover { to { stroke-dashoffset: -14; } }
+
+        /* Aviso flotante de resultado */
+        #toast-mapa {
+            position: fixed; left: 50%; bottom: 80px; z-index: 2100;
+            transform: translateX(-50%) translateY(16px);
+            max-width: min(92vw, 520px); padding: 12px 16px; border-radius: 14px;
+            font-size: .82rem; font-weight: 600; line-height: 1.35; text-align: center;
+            background: #0f172a; color: #fff; box-shadow: 0 14px 34px rgba(15,23,42,.35);
+            opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease;
+        }
+        #toast-mapa.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #toast-mapa.ok    { background: #166534; }
+        #toast-mapa.warn  { background: #b45309; }
+        #toast-mapa.info  { background: #334155; }
 
         .punto-critico {
             width: 26px; height: 26px; border-radius: 50%;
@@ -161,6 +191,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=26"></script>
+    <script src="mapa.js?v=27"></script>
 </body>
 </html>
