@@ -96,19 +96,28 @@ public class MainActivity extends BridgeActivity {
                     == android.content.pm.PackageManager.PERMISSION_GRANTED;
         }
 
-        if (fina && fondo) return;
+        // Tambien exigir exencion del ahorro de bateria
+        boolean bateriaOk = true;
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            bateriaOk = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
+        } catch (Exception e) { }
+
+        if (fina && fondo && bateriaOk) return;
         if (dialogoUbicacionVisible) return;
         dialogoUbicacionVisible = true;
 
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Ubicación obligatoria")
-                .setMessage("Para usar la app durante el turno debes permitir la ubicación y elegir \"Permitir todo el tiempo\".\n\nSin este permiso no se puede compartir la posición de tu unidad.")
+                .setMessage("Para usar la app durante el turno necesitas:\n\n• Ubicación en \"Permitir todo el tiempo\"\n• Exención del ahorro de batería\n\nSin ambos, la posición de tu unidad deja de compartirse.")
                 .setCancelable(false)
                 .setPositiveButton("Permitir", (d1, w) -> {
                     dialogoUbicacionVisible = false;
                     if (!fina) {
                         androidx.core.app.ActivityCompat.requestPermissions(this,
                                 new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, CODIGO_UBICACION);
+                    } else if (!bateriaOk) {
+                        pedirExencionBateriaDirecto();
                     } else {
                         try {
                             android.content.Intent i = new android.content.Intent(
