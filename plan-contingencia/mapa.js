@@ -596,6 +596,7 @@ let editorActivo = false;
 let modoEditor = null;
 let capaUnidades = null;
 let capaMaquinas = null;
+let capaCampos = null;
 let maquinasCache = [];
 let capaPuntos = null;
 let capaLineas = null;
@@ -608,10 +609,47 @@ function initCapasVectoriales() {
     capaMaquinas = L.layerGroup();
     capaPuntos = L.layerGroup();
     capaLineas = L.layerGroup();
+    capaCampos = L.layerGroup().addTo(mapa);
     cargarVectores();
     cargarMaquinas();
     cargarListaMaquinas();
+    cargarCampos();
     aplicarVisibilidadCapas();
+}
+
+/* ================= CAMPOS DE LA EMPRESA (KMZ) ================= */
+async function cargarCampos() {
+    if (!capaCampos) return;
+    try {
+        const resp = await fetch('assets/campos.geojson?v=1');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const datos = await resp.json();
+
+        capaCampos.clearLayers();
+
+        L.geoJSON(datos, {
+            style: () => ({
+                color: '#16a34a',
+                weight: 1.5,
+                opacity: 0.95,
+                fillColor: '#22c55e',
+                fillOpacity: 0.10
+            }),
+            onEachFeature: (feat, capa) => {
+                const p = feat.properties || {};
+                const nombre = p.campo || 'Campo';
+                const admin = p.admin || 'Sin administración';
+                const est = p.estacion ? ('<br>Estación: ' + p.estacion) : '';
+                capa.bindPopup(
+                    '<strong>' + nombre + '</strong><br>' +
+                    'Administración: ' + admin + est
+                );
+                capa.bindTooltip(nombre, { permanent: false, direction: 'center', className: 'etiqueta-unidad' });
+            }
+        }).addTo(capaCampos);
+    } catch (e) {
+        console.warn('campos', e);
+    }
 }
 
 /* ================= MAQUINAS DE PUNTOS CRITICOS ================= */
@@ -987,11 +1025,13 @@ function aplicarVisibilidadCapas() {
         if (mapa.hasLayer(capaPuntos)) mapa.removeLayer(capaPuntos);
         if (mapa.hasLayer(capaLineas)) mapa.removeLayer(capaLineas);
         if (mapa.hasLayer(capaMaquinas)) mapa.removeLayer(capaMaquinas);
+        if (capaCampos && !mapa.hasLayer(capaCampos)) mapa.addLayer(capaCampos);
     } else {
         if (mapa.hasLayer(capaUnidades)) mapa.removeLayer(capaUnidades);
         if (!mapa.hasLayer(capaPuntos)) mapa.addLayer(capaPuntos);
         if (!mapa.hasLayer(capaLineas)) mapa.addLayer(capaLineas);
         if (!mapa.hasLayer(capaMaquinas)) mapa.addLayer(capaMaquinas);
+        if (capaCampos && mapa.hasLayer(capaCampos)) mapa.removeLayer(capaCampos);
     }
 }
 

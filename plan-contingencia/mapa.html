@@ -127,6 +127,151 @@
         }
 
         .pin-unidad { font-size: 20px; color: #dc2626; text-shadow: 0 0 4px #fff; }
+
+        /* ================= COMPUERTAS ================= */
+        #pc-panel {
+            position: fixed; inset: 0; z-index: 3000; display: none;
+            align-items: flex-start; justify-content: center; overflow: auto;
+            background: rgba(15,23,42,.78); padding: 14px;
+        }
+        .pc-shell { background: #f8fafc; width: 100%; max-width: 780px; border-radius: 16px; padding: 16px; }
+        .pc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .pc-head h1 { font-size: 1.05rem; margin: 0; color: #0f172a; }
+        .pc-head-acciones { display: flex; gap: 8px; }
+        .pc-cerrar { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 8px 12px; font-weight: 700; color: #334155; cursor: pointer; }
+        .pc-tabs { display: flex; gap: 8px; margin: 12px 0 4px; flex-wrap: wrap; }
+        .pc-tab { border: 1px solid #e2e8f0; background: #fff; border-radius: 999px; padding: 7px 13px; font-size: .78rem; font-weight: 700; color: #475569; cursor: pointer; }
+        .pc-tab.activo { background: #0f172a; color: #fff; border-color: #0f172a; }
+        .pc-admin-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 2px; flex-wrap: wrap; }
+        #pc-admin { margin: 0; font-size: 1.15rem; color: #0f172a; }
+        #pc-sub { margin: 0 0 12px; font-size: .8rem; color: #64748b; }
+        .pc-btn-nuevo {
+            border: 1px solid #bae6fd; background: #f0f9ff; color: #0e7490; border-radius: 10px;
+            padding: 8px 12px; font-weight: 800; font-size: .76rem; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+        }
+        .pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+        .pc-card {
+            position: relative;
+            width: 100%; display: block; font: inherit; -webkit-appearance: none; appearance: none;
+            background: #fff; border: 2px solid #e2e8f0; border-radius: 14px;
+            padding: 26px 8px 8px; text-align: center; touch-action: manipulation;
+            cursor: pointer; user-select: none; -webkit-user-select: none;
+        }
+        .pc-card:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
+        /* Arriba a la izquierda: estado (un toque lo cambia) */
+        .pc-chip {
+            position: absolute; top: 6px; left: 6px;
+            border: none; border-radius: 999px; padding: 3px 9px;
+            font-size: .56rem; font-weight: 800; letter-spacing: .02em;
+            color: #fff; cursor: pointer; line-height: 1.5;
+            box-shadow: 0 1px 4px rgba(15,23,42,.18);
+        }
+        .pc-chip.abierta { background: #16a34a; }
+        .pc-chip.cerrada { background: #dc2626; }
+        .pc-chip:active { transform: scale(.95); }
+        /* Arriba a la derecha: eliminar la compuerta */
+        .pc-borrar {
+            position: absolute; top: 5px; right: 5px;
+            width: 22px; height: 22px; border-radius: 50%;
+            border: 1px solid #e2e8f0; background: #f8fafc; color: #94a3b8;
+            font-size: .62rem; cursor: pointer; line-height: 1;
+            display: flex; align-items: center; justify-content: center; padding: 0;
+        }
+        .pc-borrar:active, .pc-borrar:hover { background: #fee2e2; border-color: #fecaca; color: #b91c1c; }
+        .pc-card.abierta { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.12); }
+        .pc-card.cerrada { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.10); }
+        .pc-gate img { height: 92px; width: auto; pointer-events: none; -webkit-user-drag: none; }
+        .pc-nombre { font-size: .78rem; font-weight: 800; color: #0f172a; margin-top: 4px; line-height: 1.2; }
+        .pc-estado { font-size: .64rem; font-weight: 800; letter-spacing: .04em; margin-top: 3px; }
+        .pc-card.abierta .pc-estado { color: #15803d; }
+        .pc-card.cerrada .pc-estado { color: #b91c1c; }
+        .pc-hint { font-size: .58rem; color: #94a3b8; margin-top: 2px; }
+
+        #pc-detalle {
+            position: fixed; inset: 0; z-index: 3100; display: none;
+            align-items: center; justify-content: center; padding: 16px;
+            background: rgba(15,23,42,.82);
+        }
+        .pc-detalle-caja {
+            background: #fff; border-radius: 16px; width: 100%; max-width: 420px; padding: 16px;
+            max-height: 92vh; overflow: hidden; display: flex; flex-direction: column;
+        }
+        .pc-detalle-head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex: 0 0 auto; }
+        .pc-detalle-head img { height: 84px; width: auto; pointer-events: none; }
+        .pc-detalle-head h3 { margin: 0 0 4px; font-size: 1rem; color: #0f172a; }
+        .pc-estado.ok { color: #15803d; font-size: .72rem; font-weight: 800; }
+        .pc-estado.no { color: #b91c1c; font-size: .72rem; font-weight: 800; }
+        .pc-banner {
+            flex: 0 0 auto; background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+            border-radius: 10px; padding: 8px 10px; font-size: .72rem; margin: 6px 0 8px;
+        }
+        /* Aviso previo antes de mover una compuerta */
+        #pc-confirmar {
+            position: fixed; inset: 0; z-index: 3200; display: none;
+            align-items: center; justify-content: center; padding: 18px;
+            background: rgba(15,23,42,.85);
+        }
+        .pc-confirmar-caja { background: #fff; border-radius: 16px; width: 100%; max-width: 360px; padding: 18px; }
+        .pc-confirmar-caja h3 { margin: 0 0 8px; font-size: 1.02rem; color: #0f172a; }
+        .pc-confirmar-caja p { margin: 0 0 16px; font-size: .82rem; color: #475569; line-height: 1.45; }
+        .pc-conf-acciones { display: flex; gap: 8px; }
+        .pc-btn.verde { background: #16a34a; color: #fff; border-color: #16a34a; }
+        .pc-btn.rojo { background: #dc2626; color: #fff; border-color: #dc2626; }
+        .pc-lista {
+            display: flex; flex-direction: column; gap: 8px;
+            margin: 0 0 10px; overflow-y: auto; flex: 1 1 auto; min-height: 60px;
+            -webkit-overflow-scrolling: touch;
+        }
+        /* Los bloques conservan su alto natural (no se aplastan al hacer scroll) */
+        .pc-lista > * { flex: 0 0 auto; }
+        .pc-pie { flex: 0 0 auto; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+        .pc-btn-add {
+            width: 100%; border: 1px dashed #94a3b8; background: #fff; color: #0f172a;
+            border-radius: 12px; padding: 10px; font-weight: 800; font-size: .78rem;
+            cursor: pointer; margin-bottom: 8px; white-space: nowrap;
+        }
+        .pc-persona {
+            display: flex; align-items: stretch; overflow: hidden;
+            border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc;
+        }
+        .pc-p-link { display: block; flex: 1; padding: 9px 11px; text-decoration: none; color: #0f172a; }
+        .pc-p-link:active { background: #ecfdf5; }
+        .pc-p-del {
+            width: 46px; border: none; border-left: 1px solid #e2e8f0; background: #fef2f2;
+            color: #b91c1c; font-size: .95rem; cursor: pointer;
+        }
+        .pc-p-del:active { background: #fee2e2; }
+        .pc-p-nombre { display: block; font-size: .86rem; font-weight: 700; }
+        .pc-p-cargo { display: block; font-size: .7rem; color: #64748b; }
+        .pc-p-tel { display: block; font-size: .78rem; color: #0e7490; font-weight: 700; margin-top: 2px; }
+        .pc-volver { width: 100%; padding: 10px; border: 1px solid #e2e8f0; background: #fff; border-radius: 12px; font-weight: 700; color: #475569; cursor: pointer; margin-bottom: 8px; }
+        .pc-form {
+            display: flex; flex-direction: column; gap: 8px; margin: 0 0 10px;
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px;
+        }
+        .pc-form input {
+            border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px;
+            font-size: .84rem; font-family: inherit; background: #fff; color: #0f172a;
+        }
+        .pc-form-acciones { display: flex; gap: 8px; }
+        .pc-btn {
+            flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;
+            background: #fff; font-weight: 800; font-size: .8rem; cursor: pointer; color: #334155;
+        }
+        .pc-btn.ok { background: #0f172a; color: #fff; border-color: #0f172a; }
+        .pc-form-titulo { margin: 0 0 4px; font-size: 1rem; color: #0f172a; }
+        .pc-nota { font-size: .7rem; color: #64748b; margin: 0 0 8px; }
+        .pc-aviso {
+            border-radius: 10px; padding: 8px 10px; font-size: .74rem;
+            margin: 8px 0; background: #f1f5f9; color: #334155;
+        }
+        .pc-aviso.error { background: #fef2f2; color: #b91c1c; }
+        .pc-vacio { color: #94a3b8; font-size: .82rem; padding: 10px; }
+        @media (max-width: 600px) {
+            .pc-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+            .pc-gate img { height: 78px; width: auto; }
+        }
     </style>
 </head>
 <body>
@@ -144,6 +289,7 @@
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
                                 <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
         <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar puntos</button>
+        <button id="btn-compuertas" onclick="pcAbrir()" style="display:none;border-color:#bae6fd;background:#f0f9ff;color:#0e7490;"><i class="fas fa-water"></i> Compuertas</button>
         <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
             <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed"><i class="fas fa-location-dot"></i> Punto</button>
             <button data-modo="roja" onclick="setModoEditor('roja')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#dc2626"></i> Línea roja</button>
@@ -189,8 +335,50 @@
         Luego pulsa <strong>Guardar</strong>.
     </div>
 
+    <!-- ================= COMPUERTAS ================= -->
+    <div id="pc-panel">
+        <div class="pc-shell">
+            <div class="pc-head">
+                <h1><i class="fas fa-water" style="color:#0e7490"></i> Compuertas</h1>
+                <div class="pc-head-acciones">
+                    <button type="button" class="pc-cerrar" id="pc-refrescar" title="Actualizar estados"><i class="fas fa-rotate"></i></button>
+                    <button type="button" class="pc-cerrar" id="pc-cerrar">Cerrar</button>
+                </div>
+            </div>
+            <div class="pc-tabs">
+                <button type="button" class="pc-tab" data-admin="Administracion 1">Administración 1</button>
+                <button type="button" class="pc-tab" data-admin="Administracion 2">Administración 2</button>
+                <button type="button" class="pc-tab activo" data-admin="Administracion 3">Administración 3</button>
+            </div>
+            <div class="pc-admin-row">
+                <h2 id="pc-admin">Administración 3</h2>
+                <div class="pc-head-acciones">
+                    <button type="button" class="pc-btn-nuevo" id="pc-add-compuerta"><i class="fas fa-plus"></i> Añadir compuerta</button>
+                </div>
+            </div>
+            <p id="pc-sub"></p>
+            <div class="pc-grid" id="pc-grid"></div>
+        </div>
+    </div>
+
+    <div id="pc-detalle"></div>
+
+    <!-- Aviso previo para abrir o cerrar una compuerta -->
+    <div id="pc-confirmar">
+        <div class="pc-confirmar-caja">
+            <h3 id="pc-conf-titulo"></h3>
+            <p id="pc-conf-texto"></p>
+            <div class="pc-conf-acciones">
+                <button type="button" class="pc-btn" id="pc-conf-cancelar">Cancelar</button>
+                <button type="button" class="pc-btn ok" id="pc-conf-aceptar">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=33"></script>
+    <script src="mapa.js?v=34"></script>
+    <script src="compuertas.js?v=4"></script>
+    <script src="semaforo.js?v=1"></script>
 </body>
 </html>
