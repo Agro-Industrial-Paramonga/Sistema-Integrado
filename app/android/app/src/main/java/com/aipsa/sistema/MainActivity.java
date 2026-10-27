@@ -32,6 +32,39 @@ public class MainActivity extends BridgeActivity {
     }
 
     /** Si hay un turno activo y falta el permiso de ubicacion, no deja usar la app. */
+    /** Pide que Android no suspenda la app (envio cada 5 minutos). */
+    private void pedirExencionBateria() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return;
+
+            android.os.PowerManager pm =
+                    (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+
+            runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
+                    .setTitle("Permitir segundo plano")
+                    .setMessage("Para que la ubicación se envíe cada 5 minutos aunque la app esté cerrada, permite que el sistema no la suspenda.")
+                    .setPositiveButton("Permitir", (d1, w) -> {
+                        try {
+                            android.content.Intent i = new android.content.Intent(
+                                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                            i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                            startActivity(i);
+                        } catch (Exception e) {
+                            try {
+                                android.content.Intent i = new android.content.Intent(
+                                        android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                                startActivity(i);
+                            } catch (Exception e2) { e2.printStackTrace(); }
+                        }
+                    })
+                    .setNegativeButton("Ahora no", null)
+                    .show());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void limpiarCacheSiCambioVersion(android.webkit.WebView webView) {
         try {
             int version = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
@@ -239,6 +272,7 @@ public class MainActivity extends BridgeActivity {
                     @JavascriptInterface
                     public void iniciarServicio(String usuario, String unidad) {
                         try {
+                            pedirExencionBateria();
                             UbicacionScheduler.iniciar(getApplicationContext(), usuario, unidad);
                         } catch (Exception e) {
                             android.util.Log.e("MainActivity", "iniciarServicio fallo", e);
