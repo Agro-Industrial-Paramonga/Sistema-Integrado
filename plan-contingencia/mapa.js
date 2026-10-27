@@ -98,6 +98,13 @@ function iniciarMapa() {
     cargarUnidades();
     aplicarSesionConductor();
     setInterval(cargarUnidades, 30000);
+
+    // Aviso de version nueva al entrar al mapa (APK)
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.revisarActualizacion) {
+            window.AndroidUbicacion.revisarActualizacion();
+        }
+    } catch (e) {}
 }
 
 /* ------------------------------------------------------------

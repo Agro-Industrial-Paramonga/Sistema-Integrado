@@ -111,13 +111,21 @@ public class Actualizador {
 
     private static void mostrarDialogo(final Activity actividad, int version,
                                        String notas, final String urlApk) {
-        new AlertDialog.Builder(actividad)
-                .setTitle("Nueva versión disponible")
-                .setMessage(notas)
-                .setPositiveButton("Actualizar", (d, w) -> descargarEInstalar(actividad, urlApk))
-                .setNegativeButton("Después", null)
-                .setCancelable(true)
-                .show();
+        try {
+            if (actividad == null || actividad.isFinishing()) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1
+                    && actividad.isDestroyed()) return;
+
+            new AlertDialog.Builder(actividad)
+                    .setTitle("Nueva versión disponible")
+                    .setMessage(notas)
+                    .setPositiveButton("Actualizar", (d, w) -> descargarEInstalar(actividad, urlApk))
+                    .setNegativeButton("Después", null)
+                    .setCancelable(true)
+                    .show();
+        } catch (Exception e) {
+            Log.w(TAG, "No se pudo mostrar el aviso de actualización", e);
+        }
     }
 
     private static void descargarEInstalar(final Activity actividad, String urlApk) {

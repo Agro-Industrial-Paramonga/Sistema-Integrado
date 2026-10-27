@@ -251,6 +251,28 @@ public class MainActivity extends BridgeActivity {
         android.util.Log.i("MainActivity", "Servicio de ubicacion reanudado para " + usuario);
     }
 
+    /** Cada cuanto se vuelve a consultar si hay version nueva. */
+    private static final long CADA_REVISION_MS = 20 * 60 * 1000L;
+    private long ultimaRevision = 0;
+
+    /**
+     * Consulta version.json al abrir y al volver a la app.
+     * Antes solo se revisaba en onCreate, asi que con la app viva en segundo
+     * plano (turnos abiertos) nunca volvia a avisar de una version nueva.
+     */
+    private void revisarActualizacion(boolean forzar) {
+        long ahora = System.currentTimeMillis();
+        if (!forzar && ahora - ultimaRevision < CADA_REVISION_MS) return;
+        ultimaRevision = ahora;
+        try { Actualizador.revisar(this); } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        revisarActualizacion(false);
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -297,6 +319,7 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void run() {
                 try { exigirUbicacionObligatoria(); } catch (Exception e) { }
+                try { revisarActualizacion(false); } catch (Exception e) { }
                 vigilante.postDelayed(this, 4000);
             }
         }, 4000);
@@ -309,7 +332,7 @@ public class MainActivity extends BridgeActivity {
 
         // Pedir permiso de instalacion y revisar si hay version nueva
         try { Actualizador.pedirPermisoInstalacion(this); } catch (Exception e) { e.printStackTrace(); }
-        try { Actualizador.revisar(this); } catch (Exception e) { e.printStackTrace(); }
+        revisarActualizacion(true);
 
         // Boton/gesto de retroceder:
         //  - Si hay historial en el WebView, retrocede (p. ej. de Hallazgos
@@ -387,6 +410,11 @@ public class MainActivity extends BridgeActivity {
                     @JavascriptInterface
                     public String estadoUbicacion() {
                         return estadoUbicacionActual();
+                    }
+
+                    @JavascriptInterface
+                    public void revisarActualizacion() {
+                        runOnUiThread(() -> MainActivity.this.revisarActualizacion(true));
                     }
 
                     @JavascriptInterface
