@@ -58,7 +58,7 @@ function accesoPermitido() {
     if (sesionConductor()) return true;
     const u = usuarioPlan();
     if (!u) return false;
-    if (u.rol === 'gerente_general' || u.rol === 'gerencial_legal') return true;
+    if (u.rol === 'gerente_general' || u.rol === 'gerencial_legal' || u.rol === 'gerente_campo') return true;
     const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
     return texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
 }

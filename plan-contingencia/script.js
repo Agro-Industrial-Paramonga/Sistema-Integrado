@@ -746,7 +746,7 @@ function mostrarBotonMapa() {
     const u = obtenerSesion();
     if (!u) { b.style.display = 'none'; return; }
 
-    const dentro = (u.rol === 'gerente_general' || u.rol === 'gerencial_legal');
+    const dentro = (u.rol === 'gerente_general' || u.rol === 'gerencial_legal' || u.rol === 'gerente_campo');
     const texto = String((u.seccion || '') + ' ' + (u.area || ''))
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const porArea = texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
@@ -908,7 +908,7 @@ const SECCIONES_VISTA_TOTAL = ['COMUNICACIONES E IMAGEN CORPORATIVA'];
 function esVistaCompleta() {
     const u = obtenerSesion();
     if (!u) return false;
-    if (u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal') return true;
+    if (u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal' || u.rol === 'gerente_campo') return true;
 
     const seccion = String(u.seccion || '').trim().toUpperCase();
     return SECCIONES_VISTA_TOTAL.includes(seccion);
@@ -918,6 +918,24 @@ function esSoloLectura() {
     const u = obtenerSesion();
     if (!u) return false;
     return u.rol === 'gdo' || u.rol === 'gerencial_legal';
+}
+
+/* Gerente de Campo: ve el plan completo y edita las medidas de las áreas de campo.
+   No declara semáforo ni inicia planes de acción (eso es del Gerente General). */
+const AREAS_GERENTE_CAMPO = ['ingenieria agricola', 'operaciones agricolas', 'administracion 3'];
+
+function esGerenteCampo() {
+    const u = obtenerSesion();
+    return !!(u && u.rol === 'gerente_campo');
+}
+
+function medidaEsDeCampo(medida) {
+    if (!medida || !medida.area) return false;
+    return String(medida.area)
+        .split('/')
+        .map(claveArea)
+        .filter(Boolean)
+        .some(a => AREAS_GERENTE_CAMPO.indexOf(a) !== -1);
 }
 
 
@@ -937,6 +955,9 @@ function puedeEditar(medida) {
 
     // Seguridad Industrial puede editar cualquier area
     if (esSeguridadIndustrial()) return true;
+
+    // Gerente de Campo edita solo las áreas de campo
+    if (esGerenteCampo()) return medidaEsDeCampo(medida);
 
     if (user.rol === 'gerente_general') return false;
     if (!medida || !medida.area) return false;
