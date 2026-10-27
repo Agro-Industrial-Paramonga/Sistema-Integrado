@@ -1096,6 +1096,10 @@
        Ciclo de vida
     ------------------------------------------------------------ */
     async function semIniciar() {
+        /* Los conductores no ven el semáforo ni su color: la página de ingreso
+           de conductores no tiene barra del mapa ni encabezado del portal. */
+        if (!document.querySelector('.barra') && !document.querySelector('.top-bar')) return;
+
         usuario = semLeerUsuario();
         rol = semRol(usuario);
         cliente = semCliente();
