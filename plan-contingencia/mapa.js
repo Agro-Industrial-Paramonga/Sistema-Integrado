@@ -79,13 +79,19 @@ function iniciarMapa() {
         return;
     }
 
-    mapa = L.map('mapa', { zoomControl: true }).setView([-10.7100, -77.7900], 13);
+    /* Esri no tiene imágenes por encima de z17 en Paramonga: si se piden, el
+       servidor devuelve el cartel "Map data not yet available". maxNativeZoom
+       hace que Leaflet reutilice el z17 y no pida tiles que no existen.
+       maxZoom del mapa acota el acercamiento para que nada quede ilegible. */
+    const ZOOM_NATIVO = 17;
+
+    mapa = L.map('mapa', { zoomControl: true, maxZoom: 18 }).setView([-10.7100, -77.7900], 13);
 
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, attribution: 'Imágenes © Esri, Maxar' }).addTo(mapa);
+        { maxZoom: 18, maxNativeZoom: ZOOM_NATIVO, attribution: 'Imágenes © Esri, Maxar' }).addTo(mapa);
 
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, opacity: 0.85 }).addTo(mapa);
+        { maxZoom: 18, maxNativeZoom: ZOOM_NATIVO, opacity: 0.85 }).addTo(mapa);
 
     mapa.on('click', async (e) => {
         if (editorActivo) { await clickEditor(e.latlng); return; }
@@ -148,6 +154,11 @@ async function cargarCapas() {
 }
 
 function mostrarCapa(clave) {
+    /* No dejar una línea a medio dibujar: se guardaría en la pestaña equivocada */
+    if (editorActivo && clave !== capaActiva) {
+        terminarLinea(true);
+        verticesLinea = [];
+    }
     capaActiva = clave;
 
     document.querySelectorAll('.tab-capa').forEach(b => {
@@ -599,7 +610,8 @@ let capaMaquinas = null;
 let capaCampos = null;
 let maquinasCache = [];
 let capaPuntos = null;
-let capaLineas = null;
+let capaLineas = null;      /* líneas de la pestaña Puntos críticos */
+let capaLineasSeg = null;   /* líneas de la pestaña Seguimiento de maquinarias */
 let verticesLinea = [];
 let lineaTemporal = null;
 let marcadoresVertices = [];
@@ -609,6 +621,7 @@ function initCapasVectoriales() {
     capaMaquinas = L.layerGroup();
     capaPuntos = L.layerGroup();
     capaLineas = L.layerGroup();
+    capaLineasSeg = L.layerGroup();
     capaCampos = L.layerGroup().addTo(mapa);
     cargarVectores();
     cargarMaquinas();
@@ -628,6 +641,9 @@ async function cargarCampos() {
         capaCampos.clearLayers();
 
         L.geoJSON(datos, {
+            /* El editor necesita atravesar los campos con la línea: el polígono
+               deja de capturar el clic mientras se edita (ver CSS .mapa-editando) */
+            className: 'campo-poligono',
             style: () => ({
                 color: '#16a34a',
                 weight: 1.5,
@@ -636,6 +652,7 @@ async function cargarCampos() {
                 fillOpacity: 0.10
             }),
             onEachFeature: (feat, capa) => {
+                capa.options.className = 'campo-poligono';
                 const p = feat.properties || {};
                 const nombre = p.campo || 'Campo';
                 const admin = p.admin || 'Sin administración';
@@ -1015,24 +1032,29 @@ async function cambiarTamanoMaquinas(valor) {
 }
 
 /* Muestra solo lo que corresponde a la pestaña activa */
+function mostrarGrupo(grupo, visible) {
+    if (!grupo) return;
+    if (visible) {
+        if (!mapa.hasLayer(grupo)) mapa.addLayer(grupo);
+    } else if (mapa.hasLayer(grupo)) {
+        mapa.removeLayer(grupo);
+    }
+}
+
 function aplicarVisibilidadCapas() {
     if (!mapa || !capaUnidades) return;
 
     const esSeguimiento = (capaActiva === 'canales');
 
-    if (esSeguimiento) {
-        if (!mapa.hasLayer(capaUnidades)) mapa.addLayer(capaUnidades);
-        if (mapa.hasLayer(capaPuntos)) mapa.removeLayer(capaPuntos);
-        if (mapa.hasLayer(capaLineas)) mapa.removeLayer(capaLineas);
-        if (mapa.hasLayer(capaMaquinas)) mapa.removeLayer(capaMaquinas);
-        if (capaCampos && !mapa.hasLayer(capaCampos)) mapa.addLayer(capaCampos);
-    } else {
-        if (mapa.hasLayer(capaUnidades)) mapa.removeLayer(capaUnidades);
-        if (!mapa.hasLayer(capaPuntos)) mapa.addLayer(capaPuntos);
-        if (!mapa.hasLayer(capaLineas)) mapa.addLayer(capaLineas);
-        if (!mapa.hasLayer(capaMaquinas)) mapa.addLayer(capaMaquinas);
-        if (capaCampos && mapa.hasLayer(capaCampos)) mapa.removeLayer(capaCampos);
-    }
+    /* Seguimiento: unidades y campos. Nada de puntos críticos. */
+    /* Puntos críticos: puntos, maquinarias y sus líneas. Nada de campos. */
+    mostrarGrupo(capaUnidades, esSeguimiento);
+    mostrarGrupo(capaCampos, esSeguimiento);
+    mostrarGrupo(capaLineasSeg, esSeguimiento);
+
+    mostrarGrupo(capaPuntos, !esSeguimiento);
+    mostrarGrupo(capaMaquinas, !esSeguimiento);
+    mostrarGrupo(capaLineas, !esSeguimiento);
 }
 
 
@@ -1073,6 +1095,7 @@ function iconoMaquinaria(tipo) {
 async function cargarVectores() {
     capaPuntos.clearLayers();
     capaLineas.clearLayers();
+    if (capaLineasSeg) capaLineasSeg.clearLayers();
     marcadoresPuntos = {};
 
     const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
@@ -1130,12 +1153,14 @@ async function cargarVectores() {
     const { data: lineas } = await db.from('mapa_lineas').select('*');
     (lineas || []).forEach(l => {
         if (!Array.isArray(l.coords) || l.coords.length < 2) return;
+        /* Cada línea vive en la pestaña donde se dibujó */
+        const destino = (l.ambito === 'seguimiento' && capaLineasSeg) ? capaLineasSeg : capaLineas;
         const estilo = estiloLinea(l.color || '#dc2626');
         const grosor = l.grosor || estilo.weight;
 
         if (estilo.borde > 0) {
             L.polyline(l.coords, { color: 'rgba(0,0,0,.45)', weight: grosor + 4, opacity: 1,
-                lineCap: 'round', lineJoin: 'round' }).addTo(capaLineas);
+                lineCap: 'round', lineJoin: 'round' }).addTo(destino);
         }
 
         let linea;
@@ -1143,12 +1168,12 @@ async function cargarVectores() {
             linea = L.polygon(l.coords, {
                 color: estilo.color, weight: grosor, opacity: 1,
                 fillColor: estilo.color, fillOpacity: 0.30
-            }).addTo(capaLineas);
+            }).addTo(destino);
         } else {
             linea = L.polyline(l.coords, {
                 color: estilo.color, weight: grosor, opacity: 1,
                 lineCap: 'round', lineJoin: 'round'
-            }).addTo(capaLineas);
+            }).addTo(destino);
         }
         linea.on('click', async () => {
             if (editorActivo && modoEditor === 'borrar') {
@@ -1191,6 +1216,8 @@ async function guardarEdicion() {
 
 function alternarEditor() {
     editorActivo = !editorActivo;
+    document.body.classList.toggle('mapa-editando', editorActivo);
+    if (editorActivo && mapa) { try { mapa.closePopup(); } catch (e) {} }
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
     const bg = document.getElementById('btn-guardar-editor');
     if (bg) bg.style.display = editorActivo ? 'inline-flex' : 'none';
@@ -1314,6 +1341,11 @@ function limpiarVertices() {
 }
 
 
+/* Pestaña en la que se está dibujando: define dónde se guarda y dónde se ve */
+function ambitoActual() {
+    return capaActiva === 'canales' ? 'seguimiento' : 'criticos';
+}
+
 async function cerrarZona() {
     if (verticesLinea.length < 3) {
         alert('Marca al menos 3 vértices para cerrar una zona.');
@@ -1329,6 +1361,7 @@ async function cerrarZona() {
         color: colorFinal,
         grosor: eFinal.weight,
         tipo: 'poligono',
+        ambito: ambitoActual(),
         coords: verticesLinea
     });
 
@@ -1351,6 +1384,7 @@ async function terminarLinea(cancelar) {
             color: colorFinal,
             grosor: eFinal.weight,
             tipo: 'linea',
+            ambito: ambitoActual(),
             coords: verticesLinea
         });
         cargarVectores();

@@ -41,6 +41,12 @@
         }
         .etiqueta-unidad::before { display: none; }
 
+        /* Con el editor activo los campos delimitados dejan pasar el clic:
+           la línea se dibuja encima sin abrir el cartel del campo */
+        body.mapa-editando .leaflet-overlay-pane svg path.campo-poligono {
+            pointer-events: none;
+        }
+
         .btn-modo-ed {
             border: 1px solid #e2e8f0; background: #fff; color: #334155; border-radius: 10px;
             padding: 7px 11px; font-size: .76rem; font-weight: 700; cursor: pointer;
@@ -321,12 +327,14 @@
     </div>
 
     <div class="leyenda" id="leyenda-editor" style="display:none">
-        <strong>Editor de puntos críticos</strong><br>
+        <strong>Editor del mapa</strong><br>
         <span style="color:#64748b">Al dibujar una línea verás los vértices en blanco.
         Si uno quedó mal, <strong>clic derecho</strong> sobre él y se elimina.</span><br>
         1. Elige <strong>Punto</strong> y toca el mapa en cada sitio (se numera solo).<br>
         2. Para las líneas elige <strong>roja</strong> o <strong>amarilla</strong> y toca cada vértice.<br>
-        3. <strong>Terminar línea</strong> para una ruta, o <strong>Cerrar zona</strong> si encierras un área (se rellena del mismo color).
+        3. <strong>Terminar línea</strong> para una ruta, o <strong>Cerrar zona</strong> si encierras un área (se rellena del mismo color).<br>
+        4. La línea se guarda en la <strong>pestaña activa</strong> y solo se ve ahí: las líneas de seguimiento no
+        aparecen en Puntos críticos, ni al revés. Los campos delimitados dejan pasar la línea sin abrir su cartel.
     </div>
 
     <div class="leyenda" id="leyenda" style="display:none">
@@ -377,8 +385,8 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=34"></script>
+    <script src="mapa.js?v=36"></script>
     <script src="compuertas.js?v=4"></script>
-    <script src="semaforo.js?v=1"></script>
+    <script src="semaforo.js?v=2"></script>
 </body>
 </html>

@@ -532,32 +532,32 @@
 
         /* Semáforo horizontal: cuatro luces, una por nivel */
         #sem-luces {
-            display: inline-flex; align-items: center; gap: 7px;
-            padding: 5px 10px; border-radius: 999px;
+            display: inline-flex; align-items: center; gap: 9px;
+            padding: 6px 13px; border-radius: 999px;
             background: #0f172a; border: 1px solid #1e293b;
             box-shadow: inset 0 1px 4px rgba(0,0,0,.55), 0 2px 8px rgba(15,23,42,.20);
             cursor: pointer; flex: 0 0 auto;
         }
         #sem-luces:focus-visible { outline: 3px solid #0f172a; outline-offset: 2px; }
         #sem-luces .foco {
-            width: 15px; height: 15px; border-radius: 50%;
+            width: 22px; height: 22px; border-radius: 50%;
             background: var(--c); opacity: .22; filter: grayscale(.65);
             transition: opacity .22s ease, box-shadow .22s ease, filter .22s ease, transform .22s ease;
         }
         #sem-luces .foco.on {
             opacity: 1; filter: none; transform: scale(1.08);
-            box-shadow: 0 0 9px var(--c), 0 0 18px var(--c);
+            box-shadow: 0 0 12px var(--c), 0 0 26px var(--c);
         }
         #sem-luces.sem-pulso .foco.on { animation: semLatido 1.1s ease-in-out infinite; }
-        #sem-luces.chico { padding: 4px 8px; gap: 6px; }
-        #sem-luces.chico .foco { width: 12px; height: 12px; }
+        #sem-luces.chico { padding: 6px 11px; gap: 7px; }
+        #sem-luces.chico .foco { width: 19px; height: 19px; }
         #sem-grupo { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; }
         #sem-grupo-txt { font-size: .66rem; font-weight: 800; letter-spacing: .06em; color: #334155; }
         @media (max-width: 900px) {
             #sem-grupo { margin-left: 8px; }
             #sem-grupo-txt { display: none; }
-            #sem-luces .foco { width: 12px; height: 12px; }
-            #sem-luces { gap: 5px; padding: 4px 7px; }
+            #sem-luces .foco { width: 19px; height: 19px; }
+            #sem-luces { gap: 7px; padding: 6px 10px; }
         }
 
         /* Aviso flotante propio (cuando mapa.js no está) */
