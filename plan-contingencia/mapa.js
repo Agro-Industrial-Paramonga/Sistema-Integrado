@@ -773,42 +773,75 @@ async function cargarMaquinas() {
                 setTimeout(quitar, 2500);
             }
 
-            const enviada = await alertarMaquina(m.unidad, punto);
+            const envio = await alertarMaquina(m.unidad, punto);
             avisar(
                 '🚨 ' + m.unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '') +
                 ' (' + Math.round(punto.dist) + ' m) · ' +
-                (enviada ? 'alerta enviada al celular del conductor'
-                         : 'SIN celular conectado: la alerta no se envió'),
-                enviada ? 'ok' : 'warn'
+                (envio.enviados > 0
+                    ? 'alerta enviada a ' + envio.enviados + ' de ' + envio.total + ' celular(es)'
+                    : (envio.total > 0
+                        ? 'no se pudo entregar a ningún celular (' + envio.total + ' registrados)'
+                        : 'SIN celular conectado: la alerta no se envió')),
+                envio.enviados > 0 ? 'ok' : 'warn'
             );
         });
     });
 }
 
-/* Avisa al conductor logueado en esa maquina. Devuelve true si el push salio */
+/* Junta TODOS los celulares asociados a una unidad (puede haber mas de un conductor) */
+async function tokensDeUnidad(unidad) {
+    const buscado = normalizar(unidad);
+    const { data } = await db.from('ubicaciones').select('user_id, unidad, token');
+
+    const filas = (data || []).filter(u => normalizar(u.unidad) === buscado);
+    const tokens = new Set();
+    const conductores = [];
+
+    for (const f of filas) {
+        if (f.user_id) conductores.push(f.user_id);
+        if (f.token && String(f.token).length > 30) {
+            tokens.add(f.token);
+        } else {
+            const t = await buscarToken(f.user_id);
+            if (t) tokens.add(t);
+        }
+    }
+
+    // Tambien puede estar registrado con el nombre de la unidad
+    const tUnidad = await buscarToken(unidad);
+    if (tUnidad) tokens.add(tUnidad);
+
+    return { tokens: [...tokens], conductores };
+}
+
+/* Avisa a TODOS los conductores de esa maquina. Devuelve cuantos celulares recibieron */
 async function alertarMaquina(unidad, punto) {
     try {
-        const { data } = await db.from('ubicaciones').select('user_id, token, unidad');
-        const fila = (data || []).find(u => normalizar(u.unidad) === normalizar(unidad));
-        if (!fila) return false;
+        const { tokens, conductores } = await tokensDeUnidad(unidad);
+        if (!tokens.length) return { enviados: 0, total: 0, conductores };
 
-        let token = fila.token || null;
-        if (!token || String(token).length < 30) token = await buscarToken(fila.user_id);
+        let enviados = 0;
+        for (const token of tokens) {
+            const resp = await fetch(FUNC_PUSH, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Dirígete al punto ' + punto.orden + ' – ' + (punto.nombre || ''),
+                    body: 'Se te asignó este punto crítico. Dirígete de inmediato.',
+                    userId: null,
+                    token: token,
+                    excluir: (localStorage.getItem('pushToken') || null)
+                })
+            });
+            const datos = await resp.json().catch(() => ({}));
+            if ((datos.fcm_enviados ?? 0) > 0) enviados++;
+        }
 
-        const resp = await fetch(FUNC_PUSH, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: 'Dirígete al punto ' + punto.orden + ' – ' + (punto.nombre || ''),
-                body: 'Se te asignó este punto crítico. Dirígete de inmediato.',
-                userId: fila.user_id,
-                token: token,
-                excluir: (localStorage.getItem('pushToken') || null)
-            })
-        });
-        const datos = await resp.json().catch(() => ({}));
-        return (datos.fcm_enviados ?? 0) > 0;
-    } catch (e) { console.warn('alerta maquina', e); return false; }
+        return { enviados, total: tokens.length, conductores };
+    } catch (e) {
+        console.warn('alerta maquina', e);
+        return { enviados: 0, total: 0, conductores: [] };
+    }
 }
 
 async function eliminarMaquina(id, unidad) {
@@ -843,10 +876,12 @@ async function colocarMaquina(latlng) {
         return;
     }
 
-    const enviada = await alertarMaquina(unidad, punto);
+    const envio = await alertarMaquina(unidad, punto);
     avisar('🚨 ' + unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '') +
-        ' · ' + (enviada ? 'alerta enviada' : 'SIN celular conectado: alerta no enviada'),
-        enviada ? 'ok' : 'warn');
+        ' · ' + (envio.enviados > 0
+            ? 'alerta enviada a ' + envio.enviados + ' de ' + envio.total + ' celular(es)'
+            : (envio.total > 0 ? 'no se pudo entregar a ningún celular' : 'SIN celular conectado: alerta no enviada')),
+        envio.enviados > 0 ? 'ok' : 'warn');
 }
 
 async function cambiarTamanoMaquinas(valor) {
