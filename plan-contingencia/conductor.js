@@ -208,13 +208,46 @@ function conectarEventos() {
 async function turnoActivoDeUnidad(unidad) {
     if (!unidad) return null;
     try {
-        const { data } = await db.from('push_subscriptions')
-            .select('user_id, unidad')
-            .eq('unidad', unidad)
-            .limit(1);
-        return (data && data.length) ? data[0] : null;
+        const { data } = await db.from('sesiones_unidad')
+            .select('unidad, user_id, token, inicio');
+        return (data || []).find(s => norm(s.unidad) === norm(unidad)) || null;
     } catch (e) {
         return null;
+    }
+}
+
+/* Toma la unidad para este conductor y verifica que quedo registrada */
+async function reclamarUnidad(unidad, nombre, token) {
+    try {
+        const ocupada = await turnoActivoDeUnidad(unidad);
+        if (ocupada && norm(ocupada.user_id) !== norm(nombre)) {
+            return { ok: false, mensaje: 'La unidad ' + unidad + ' esta en turno con ' + ocupada.user_id + '.' };
+        }
+
+        const { error } = await db.from('sesiones_unidad').upsert({
+            unidad: unidad,
+            user_id: nombre,
+            token: token || null,
+            inicio: new Date().toISOString()
+        }, { onConflict: 'unidad' });
+
+        if (error) return { ok: false, mensaje: 'No se pudo registrar la sesion: ' + error.message };
+
+        // Verificacion real del token
+        const { data } = await db.from('sesiones_unidad').select('token').eq('unidad', unidad).maybeSingle();
+        const guardado = (data && data.token) ? String(data.token) : '';
+
+        if (token && guardado !== token) {
+            await db.from('sesiones_unidad').update({ token: token }).eq('unidad', unidad);
+            const { data: d2 } = await db.from('sesiones_unidad').select('token').eq('unidad', unidad).maybeSingle();
+            if (!d2 || String(d2.token) !== String(token)) {
+                return { ok: false, mensaje: 'El celular no quedo registrado para alarmas. Revisa las notificaciones e intenta otra vez.' };
+            }
+        }
+
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, mensaje: 'Error al registrar la sesion: ' + e.message };
     }
 }
 
@@ -425,7 +458,7 @@ function registrarPush(nombre, unidad) {
                     await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
                     try { localStorage.setItem('pushToken', token.value); } catch (e) {}
                     mostrarAviso('Celular registrado para alarmas ✓');
-                    fin(true);
+                    fin(token.value);   // devuelve el token
                 } catch (e) {
                     mostrarAviso('No se pudo guardar el token: ' + e.message);
                     fin(false);
@@ -487,9 +520,6 @@ async function iniciarTurno() {
         return;
     }
 
-    const sesion = { unidad, nombre, dni, inicio: new Date().toISOString() };
-    localStorage.setItem('conductor', JSON.stringify(sesion));
-
     pedirPermisoUbicacion();
 
     const boton = document.getElementById('btn-entrar');
@@ -514,6 +544,20 @@ async function iniciarTurno() {
     }
 
     const listo = await registrarPush(nombre, unidad);
+    const token = listo ? String(listo) : null;
+
+    // Reclamo de la unidad en la base: dueño unico y token verificado
+    const reclamo = await reclamarUnidad(unidad, nombre, token);
+    if (!reclamo.ok) {
+        mostrarAviso('⛔ ' + reclamo.mensaje);
+        const b = document.getElementById('btn-entrar');
+        b.disabled = false;
+        b.innerHTML = 'Iniciar turno';
+        return;
+    }
+
+    const sesion = { unidad, nombre, dni, inicio: new Date().toISOString() };
+    localStorage.setItem('conductor', JSON.stringify(sesion));
 
     // Servicio nativo: sigue enviando con la app cerrada
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
@@ -526,11 +570,10 @@ async function iniciarTurno() {
     }
 
     mostrarAviso(
-        (listo ? 'Turno iniciado y celular registrado.' : 'Turno iniciado, sin registro para alarmas.')
-        + (hayUbicacion ? '' : ' Sin permiso de ubicación.')
+        (token ? 'Turno iniciado y celular registrado para alarmas.' : 'Turno iniciado. El celular no quedó registrado para alarmas.')
     );
 
-    setTimeout(() => { window.location.href = 'mapa.html?v=20'; }, listo ? 700 : 1800);
+    setTimeout(() => { window.location.href = 'mapa.html?v=20'; }, token ? 700 : 1800);
 }
 
 async function continuarTurno() {
@@ -562,4 +605,12 @@ async function continuarTurno() {
 }
 
 cargar();
-continuarTurno();
+continuarTurno().then((activo) => {
+    if (activo) return;
+    // Sin turno: si el servicio nativo quedo vivo, se detiene aqui.
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
+            window.AndroidUbicacion.detenerServicio();
+        }
+    } catch (e) { console.warn('detener servicio huerfano', e); }
+});

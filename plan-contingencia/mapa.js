@@ -339,15 +339,23 @@ async function alertarUnidad(usuario, unidad, token) {
     const quien = unidad || usuario;
     if (!quien) { alert('La unidad no tiene identificación.'); return; }
 
-    if (!token) token = await buscarToken(usuario);
+    let tokenFinal = token || null;
 
-    if (!token && usuario) {
+    // Primero: el celular del titular de esa unidad
+    if (!tokenFinal) {
+        const debidos = await tokensDeUnidad(unidad || '');
+        if (debidos.tokens.length) tokenFinal = debidos.tokens[0];
+    }
+    if (!tokenFinal) tokenFinal = await buscarToken(usuario);
+
+    if (!tokenFinal && usuario) {
         const { data } = await db.from('ubicaciones').select('token').eq('user_id', usuario).maybeSingle();
-        if (data && data.token) token = data.token;
+        if (data && data.token) tokenFinal = data.token;
     }
 
-    if (!token) {
+    if (!tokenFinal) {
         alert('La unidad ' + (unidad || usuario) + ' no tiene celular registrado para alarmas.\n\nEl conductor debe cerrar turno y volver a iniciarlo aceptando las notificaciones.');
+        await registrarAlerta(unidad, usuario, null, 'sin_token', 'sin celular registrado');
         return;
     }
 
@@ -362,37 +370,52 @@ async function alertarUnidad(usuario, unidad, token) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: titulo, body: cuerpo,
-                userId: usuario || null, token: token || null,
-                excluir: (localStorage.getItem('pushToken') || null)
+                userId: usuario || null, token: tokenFinal
             })
         });
         const datos = await resp.json().catch(() => ({}));
+        const enviados = datos.fcm_enviados ?? 0;
         const est = document.getElementById('estado');
-        if (est) est.textContent = 'Alerta enviada a ' + quien + ' · equipos: ' + (datos.fcm_enviados ?? 0);
+        if (est) est.textContent = 'Alerta enviada a ' + quien + ' · equipos: ' + enviados;
+        await registrarAlerta(unidad, usuario, tokenFinal, enviados > 0 ? 'enviada' : 'sin_entrega', 'evacuacion manual');
     } catch (e) {
         const est = document.getElementById('estado');
         if (est) est.textContent = 'No se pudo enviar: ' + e.message;
+        await registrarAlerta(unidad, usuario, tokenFinal, 'error', e.message);
     }
 }
 
 /* ------------------------------------------------------------
-   Suscripcion del celular (a que unidad corresponde)
+   Sesion de la unidad: dueño unico y token vigente
    ------------------------------------------------------------ */
 async function sincronizarSuscripcion(c) {
-    if (!c || !c.nombre) return;
+    if (!c || !c.nombre || !c.unidad) return;
     let token = null;
     try { token = localStorage.getItem('pushToken'); } catch (e) {}
     if (!token || String(token).length < 30) return;
 
     try {
-        await db.from('push_subscriptions').delete().eq('token', token);
-        await db.from('push_subscriptions').insert({
-            user_id: c.nombre,
-            token: token,
-            unidad: c.unidad || null
-        });
+        const { data } = await db.from('sesiones_unidad')
+            .select('unidad, user_id')
+            .eq('unidad', c.unidad);
+
+        if (!data || !data.length) {
+            // Turno anterior a este cambio: se registra la sesion que ya tenia
+            await db.from('sesiones_unidad').insert({
+                unidad: c.unidad,
+                user_id: c.nombre,
+                token: token,
+                inicio: c.inicio || new Date().toISOString()
+            });
+            return;
+        }
+
+        if (normalizar(data[0].user_id) === normalizar(c.nombre)) {
+            // Titular: solo mantiene el token al dia
+            await db.from('sesiones_unidad').update({ token: token }).eq('unidad', c.unidad);
+        }
     } catch (e) {
-        console.warn('sincronizar suscripcion', e);
+        console.warn('sincronizar sesion', e);
     }
 }
 
@@ -509,16 +532,14 @@ async function cerrarTurno() {
     if (!confirm('¿Finalizar el turno? Se dejará de compartir la ubicación.')) return;
     const c = sesionConductor();
 
-    // 1) Detener el servicio nativo. Si falla, se ignora: la limpieza debe ocurrir igual.
+    // 1) Borrar la sesion de la unidad: desde este momento nada de su celular entra
     try {
-        if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
-            window.AndroidUbicacion.detenerServicio();
-        }
+        if (c && c.unidad) await db.from('sesiones_unidad').delete().eq('unidad', c.unidad);
     } catch (e) {
-        console.warn('detener servicio', e);
+        console.warn('cerrar sesion', e);
     }
 
-    // 2) Borrar el registro de la unidad SIEMPRE (por persona y por unidad)
+    // 2) Borrar sus registros (posicion y suscripcion)
     try {
         if (c && c.nombre) await db.from('ubicaciones').delete().eq('user_id', c.nombre);
         if (c && c.unidad) await db.from('ubicaciones').delete().eq('unidad', c.unidad);
@@ -528,17 +549,19 @@ async function cerrarTurno() {
         console.warn('limpieza de turno', e);
     }
 
-    // 3) Olvidar la sesión en este celular
-    try {
-        localStorage.removeItem('conductor');
-        localStorage.removeItem('pushToken');
-    } catch (e) {}
-
-    // 4) Segundo intento de detener el servicio (por si el primero falló)
+    // 3) Detener el servicio nativo
     try {
         if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
             window.AndroidUbicacion.detenerServicio();
         }
+    } catch (e) {
+        console.warn('detener servicio', e);
+    }
+
+    // 4) Olvidar la sesión en este celular
+    try {
+        localStorage.removeItem('conductor');
+        localStorage.removeItem('pushToken');
     } catch (e) {}
 
     window.location.href = 'conductor.html?v=20';
@@ -836,39 +859,40 @@ async function cargarMaquinas() {
     });
 }
 
-/* Celular de la ULTIMA sesion de la unidad (una sola persona) */
+/* Celular del titular de la unidad (sesion unica) */
 async function tokensDeUnidad(unidad) {
     const buscado = normalizar(unidad);
+    try {
+        const { data } = await db.from('sesiones_unidad')
+            .select('unidad, user_id, token, inicio');
 
-    // 1) Suscripcion del turno: se toma la mas reciente de esa unidad
-    const { data: subs } = await db.from('push_subscriptions')
-        .select('user_id, token, unidad, created_at');
+        const sesion = (data || []).find(s => normalizar(s.unidad) === buscado);
+        if (!sesion) return { tokens: [], conductores: [] };
 
-    const propias = (subs || []).filter(s =>
-        s.unidad && normalizar(s.unidad) === buscado &&
-        s.token && String(s.token).length > 30
-    );
+        let token = sesion.token ? String(sesion.token) : '';
+        if (token.length < 30) token = await buscarToken(sesion.user_id);
 
-    if (propias.length) {
-        propias.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        const ultima = propias[0];
-        return { tokens: [ultima.token], conductores: ultima.user_id ? [ultima.user_id] : [] };
+        return {
+            tokens: token ? [token] : [],
+            conductores: sesion.user_id ? [sesion.user_id] : []
+        };
+    } catch (e) {
+        console.warn('tokensDeUnidad', e);
+        return { tokens: [], conductores: [] };
     }
+}
 
-    // 2) Respaldo: fila de ubicacion vigente (unidades con sesion anterior al cambio)
-    const ahora = Date.now();
-    const { data } = await db.from('ubicaciones').select('user_id, unidad, token, actualizado_en');
-
-    const fila = (data || []).find(u =>
-        normalizar(u.unidad) === buscado &&
-        u.token && String(u.token).length > 30 &&
-        isFinite(new Date(u.actualizado_en).getTime()) &&
-        (ahora - new Date(u.actualizado_en).getTime()) <= 15 * 60 * 1000
-    );
-
-    return fila
-        ? { tokens: [fila.token], conductores: fila.user_id ? [fila.user_id] : [] }
-        : { tokens: [], conductores: [] };
+/* Registro de cada alerta enviada (para saber si llego o no) */
+async function registrarAlerta(unidad, user_id, token, resultado, detalle) {
+    try {
+        await db.from('alertas_log').insert({
+            unidad: unidad || null,
+            user_id: user_id || null,
+            token: token ? String(token).slice(0, 40) : null,
+            resultado: resultado,
+            detalle: detalle || null
+        });
+    } catch (e) { console.warn('alertas_log', e); }
 }
 
 /* Avisa a TODOS los conductores de esa maquina. Devuelve cuantos celulares recibieron */
@@ -892,6 +916,10 @@ async function alertarMaquina(unidad, punto) {
             const datos = await resp.json().catch(() => ({}));
             if ((datos.fcm_enviados ?? 0) > 0) enviados++;
         }
+
+        await registrarAlerta(unidad, conductores[0], tokens[0],
+            enviados > 0 ? 'enviada' : 'sin_entrega',
+            'punto ' + (punto.orden || '') + ' · ' + tokens.length + ' celular(es)');
 
         return { enviados, total: tokens.length, conductores };
     } catch (e) {
