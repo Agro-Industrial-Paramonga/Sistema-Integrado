@@ -207,7 +207,7 @@ public class MainActivity extends BridgeActivity {
                             abrirAjustesUbicacionSistema();
                             break;
                         case "fondo":
-                            abrirAjustesApp();
+                            solicitarUbicacionAhora();
                             break;
                         case "notificaciones":
                             androidx.core.app.ActivityCompat.requestPermissions(this,
@@ -325,7 +325,11 @@ public class MainActivity extends BridgeActivity {
             }
 
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !fondo) {
-                abrirAjustesApp();       // "Permitir todo el tiempo" solo se activa aqui
+                // Como antes: se pide el permiso y el sistema muestra la opcion
+                // "Permitir todo el tiempo".
+                androidx.core.app.ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                        CODIGO_UBICACION + 1);
                 return;
             }
 
@@ -532,7 +536,7 @@ public class MainActivity extends BridgeActivity {
                     .edit().putBoolean("ubicacion_negada", !concedido).apply();
 
             if (concedido
-                    && android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
+                    && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
 
                 boolean tieneFondo = ContextCompat.checkSelfPermission(this,
                         Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
