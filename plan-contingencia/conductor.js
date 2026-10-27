@@ -29,6 +29,8 @@ async function cargar() {
     await cargarUnidades();
     await cargarConductores();
     conectarEventos();
+    revisarUbicacion();
+    vigilarUbicacion();
 }
 
 /* ------------------------------------------------------------
@@ -207,13 +209,21 @@ function validar() {
     const boton = document.getElementById('btn-entrar');
     if (!boton) return;
 
+    if (!ubicacionOk && !etiquetaBloqueada) {
+        etiquetaBloqueada = true;
+        boton.innerHTML = '<i class="fas fa-location-crosshairs"></i> Activa la ubicación';
+    } else if (ubicacionOk && etiquetaBloqueada) {
+        etiquetaBloqueada = false;
+        boton.innerHTML = '<i class="fas fa-play"></i> Iniciar turno';
+    }
+
     if (modoLibre) {
         const nombre = document.getElementById('inp-buscar').value.trim();
-        boton.disabled = !(unidad && nombre.length >= 5);
+        boton.disabled = !(unidad && nombre.length >= 5 && ubicacionOk);
         return;
     }
 
-    boton.disabled = !(unidad && conductorSel);
+    boton.disabled = !(unidad && conductorSel && ubicacionOk);
 }
 
 function mostrarAviso(texto) {
@@ -222,6 +232,94 @@ function mostrarAviso(texto) {
     a.textContent = texto;
     a.style.display = texto ? 'block' : 'none';
 }
+
+/* ------------------------------------------------------------
+   Ubicacion obligatoria: sin GPS encendido no se puede iniciar turno
+   ------------------------------------------------------------ */
+let ubicacionOk = false;
+let etiquetaBloqueada = false;
+let vigilanteUbicacion = null;
+
+const TEXTOS_UBICACION = {
+    apagada: 'La ubicación del celular está desactivada. Actívala para poder iniciar turno.',
+    sin_permiso: 'La app no tiene permiso de ubicación. Concédelo para poder iniciar turno.',
+    sin_permiso_fondo: 'En los permisos de ubicación elige "Permitir todo el tiempo".',
+    sin_soporte: 'Este dispositivo no tiene servicio de ubicación disponible.',
+    error: 'No se pudo leer la ubicación. Actívala y vuelve a intentarlo.'
+};
+
+function hayNativo() {
+    return !!(window.AndroidUbicacion && window.AndroidUbicacion.estadoUbicacion);
+}
+
+async function consultarEstadoUbicacion() {
+    if (hayNativo()) {
+        try { return String(window.AndroidUbicacion.estadoUbicacion()); } catch (e) {}
+    }
+    if (!navigator.geolocation) return 'sin_soporte';
+
+    if (navigator.permissions && navigator.permissions.query) {
+        try {
+            const p = await navigator.permissions.query({ name: 'geolocation' });
+            if (p.state === 'denied') return 'sin_permiso';
+        } catch (e) {}
+    }
+
+    return await new Promise((resolver) => {
+        navigator.geolocation.getCurrentPosition(
+            () => resolver('ok'),
+            (err) => {
+                if (err && err.code === 1) return resolver('sin_permiso');
+                if (err && err.code === 2) return resolver('apagada');
+                resolver('error');
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+    });
+}
+
+function mostrarBloqueoUbicacion(estado) {
+    const caja = document.getElementById('bloqueo-ubicacion');
+    if (!caja) return;
+    const texto = document.getElementById('bloqueo-texto');
+    if (texto) texto.textContent = TEXTOS_UBICACION[estado] || TEXTOS_UBICACION.error;
+    caja.style.display = 'block';
+    const boton = document.getElementById('btn-activar-ubicacion');
+    if (boton) boton.style.display = (estado === 'sin_soporte') ? 'none' : 'inline-flex';
+}
+
+function ocultarBloqueoUbicacion() {
+    const caja = document.getElementById('bloqueo-ubicacion');
+    if (caja) caja.style.display = 'none';
+}
+
+function abrirAjustesUbicacion() {
+    if (window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustesUbicacion) {
+        try { window.AndroidUbicacion.abrirAjustesUbicacion(); return; } catch (e) {}
+    }
+    if (window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes) {
+        try { window.AndroidUbicacion.abrirAjustes(); return; } catch (e) {}
+    }
+    mostrarAviso('Abre Ajustes → Ubicación, actívala y vuelve a esta pantalla.');
+}
+
+async function revisarUbicacion() {
+    const estado = await consultarEstadoUbicacion();
+    ubicacionOk = (estado === 'ok');
+    if (ubicacionOk) ocultarBloqueoUbicacion();
+    else mostrarBloqueoUbicacion(estado);
+    validar();
+    return ubicacionOk;
+}
+
+/* Mientras este bloqueado, revisa cada 4 s: al volver de Ajustes se libera solo */
+function vigilarUbicacion() {
+    if (vigilanteUbicacion) clearInterval(vigilanteUbicacion);
+    vigilanteUbicacion = setInterval(() => { if (!ubicacionOk) revisarUbicacion(); }, 4000);
+}
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarUbicacion(); });
+window.addEventListener('focus', () => revisarUbicacion());
 
 /* ------------------------------------------------------------
    Permiso de ubicacion
@@ -326,6 +424,16 @@ function registrarPush(nombre) {
    ------------------------------------------------------------ */
 async function iniciarTurno() {
     const unidad = document.getElementById('sel-unidad').value;
+
+    const puedeUbicar = await revisarUbicacion();
+    if (!puedeUbicar) {
+        const caja = document.getElementById('bloqueo-ubicacion');
+        if (caja) {
+            caja.style.display = 'block';
+            caja.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+    }
 
     let nombre = '';
     let dni = null;

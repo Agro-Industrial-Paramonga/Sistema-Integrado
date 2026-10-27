@@ -110,6 +110,9 @@ public class MainActivity extends BridgeActivity {
                     == android.content.pm.PackageManager.PERMISSION_GRANTED;
         }
 
+        // El interruptor de ubicacion del celular debe estar encendido
+        final boolean encendida = ubicacionEncendida();
+
         // Tambien exigir exencion del ahorro de bateria
         boolean bateriaTemp = true;
         try {
@@ -118,17 +121,23 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) { }
         final boolean bateriaOk = bateriaTemp;
 
-        if (fina && fondo && bateriaOk) return;
+        if (fina && fondo && encendida && bateriaOk) return;
         if (dialogoUbicacionVisible) return;
         dialogoUbicacionVisible = true;
 
+        final String mensaje = !encendida
+                ? "La ubicación del celular está desactivada.\n\nActívala para que la unidad siga reportando su posición durante el turno."
+                : "Para usar la app durante el turno necesitas:\n\n• Ubicación en \"Permitir todo el tiempo\"\n• Exención del ahorro de batería\n\nSin ambos, la posición de tu unidad deja de compartirse.";
+
         new android.app.AlertDialog.Builder(this)
-                .setTitle("Ubicación obligatoria")
-                .setMessage("Para usar la app durante el turno necesitas:\n\n• Ubicación en \"Permitir todo el tiempo\"\n• Exención del ahorro de batería\n\nSin ambos, la posición de tu unidad deja de compartirse.")
+                .setTitle(!encendida ? "Activa la ubicación" : "Ubicación obligatoria")
+                .setMessage(mensaje)
                 .setCancelable(false)
-                .setPositiveButton("Permitir", (d1, w) -> {
+                .setPositiveButton(!encendida ? "Activar ubicación" : "Permitir", (d1, w) -> {
                     dialogoUbicacionVisible = false;
-                    if (!fina) {
+                    if (!encendida) {
+                        abrirAjustesUbicacionSistema();
+                    } else if (!fina) {
                         androidx.core.app.ActivityCompat.requestPermissions(this,
                                 new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, CODIGO_UBICACION);
                     } else if (!bateriaOk) {
@@ -147,6 +156,59 @@ public class MainActivity extends BridgeActivity {
                     finishAffinity();
                 })
                 .show();
+    }
+
+    /** Estado completo de la ubicacion: permiso, fondo e interruptor del sistema. */
+    private String estadoUbicacionActual() {
+        try {
+            boolean fina = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!fina) return "sin_permiso";
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                boolean fondo = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                if (!fondo) return "sin_permiso_fondo";
+            }
+
+            if (!ubicacionEncendida()) return "apagada";
+            return "ok";
+        } catch (Exception e) {
+            return "error";
+        }
+    }
+
+    /** true si el interruptor de ubicacion del celular esta encendido. */
+    private boolean ubicacionEncendida() {
+        try {
+            android.location.LocationManager lm =
+                    (android.location.LocationManager) getSystemService(LOCATION_SERVICE);
+            if (lm == null) return false;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                return lm.isLocationEnabled();
+            }
+            return lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+                    || lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Abre la pantalla de ubicacion del sistema (interruptor general). */
+    private void abrirAjustesUbicacionSistema() {
+        try {
+            android.content.Intent i = new android.content.Intent(
+                    android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            try {
+                startActivity(new android.content.Intent(
+                        android.provider.Settings.ACTION_SETTINGS));
+            } catch (Exception e2) { e2.printStackTrace(); }
+        }
     }
 
     private boolean dialogoUbicacionVisible = false;
@@ -319,6 +381,21 @@ public class MainActivity extends BridgeActivity {
                         } catch (Exception e) {
                             return false;
                         }
+                    }
+
+                    /* ok | sin_permiso | sin_permiso_fondo | apagada | error */
+                    @JavascriptInterface
+                    public String estadoUbicacion() {
+                        return estadoUbicacionActual();
+                    }
+
+                    @JavascriptInterface
+                    public void abrirAjustesUbicacion() {
+                        runOnUiThread(() -> {
+                            try { abrirAjustesUbicacionSistema(); } catch (Exception e) {
+                                android.util.Log.e("MainActivity", "ajustes ubicacion", e);
+                            }
+                        });
                     }
 
                     @JavascriptInterface
