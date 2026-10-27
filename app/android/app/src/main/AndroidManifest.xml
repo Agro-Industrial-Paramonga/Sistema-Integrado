@@ -80,7 +80,16 @@
             <service
             android:name=".UbicacionService"
             android:foregroundServiceType="location"
+            android:stopWithTask="false"
             android:exported="false" />
+            <receiver
+            android:name=".UbicacionAlarma"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.aipsa.sistema.UBICACION_TICK" />
+            </intent-filter>
+        </receiver>
             <receiver
             android:name=".ArranqueReceiver"
             android:enabled="true"

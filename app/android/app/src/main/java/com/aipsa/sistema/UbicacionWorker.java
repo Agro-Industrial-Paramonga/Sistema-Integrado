@@ -47,6 +47,11 @@ public class UbicacionWorker extends Worker {
             return Result.success();   // no hay sesion: nada que enviar
         }
 
+        // Respaldo del respaldo: si la alarma se perdio, se vuelve a programar
+        try { UbicacionScheduler.programar(ctx); } catch (Exception e) {
+            Log.w(TAG, "No se pudo reprogramar la alarma", e);
+        }
+
         Location loc = ultimaUbicacion(ctx);
         if (loc == null) {
             return Result.retry();

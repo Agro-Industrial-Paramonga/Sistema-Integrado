@@ -1,9 +1,13 @@
 package com.aipsa.sistema;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
-import android.content.SharedPreferences;
-
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.util.Log;
+
 import androidx.core.content.ContextCompat;
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
@@ -14,11 +18,17 @@ import androidx.work.WorkManager;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Programa el envio de ubicacion cada hora, incluso con la app cerrada.
+ * Mantiene el envio de ubicacion funcionando aunque la app este cerrada:
+ *  - Servicio en primer plano (envia cada 5 minutos).
+ *  - Alarma exacta cada 5 minutos que revive el servicio si Android lo mata.
+ *  - WorkManager cada 15 minutos como ultimo respaldo.
  */
 public class UbicacionScheduler {
 
-    private static final String TRABAJO = "envio-ubicacion-horario";
+    private static final String TAG = "UbicacionScheduler";
+    private static final String TRABAJO = "envio-ubicacion-periodico";
+    private static final int PEDIDO_ALARMA = 4401;
+    private static final long INTERVALO_ALARMA_MS = 5 * 60 * 1000L;
 
     /** Guarda quien es el usuario y su unidad, y arranca el envio periodico. */
     public static void iniciar(Context ctx, String usuario, String unidad) {
@@ -39,17 +49,18 @@ public class UbicacionScheduler {
                 Intent servicio = new Intent(ctx, UbicacionService.class);
                 ContextCompat.startForegroundService(ctx, servicio);
             } catch (Exception e) {
-                android.util.Log.w("UbicacionScheduler", "No se pudo iniciar el servicio", e);
+                Log.w(TAG, "No se pudo iniciar el servicio", e);
             }
+            programar(ctx);
         }
 
-        // Respaldo: si el servicio se detiene, WorkManager lo reactiva cada hora
+        // Respaldo: si el servicio y la alarma fallan, WorkManager envia igual
         Constraints restricciones = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
 
         PeriodicWorkRequest trabajo = new PeriodicWorkRequest.Builder(
-                UbicacionWorker.class, 1, TimeUnit.HOURS)
+                UbicacionWorker.class, 15, TimeUnit.MINUTES)
                 .setConstraints(restricciones)
                 .build();
 
@@ -60,6 +71,48 @@ public class UbicacionScheduler {
         );
     }
 
+    /* ------------------------------------------------------------
+       Alarma exacta: es lo que revive el servicio tras cerrar la app
+       ------------------------------------------------------------ */
+    public static void programar(Context ctx) {
+        try {
+            AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+
+            PendingIntent pi = pendiente(ctx);
+            long cuando = System.currentTimeMillis() + INTERVALO_ALARMA_MS;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
+                } catch (SecurityException se) {
+                    // Android 13+ puede no haber concedido alarmas exactas
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
+                }
+            } else {
+                am.setExact(AlarmManager.RTC_WAKEUP, cuando, pi);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "No se pudo programar la alarma", e);
+        }
+    }
+
+    public static void cancelarAlarma(Context ctx) {
+        try {
+            AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            if (am != null) am.cancel(pendiente(ctx));
+        } catch (Exception e) {
+            Log.w(TAG, "No se pudo cancelar la alarma", e);
+        }
+    }
+
+    private static PendingIntent pendiente(Context ctx) {
+        Intent i = new Intent(ctx, UbicacionAlarma.class).setAction(UbicacionAlarma.ACCION);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getBroadcast(ctx, PEDIDO_ALARMA, i, flags);
+    }
+
     /** Cambia solo la unidad asignada, sin reiniciar el envio. */
     public static void cambiarUnidad(Context ctx, String unidad) {
         SharedPreferences prefs = ctx.getSharedPreferences("ubicacion", Context.MODE_PRIVATE);
@@ -68,9 +121,10 @@ public class UbicacionScheduler {
 
     /** Detiene el envio y olvida la sesion. */
     public static void detener(Context ctx) {
-        ctx.stopService(new Intent(ctx, UbicacionService.class));
-        WorkManager.getInstance(ctx).cancelUniqueWork(TRABAJO);
         SharedPreferences prefs = ctx.getSharedPreferences("ubicacion", Context.MODE_PRIVATE);
-        prefs.edit().clear().apply();
+        prefs.edit().clear().apply();          // primero se olvida la sesion
+        cancelarAlarma(ctx);
+        try { ctx.stopService(new Intent(ctx, UbicacionService.class)); } catch (Exception e) { Log.w(TAG, "stopService", e); }
+        WorkManager.getInstance(ctx).cancelUniqueWork(TRABAJO);
     }
 }

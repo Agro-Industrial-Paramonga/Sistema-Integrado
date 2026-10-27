@@ -9,9 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
-import android.os.Handler;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
@@ -30,21 +31,29 @@ import java.util.TimeZone;
 
 /**
  * Servicio en primer plano: envia la ubicacion cada 5 minutos
- * aunque la aplicacion este cerrada. Muestra una notificacion fija
- * mientras comparte (requisito de Android).
+ * aunque la aplicacion este cerrada.
+ *
+ * Tres cosas juntas para que no se detenga:
+ *  1. Servicio en primer plano con START_STICKY.
+ *  2. Escucha activa de GPS (pide posiciones nuevas, no lee solo el cache).
+ *  3. Alarma exacta cada 5 minutos que lo revive si Android mata el proceso.
  */
 public class UbicacionService extends Service {
 
     private static final String TAG = "UbicacionService";
     private static final String CANAL = "ubicacion_activa";
     private static final int ID_NOTIFICACION = 5511;
-    private static final long INTERVALO_MS = 5 * 60 * 1000L;   // 5 minutos
+
+    private static final long INTERVALO_MS = 5 * 60 * 1000L;          // cada 5 minutos
+    private static final long MINIMO_ENTRE_ENVIOS_MS = 3 * 60 * 1000L; // no saturar
 
     private static final String SUPABASE_URL = "https://bfhfnldqwsrcpsdqpyat.supabase.co";
     private static final String SUPABASE_KEY = "sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh";
 
-    private Handler manejador;
-    private Runnable tarea;
+    private LocationManager gestor;
+    private LocationListener escucha;
+    private long ultimoEnvio = 0;
+    private volatile boolean enviando = false;
 
     @Override
     public void onCreate() {
@@ -55,29 +64,45 @@ public class UbicacionService extends Service {
         } catch (Exception e) {
             Log.e(TAG, "No se pudo iniciar en primer plano", e);
             stopSelf();
+            return;
         }
+        iniciarEscucha();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (manejador == null) {
-            manejador = new Handler(Looper.getMainLooper());
+        // Si ya no hay turno activo, no se envia nada
+        if (!haySesion()) {
+            stopSelf();
+            return START_NOT_STICKY;
         }
 
-        if (tarea == null) {
-            tarea = new Runnable() {
-                @Override
-                public void run() {
-                    enviarAhora();
-                    manejador.postDelayed(this, INTERVALO_MS);
-                }
-            };
-        }
+        // Asegura que sigue en primer plano (algunos equipos lo degradan)
+        try { iniciarForeground(); } catch (Exception e) { Log.w(TAG, "foreground", e); }
 
-        manejador.removeCallbacks(tarea);
-        manejador.post(tarea);   // envia de inmediato y luego cada 5 minutos
+        iniciarEscucha();
+
+        boolean desdeAlarma = intent != null && intent.getBooleanExtra("desde_alarma", false);
+        enviarAhora(desdeAlarma);
+
+        // Se reprograma siempre: si el proceso muere, la alarma lo revive
+        UbicacionScheduler.programar(this);
 
         return START_STICKY;
+    }
+
+    private boolean haySesion() {
+        SharedPreferences prefs = getSharedPreferences("ubicacion", Context.MODE_PRIVATE);
+        String usuario = prefs.getString("usuario", null);
+        return usuario != null && !usuario.isEmpty();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // El usuario cerro la app desde "recientes": seguimos enviando
+        Log.i(TAG, "App cerrada por el usuario; el servicio continua");
+        UbicacionScheduler.programar(this);
+        super.onTaskRemoved(rootIntent);
     }
 
     @Nullable
@@ -88,54 +113,71 @@ public class UbicacionService extends Service {
 
     @Override
     public void onDestroy() {
-        if (manejador != null && tarea != null) manejador.removeCallbacks(tarea);
+        detenerEscucha();
         super.onDestroy();
+        // Si el sistema lo destruye con turno activo, deja la alarma puesta
+        if (haySesion()) UbicacionScheduler.programar(this);
     }
 
-    /* ------------------------------------------------------------ */
-
-    private void crearCanal() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm == null) return;
-        if (nm.getNotificationChannel(CANAL) != null) return;
-
-        NotificationChannel canal = new NotificationChannel(
-                CANAL, "Ubicación en turno", NotificationManager.IMPORTANCE_LOW);
-        canal.setDescription("Comparte la ubicación de la unidad durante el turno");
-        canal.setSound(null, null);
-        nm.createNotificationChannel(canal);
-    }
-
-    private void iniciarForeground() {
-        Intent abrir = new Intent(this, MainActivity.class);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent pi = PendingIntent.getActivity(this, 0, abrir, flags);
-
-        Notification notificacion = new NotificationCompat.Builder(this, CANAL)
-                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-                .setContentTitle("Compartiendo ubicación")
-                .setContentText("Tu unidad está reportando su posición")
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setContentIntent(pi)
-                .build();
-
+    /* ------------------------------------------------------------
+       Escucha activa de ubicacion (posiciones frescas)
+       ------------------------------------------------------------ */
+    private void iniciarEscucha() {
+        if (escucha != null) return;
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(ID_NOTIFICACION, notificacion,
-                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
-            } else {
-                startForeground(ID_NOTIFICACION, notificacion);
+            gestor = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (gestor == null) return;
+
+            escucha = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    enviarAhora(false);
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {}
+
+                @Override
+                public void onProviderDisabled(String provider) {}
+
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {}
+            };
+
+            for (String proveedor : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER}) {
+                try {
+                    if (!gestor.isProviderEnabled(proveedor)) continue;
+                    gestor.requestLocationUpdates(proveedor, INTERVALO_MS, 0f, escucha, Looper.getMainLooper());
+                    Log.i(TAG, "Escuchando " + proveedor);
+                } catch (SecurityException se) {
+                    Log.w(TAG, "Sin permiso para " + proveedor);
+                }
             }
         } catch (Exception e) {
-            Log.e(TAG, "startForeground fallo", e);
-            stopSelf();
+            Log.e(TAG, "No se pudo iniciar la escucha", e);
         }
     }
 
-    private void enviarAhora() {
+    private void detenerEscucha() {
+        try {
+            if (gestor != null && escucha != null) gestor.removeUpdates(escucha);
+        } catch (Exception e) {
+            Log.w(TAG, "removeUpdates", e);
+        }
+        escucha = null;
+    }
+
+    /* ------------------------------------------------------------
+       Envio
+       ------------------------------------------------------------ */
+    private void enviarAhora(boolean forzar) {
+        long ahora = System.currentTimeMillis();
+        if (!forzar && ahora - ultimoEnvio < MINIMO_ENTRE_ENVIOS_MS) return;
+        if (enviando) return;
+
+        ultimoEnvio = ahora;
+        enviando = true;
+
         new Thread(() -> {
             try {
                 SharedPreferences prefs = getSharedPreferences("ubicacion", Context.MODE_PRIVATE);
@@ -149,34 +191,39 @@ public class UbicacionService extends Service {
                     return;
                 }
 
+                long edadMin = (System.currentTimeMillis() - loc.getTime()) / 60000L;
+                if (edadMin > 60) Log.w(TAG, "Ubicacion con " + edadMin + " min de antiguedad");
+
                 boolean ok = enviar(usuario, unidad, loc.getLatitude(), loc.getLongitude(), loc.getAccuracy());
                 Log.i(TAG, "Envio " + (ok ? "OK" : "FALLO") + " (" + usuario + ")");
             } catch (Exception e) {
                 Log.e(TAG, "Error en envio", e);
+            } finally {
+                enviando = false;
             }
         }).start();
     }
 
     private Location ultimaUbicacion() {
+        Location mejor = null;
         try {
-            LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-            if (lm == null) return null;
+            if (gestor == null) gestor = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (gestor == null) return null;
 
-            Location mejor = null;
             for (String proveedor : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER}) {
                 try {
-                    if (!lm.isProviderEnabled(proveedor)) continue;
-                    Location l = lm.getLastKnownLocation(proveedor);
+                    if (!gestor.isProviderEnabled(proveedor)) continue;
+                    Location l = gestor.getLastKnownLocation(proveedor);
                     if (l == null) continue;
                     if (mejor == null || l.getTime() > mejor.getTime()) mejor = l;
                 } catch (SecurityException se) {
                     Log.w(TAG, "Sin permiso para " + proveedor);
                 }
             }
-            return mejor;
         } catch (Exception e) {
-            return null;
+            return mejor;
         }
+        return mejor;
     }
 
     private boolean enviar(String usuario, String unidad, double lat, double lon, float precision) {
@@ -226,5 +273,49 @@ public class UbicacionService extends Service {
 
     private String escapar(String texto) {
         return texto.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /* ------------------------------------------------------------
+       Notificacion fija (requisito de Android)
+       ------------------------------------------------------------ */
+    private void crearCanal() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        if (nm.getNotificationChannel(CANAL) != null) return;
+
+        NotificationChannel canal = new NotificationChannel(
+                CANAL, "Ubicación en turno", NotificationManager.IMPORTANCE_LOW);
+        canal.setDescription("Comparte la ubicación de la unidad durante el turno");
+        canal.setSound(null, null);
+        nm.createNotificationChannel(canal);
+    }
+
+    private void iniciarForeground() {
+        Intent abrir = new Intent(this, MainActivity.class);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent pi = PendingIntent.getActivity(this, 0, abrir, flags);
+
+        Notification notificacion = new NotificationCompat.Builder(this, CANAL)
+                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setContentTitle("Compartiendo ubicación")
+                .setContentText("Tu unidad está reportando su posición")
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setContentIntent(pi)
+                .build();
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(ID_NOTIFICACION, notificacion,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(ID_NOTIFICACION, notificacion);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "startForeground fallo", e);
+            stopSelf();
+        }
     }
 }

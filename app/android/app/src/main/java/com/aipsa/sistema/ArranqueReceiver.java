@@ -26,9 +26,12 @@ public class ArranqueReceiver extends BroadcastReceiver {
 
         Intent servicio = new Intent(context, UbicacionService.class);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            context.startForegroundService(servicio);
+            androidx.core.content.ContextCompat.startForegroundService(context, servicio);
         } else {
             context.startService(servicio);
         }
+
+        // Volver a poner la alarma de 5 minutos tras el reinicio
+        UbicacionScheduler.programar(context);
     }
 }
