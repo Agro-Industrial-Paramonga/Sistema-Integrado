@@ -575,7 +575,8 @@ async function cargarMaquinas() {
         const tam = m.tamano || 40;
 
         const marca = L.marker([m.lat, m.lon], {
-            draggable: editorActivo,
+            draggable: true,
+            bubblingMouseEvents: false,
             icon: L.divIcon({
                 className: '',
                 html: `<div class="icono-maquina" style="width:${tam}px;height:${Math.round(tam*0.76)}px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">${iconoMaquinaria(tipo)}</div>`,
