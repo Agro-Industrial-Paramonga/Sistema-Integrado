@@ -90,6 +90,16 @@ public class AlarmaActivity extends Activity {
 
         setContentView(construirVista(titulo, cuerpo));
 
+        // La pantalla ya esta abierta: se corta el tono de la notificacion
+        // para que solo suene la sirena (evita audio duplicado).
+        try {
+            NotificationManager nm =
+                    (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(ID_NOTIFICACION);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         iniciarSonido();
         iniciarVibracion();
         iniciarVoz(titulo, cuerpo);

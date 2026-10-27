@@ -20,9 +20,27 @@ import androidx.core.app.NotificationCompat;
  */
 public class AlarmaNotificacion {
 
-    public static final String CANAL_ID = "alarma_v2";
+    public static final String CANAL_ID = "alarma_v4";
     private static final String TITULO_DEF = "\uD83D\uDEA8 ALERTA DE HUAYCO";
     private static final String CUERPO_DEF = "Se ha autorizado el inicio de los planes de accion.";
+
+    /** Tono de alarma del sistema (suena aunque el telefono este en silencio). */
+    private static Uri sonidoAlarma() {
+        try {
+            Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            return uri;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static AudioAttributes atributosAlarma() {
+        return new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+    }
 
     /** Muestra la notificacion a pantalla completa y abre la pantalla de alarma. */
     public static void mostrar(Context ctx, String titulo, String cuerpo) {
@@ -49,6 +67,8 @@ public class AlarmaNotificacion {
         PendingIntent pi = PendingIntent.getActivity(
                 ctx, AlarmaActivity.ID_NOTIFICACION, intent, flags);
 
+        Uri sonido = sonidoAlarma();
+
         Notification notificacion = new NotificationCompat.Builder(ctx, CANAL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(titulo)
@@ -59,6 +79,9 @@ public class AlarmaNotificacion {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(true)
                 .setContentIntent(pi)
+                .setSound(sonido)
+                .setDefaults(0)
+                .setTimeoutAfter(5 * 60 * 1000L)   // deja de sonar a los 5 minutos
                 .setFullScreenIntent(pi, true)
                 .build();
 
@@ -91,8 +114,10 @@ public class AlarmaNotificacion {
         canal.enableVibration(true);
         canal.setVibrationPattern(new long[]{0, 800, 400});
         canal.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-        // Canal SIN sonido: el audio lo produce la pantalla de alarma (sirena + voz).
-        canal.setSound(null, null);
+
+        // Con sonido: si Android no abre la pantalla (app cerrada y telefono en
+        // uso), la notificacion igual debe escucharse como alarma.
+        canal.setSound(sonidoAlarma(), atributosAlarma());
 
         try {
             nm.createNotificationChannel(canal);
