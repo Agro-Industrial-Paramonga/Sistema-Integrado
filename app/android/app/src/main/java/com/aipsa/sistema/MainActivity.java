@@ -80,6 +80,20 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private void pedirExencionBateriaDirecto() {
+        try {
+            android.content.Intent i = new android.content.Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            i.setData(android.net.Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        } catch (Exception e) {
+            try {
+                startActivity(new android.content.Intent(
+                        android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            } catch (Exception e2) { e2.printStackTrace(); }
+        }
+    }
+
     private void exigirUbicacionObligatoria() {
         android.content.SharedPreferences prefs = getSharedPreferences("ubicacion", MODE_PRIVATE);
         String usuario = prefs.getString("usuario", null);
