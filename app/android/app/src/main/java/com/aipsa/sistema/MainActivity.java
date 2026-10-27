@@ -111,11 +111,12 @@ public class MainActivity extends BridgeActivity {
         }
 
         // Tambien exigir exencion del ahorro de bateria
-        boolean bateriaOk = true;
+        boolean bateriaTemp = true;
         try {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
-            bateriaOk = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
+            bateriaTemp = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
         } catch (Exception e) { }
+        final boolean bateriaOk = bateriaTemp;
 
         if (fina && fondo && bateriaOk) return;
         if (dialogoUbicacionVisible) return;
