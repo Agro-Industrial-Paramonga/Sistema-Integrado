@@ -598,26 +598,13 @@ async function cargarMaquinas() {
         marca.on('dragend', async (ev) => {
             const pos = ev.target.getLatLng();
             const punto = await puntoMasCercano(pos.lat, pos.lng);
-            const nuevoOrden = punto ? punto.orden : null;
 
-            await db.from('mapa_maquinas').update({
-                lat: pos.lat, lon: pos.lng,
-                punto_orden: nuevoOrden,
-                actualizado_en: new Date().toISOString()
-            }).eq('id', m.id);
+            m.lat = pos.lat; m.lon = pos.lng;
+            m.punto_orden = punto ? punto.orden : null;
+            m.__dirty = true;
 
             const est = document.getElementById('estado');
-
-            if (nuevoOrden && nuevoOrden !== m.punto_orden) {
-                await alertarMaquina(m.unidad, punto);
-                if (est) est.textContent = '✓ ' + m.unidad + ' asignada al punto ' + nuevoOrden + ' – ' + (punto.nombre || '');
-            } else if (nuevoOrden) {
-                if (est) est.textContent = '✓ ' + m.unidad + ' sigue en el punto ' + nuevoOrden;
-            } else {
-                if (est) est.textContent = '✓ ' + m.unidad + ' movida (sin punto cercano)';
-            }
-
-            cargarMaquinas();
+            if (est) est.textContent = m.unidad + ' movida · pulsa Guardar para confirmar';
         });
     });
 }
@@ -750,19 +737,12 @@ async function cargarVectores() {
             icon: icono
         }).addTo(capaPuntos);
 
-        marcador.on('dragend', async (ev) => {
+        marcador.on('dragend', (ev) => {
             const pos = ev.target.getLatLng();
-            const { error } = await db.from('mapa_puntos')
-                .update({ lat: pos.lat, lon: pos.lng })
-                .eq('id', p.id);
-
-            const est = document.getElementById('estado');
-            if (error) {
-                if (est) est.textContent = '❌ No se guardó el punto ' + p.orden + ': ' + error.message;
-                return;
-            }
             p.lat = pos.lat; p.lon = pos.lng;
-            if (est) est.textContent = '✓ Punto ' + p.orden + ' guardado en su nueva posición';
+            p.__dirty = true;
+            const est = document.getElementById('estado');
+            if (est) est.textContent = 'Punto ' + p.orden + ' movido · pulsa Guardar para confirmar';
         });
 
         marcador.on('contextmenu', async (ev) => {
@@ -816,9 +796,40 @@ async function cargarVectores() {
     });
 }
 
+async function guardarEdicion() {
+    const est = document.getElementById('estado');
+    let cambios = 0;
+
+    for (const p of mapasPuntosCache()) {
+        if (!p.__dirty) continue;
+        await db.from('mapa_puntos').update({ lat: p.lat, lon: p.lon }).eq('id', p.id);
+        p.__dirty = false;
+        cambios++;
+    }
+
+    for (const m of maquinasCache) {
+        if (!m.__dirty) continue;
+        const antes = m.punto_orden;
+        await db.from('mapa_maquinas').update({
+            lat: m.lat, lon: m.lon, punto_orden: m.punto_orden,
+            actualizado_en: new Date().toISOString()
+        }).eq('id', m.id);
+        if (m.punto_orden && m.punto_orden !== antes) {
+            const punto = { orden: m.punto_orden, nombre: '' };
+            await alertarMaquina(m.unidad, punto);
+        }
+        m.__dirty = false;
+        cambios++;
+    }
+
+    if (est) est.textContent = cambios > 0 ? ('✓ ' + cambios + ' cambio(s) guardado(s)') : 'Sin cambios pendientes';
+}
+
 function alternarEditor() {
     editorActivo = !editorActivo;
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
+    const bg = document.getElementById('btn-guardar-editor');
+    if (bg) bg.style.display = editorActivo ? 'inline-flex' : 'none';
     const cm = document.getElementById('ctrl-maquina');
     if (cm) cm.style.display = editorActivo ? 'inline-flex' : 'none';
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';

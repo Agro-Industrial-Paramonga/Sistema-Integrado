@@ -105,14 +105,13 @@
                 <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
         <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
-                                <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar puntos</button>
+                                <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
+        <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar puntos</button>
         <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
             <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed"><i class="fas fa-location-dot"></i> Punto</button>
             <button data-modo="roja" onclick="setModoEditor('roja')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#dc2626"></i> Línea roja</button>
             <button data-modo="amarilla" onclick="setModoEditor('amarilla')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#eab308"></i> Línea amarilla</button>
             <button data-modo="turquesa" onclick="setModoEditor('turquesa')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#06b6d4"></i> Línea turquesa</button>
-            <button data-modo="retro" onclick="setModoEditor('retro')" class="btn-modo-ed"><i class="fas fa-tractor"></i> Retroexcavadora</button>
-            <button data-modo="excavadora" onclick="setModoEditor('excavadora')" class="btn-modo-ed"><i class="fas fa-truck-monster"></i> Excavadora</button>
             <button data-modo="borrar" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-eraser"></i> Borrar</button>
             <span id="ctrl-maquina" style="display:none;gap:6px;align-items:center;">
                 <select id="sel-maquina" style="border:1px solid #e2e8f0;border-radius:10px;padding:7px 10px;font-size:.76rem;"></select>
@@ -155,6 +154,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=21"></script>
+    <script src="mapa.js?v=22"></script>
 </body>
 </html>
