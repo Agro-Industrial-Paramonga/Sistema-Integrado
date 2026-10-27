@@ -304,6 +304,24 @@ public class MainActivity extends BridgeActivity {
                     }
 
                     @JavascriptInterface
+                    public boolean tienePermisoUbicacionNativo() {
+                        try {
+                            boolean fina = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    MainActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                            boolean fondo = true;
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                fondo = androidx.core.content.ContextCompat.checkSelfPermission(
+                                        MainActivity.this, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                                        == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                            }
+                            return fina && fondo;
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    }
+
+                    @JavascriptInterface
                     public String obtenerSesionGuardada() {
                         try {
                             android.content.SharedPreferences prefs =

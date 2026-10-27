@@ -180,7 +180,14 @@ async function iniciarTurno() {
     boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando…';
     mostrarAviso('Registrando el celular para alarmas…');
 
-    const hayUbicacion = await ubicacionLista();
+    let hayUbicacion = true;
+
+    // Primero preguntar al celular si el permiso esta concedido
+    if (window.AndroidUbicacion && window.AndroidUbicacion.tienePermisoUbicacionNativo) {
+        try { hayUbicacion = window.AndroidUbicacion.tienePermisoUbicacionNativo(); } catch (e) { hayUbicacion = true; }
+    } else {
+        hayUbicacion = await ubicacionLista();
+    }
     if (!hayUbicacion) {
         mostrarAviso('⛔ Debes permitir la ubicación para iniciar turno. Si no aparece el aviso, actívala en Ajustes → Aplicaciones → Permisos → Ubicación → Permitir todo el tiempo.');
         const b = document.getElementById('btn-entrar');
