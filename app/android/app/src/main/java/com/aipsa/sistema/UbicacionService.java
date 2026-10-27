@@ -55,6 +55,11 @@ public class UbicacionService extends Service {
     private long ultimoEnvio = 0;
     private volatile boolean enviando = false;
 
+    /* Diagnostico remoto: se guarda en app_log para saber por que no envia */
+    private static final String APP_LOG_URL = SUPABASE_URL + "/rest/v1/app_log";
+    private long ultimoLogOk = 0;
+    private long ultimoLogFallo = 0;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -185,23 +190,101 @@ public class UbicacionService extends Service {
                 String unidad = prefs.getString("unidad", "");
                 if (usuario == null || usuario.isEmpty()) return;
 
+                String permiso = describirPermiso();
+                if (!permiso.startsWith("fino")) {
+                    logFallo("sin permiso de ubicacion (" + permiso + ")");
+                    return;
+                }
+
                 Location loc = ultimaUbicacion();
                 if (loc == null) {
-                    Log.w(TAG, "Sin ubicacion disponible");
+                    logFallo("sin fix de GPS (" + describirProveedores() + ")");
                     return;
                 }
 
                 long edadMin = (System.currentTimeMillis() - loc.getTime()) / 60000L;
-                if (edadMin > 60) Log.w(TAG, "Ubicacion con " + edadMin + " min de antiguedad");
 
-                boolean ok = enviar(usuario, unidad, loc.getLatitude(), loc.getLongitude(), loc.getAccuracy());
-                Log.i(TAG, "Envio " + (ok ? "OK" : "FALLO") + " (" + usuario + ")");
+                int codigo = enviar(usuario, unidad, loc.getLatitude(), loc.getLongitude(), loc.getAccuracy());
+
+                if (codigo >= 200 && codigo < 300) {
+                    Log.i(TAG, "Envio OK (" + usuario + ")");
+                    if (ahora - ultimoLogOk > 60 * 60 * 1000L) {
+                        ultimoLogOk = ahora;
+                        logRemoto("ok · " + usuario + " · " + unidad + " · prec=" + Math.round(loc.getAccuracy())
+                                + "m · fix=" + edadMin + "min · codigo=" + codigo);
+                    }
+                } else {
+                    Log.w(TAG, "Envio FALLO (" + usuario + ") codigo=" + codigo);
+                    logFallo("envio fallo codigo=" + codigo + " · " + describirProveedores()
+                            + " · fix=" + edadMin + "min");
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Error en envio", e);
+                logFallo("excepcion: " + e.getClass().getSimpleName() + " " + e.getMessage());
             } finally {
                 enviando = false;
             }
         }).start();
+    }
+
+    private String describirPermiso() {
+        boolean fino = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean grueso = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean fondo = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            fondo = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+        if (fino) return "fino" + (fondo ? "+fondo" : " SIN fondo");
+        if (grueso) return "grueso";
+        return "NINGUNO";
+    }
+
+    private String describirProveedores() {
+        try {
+            if (gestor == null) gestor = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (gestor == null) return "sin LocationManager";
+            boolean gps = gestor.isProviderEnabled(LocationManager.GPS_PROVIDER);
+            boolean red = gestor.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+            return "gps=" + (gps ? "si" : "NO") + " red=" + (red ? "si" : "NO");
+        } catch (Exception e) {
+            return "proveedores?";
+        }
+    }
+
+    /* Se guarda en app_log; con limite para no llenar la tabla */
+    private void logFallo(String motivo) {
+        long ahora = System.currentTimeMillis();
+        if (ahora - ultimoLogFallo < 10 * 60 * 1000L) return;
+        ultimoLogFallo = ahora;
+        logRemoto("fallo · " + motivo);
+    }
+
+    private void logRemoto(String detalle) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(APP_LOG_URL).openConnection();
+            c.setRequestMethod("POST");
+            c.setRequestProperty("apikey", SUPABASE_KEY);
+            c.setRequestProperty("Authorization", "Bearer " + SUPABASE_KEY);
+            c.setRequestProperty("Content-Type", "application/json");
+            c.setRequestProperty("Prefer", "return=minimal");
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(10000);
+            c.setDoOutput(true);
+            String json = "{\"origen\":\"ubicacion\",\"detalle\":\"" + escapar(detalle) + "\"}";
+            try (OutputStream salida = c.getOutputStream()) {
+                salida.write(json.getBytes(StandardCharsets.UTF_8));
+            }
+            c.getResponseCode();
+            c.disconnect();
+        } catch (Exception e) {
+            Log.w(TAG, "log remoto fallo", e);
+        }
     }
 
     private Location ultimaUbicacion() {
@@ -226,7 +309,7 @@ public class UbicacionService extends Service {
         return mejor;
     }
 
-    private boolean enviar(String usuario, String unidad, double lat, double lon, float precision) {
+    private int enviar(String usuario, String unidad, double lat, double lon, float precision) {
         HttpURLConnection conexion = null;
         try {
             URL url = new URL(SUPABASE_URL + "/rest/v1/ubicaciones?on_conflict=user_id");
@@ -262,10 +345,10 @@ public class UbicacionService extends Service {
             }
 
             int codigo = conexion.getResponseCode();
-            return codigo >= 200 && codigo < 300;
+            return codigo;
         } catch (Exception e) {
             Log.e(TAG, "Error de red", e);
-            return false;
+            return 0;
         } finally {
             if (conexion != null) conexion.disconnect();
         }
