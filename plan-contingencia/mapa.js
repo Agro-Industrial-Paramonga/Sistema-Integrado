@@ -645,10 +645,10 @@ async function cargarCampos() {
                deja de capturar el clic mientras se edita (ver CSS .mapa-editando) */
             className: 'campo-poligono',
             style: () => ({
-                color: '#16a34a',
+                color: '#06b6d4',
                 weight: 1.5,
                 opacity: 0.95,
-                fillColor: '#22c55e',
+                fillColor: '#22d3ee',
                 fillOpacity: 0.10
             }),
             onEachFeature: (feat, capa) => {
