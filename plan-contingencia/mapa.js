@@ -509,20 +509,38 @@ async function cerrarTurno() {
     if (!confirm('¿Finalizar el turno? Se dejará de compartir la ubicación.')) return;
     const c = sesionConductor();
 
-    if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
-        window.AndroidUbicacion.detenerServicio();
+    // 1) Detener el servicio nativo. Si falla, se ignora: la limpieza debe ocurrir igual.
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
+            window.AndroidUbicacion.detenerServicio();
+        }
+    } catch (e) {
+        console.warn('detener servicio', e);
     }
 
-    if (c && c.nombre) {
-        await db.from('ubicaciones').delete().eq('user_id', c.nombre);
-        // El celular deja de estar suscrito a esa persona
-        await db.from('push_subscriptions').delete().eq('user_id', c.nombre);
-        // Y la unidad queda libre (aunque haya quedado alguna fila vieja)
-        if (c.unidad) await db.from('push_subscriptions').delete().eq('unidad', c.unidad);
+    // 2) Borrar el registro de la unidad SIEMPRE (por persona y por unidad)
+    try {
+        if (c && c.nombre) await db.from('ubicaciones').delete().eq('user_id', c.nombre);
+        if (c && c.unidad) await db.from('ubicaciones').delete().eq('unidad', c.unidad);
+        if (c && c.nombre) await db.from('push_subscriptions').delete().eq('user_id', c.nombre);
+        if (c && c.unidad) await db.from('push_subscriptions').delete().eq('unidad', c.unidad);
+    } catch (e) {
+        console.warn('limpieza de turno', e);
     }
 
-    localStorage.removeItem('conductor');
-    localStorage.removeItem('pushToken');
+    // 3) Olvidar la sesión en este celular
+    try {
+        localStorage.removeItem('conductor');
+        localStorage.removeItem('pushToken');
+    } catch (e) {}
+
+    // 4) Segundo intento de detener el servicio (por si el primero falló)
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
+            window.AndroidUbicacion.detenerServicio();
+        }
+    } catch (e) {}
+
     window.location.href = 'conductor.html?v=20';
 }
 
