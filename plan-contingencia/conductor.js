@@ -294,6 +294,14 @@ function ocultarBloqueoUbicacion() {
 }
 
 function abrirAjustesUbicacion() {
+    // Via correcta: el nativo decide entre dialogo de permiso o Ajustes
+    if (window.AndroidUbicacion && window.AndroidUbicacion.pedirPermisoUbicacion) {
+        try {
+            window.AndroidUbicacion.pedirPermisoUbicacion();
+            setTimeout(revisarUbicacion, 1200);
+            return;
+        } catch (e) {}
+    }
     if (window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustesUbicacion) {
         try { window.AndroidUbicacion.abrirAjustesUbicacion(); return; } catch (e) {}
     }

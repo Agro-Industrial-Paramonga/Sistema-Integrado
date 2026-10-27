@@ -201,8 +201,7 @@ public class MainActivity extends BridgeActivity {
                     dialogoUbicacionVisible = false;
                     switch (falta) {
                         case "ubicacion":
-                            androidx.core.app.ActivityCompat.requestPermissions(this,
-                                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, CODIGO_UBICACION);
+                            solicitarUbicacionAhora();
                             break;
                         case "apagada":
                             abrirAjustesUbicacionSistema();
@@ -284,6 +283,55 @@ public class MainActivity extends BridgeActivity {
                 startActivity(new android.content.Intent(
                         android.provider.Settings.ACTION_SETTINGS));
             } catch (Exception e2) { e2.printStackTrace(); }
+        }
+    }
+
+    /**
+     * Pide el permiso de ubicacion por la via correcta segun lo que falte:
+     *  - permiso de la app       -> dialogo del sistema (o Ajustes si ya no aparece)
+     *  - "todo el tiempo"        -> Ajustes de la app (obligatorio en Android 11+)
+     *  - interruptor apagado     -> pantalla de ubicacion del sistema
+     */
+    private void solicitarUbicacionAhora() {
+        try {
+            boolean fina = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+            boolean fondo = true;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                fondo = androidx.core.content.ContextCompat.checkSelfPermission(this,
+                        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            }
+
+            if (!fina) {
+                boolean yaNiega = getSharedPreferences("avisos", MODE_PRIVATE)
+                        .getBoolean("ubicacion_negada", false);
+
+                boolean puedeDialogo = !yaNiega
+                        || androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                                this, android.Manifest.permission.ACCESS_FINE_LOCATION);
+
+                if (puedeDialogo) {
+                    androidx.core.app.ActivityCompat.requestPermissions(this,
+                            new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                         android.Manifest.permission.ACCESS_COARSE_LOCATION},
+                            CODIGO_UBICACION);
+                } else {
+                    abrirAjustesApp();   // Android ya no mostrará el dialogo
+                }
+                return;
+            }
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !fondo) {
+                abrirAjustesApp();       // "Permitir todo el tiempo" solo se activa aqui
+                return;
+            }
+
+            if (!ubicacionEncendida()) abrirAjustesUbicacionSistema();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "solicitarUbicacionAhora", e);
         }
     }
 
@@ -474,19 +522,26 @@ public class MainActivity extends BridgeActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        // Si concedio la ubicacion normal, pedir "Todo el tiempo" (segundo plano)
-        if (requestCode == CODIGO_UBICACION
-                && grantResults.length > 0
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        // Si concedio la ubicacion normal, pedir "Todo el tiempo" (segundo plano).
+        // OJO: en Android 11+ ese permiso ya no se puede pedir con un dialogo
+        // (el sistema ignora la peticion); solo se activa en Ajustes de la app.
+        if (requestCode == CODIGO_UBICACION && grantResults.length > 0) {
+            boolean concedido = grantResults[0] == PackageManager.PERMISSION_GRANTED;
 
-            boolean tieneFondo = ContextCompat.checkSelfPermission(this,
-                    Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            getSharedPreferences("avisos", MODE_PRIVATE)
+                    .edit().putBoolean("ubicacion_negada", !concedido).apply();
 
-            if (!tieneFondo) {
-                ActivityCompat.requestPermissions(MainActivity.this,
-                        new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
-                        CODIGO_UBICACION + 1);
+            if (concedido
+                    && android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.Q) {
+
+                boolean tieneFondo = ContextCompat.checkSelfPermission(this,
+                        Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+
+                if (!tieneFondo) {
+                    ActivityCompat.requestPermissions(MainActivity.this,
+                            new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                            CODIGO_UBICACION + 1);
+                }
             }
         }
 
@@ -679,6 +734,12 @@ public class MainActivity extends BridgeActivity {
                     @JavascriptInterface
                     public void cambiarUnidad(String unidad) {
                         UbicacionScheduler.cambiarUnidad(getApplicationContext(), unidad);
+                    }
+
+                    /* Pide el permiso de ubicacion por la via correcta (dialogo o Ajustes) */
+                    @JavascriptInterface
+                    public void pedirPermisoUbicacion() {
+                        runOnUiThread(() -> solicitarUbicacionAhora());
                     }
 
                     @JavascriptInterface
