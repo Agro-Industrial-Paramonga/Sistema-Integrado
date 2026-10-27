@@ -63,6 +63,16 @@ function accesoPermitido() {
     return texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
 }
 
+/* Editar el mapa (puntos, líneas, máquinas, georreferencia) es solo de Seguridad
+   Industrial —César Chunga—. El resto entra y ve todo lo que él publica. */
+function puedeEditarMapa() {
+    if (sesionConductor()) return false;
+    const u = usuarioPlan();
+    if (!u) return false;
+    const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
+    return texto.includes('seguridad industrial') || texto.includes('chunga');
+}
+
 function esMovil() {
     return window.innerWidth < 900 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
@@ -181,18 +191,19 @@ function mostrarCapa(clave) {
 function actualizarControles() {
     const botonEd = document.getElementById('btn-editar-puntos');
     if (botonEd) {
-        const puede = !esMovil() && !sesionConductor() && accesoPermitido();
+        const puede = !esMovil() && puedeEditarMapa();
         botonEd.style.display = puede ? 'inline-flex' : 'none';
     }
 
     const botonAjustar = document.getElementById('btn-ajustar');
-    if (botonAjustar) botonAjustar.style.display = esMovil() ? 'none' : 'inline-flex';
+    if (botonAjustar) botonAjustar.style.display = (!esMovil() && puedeEditarMapa()) ? 'inline-flex' : 'none';
 }
 
 /* ------------------------------------------------------------
    Ajuste de la capa activa
    ------------------------------------------------------------ */
 function alternarAjuste() {
+    if (!puedeEditarMapa()) return;
     modoAjuste = !modoAjuste;
 
     document.getElementById('btn-ajustar').classList.toggle('activo', modoAjuste);
@@ -248,6 +259,7 @@ function actualizarOverlayActivo() {
 }
 
 async function guardarCapa() {
+    if (!puedeEditarMapa()) return;
     const c = CAPAS[capaActiva];
     const boton = document.getElementById('btn-guardar');
     boton.disabled = true;
@@ -799,7 +811,7 @@ async function cargarMaquinas() {
         const tam = m.tamano || 40;
 
         const marca = L.marker([m.lat, m.lon], {
-            draggable: true,
+            draggable: editorActivo,
             bubblingMouseEvents: false,
             icon: L.divIcon({
                 className: '',
@@ -859,6 +871,7 @@ async function cargarMaquinas() {
         });
 
         marca.on('dragend', async (ev) => {
+            if (!puedeEditarMapa()) return;
             const pos = ev.target.getLatLng();
             const cerca = puntoMasCercanoLocal(pos.lat, pos.lng);
             const dentro = !!(cerca && cerca.dist <= RADIO_PUNTO_M);
@@ -1186,6 +1199,7 @@ async function cargarVectores() {
 }
 
 async function guardarEdicion() {
+    if (!puedeEditarMapa()) return;
     const est = document.getElementById('estado');
     let cambios = 0;
 
@@ -1215,6 +1229,7 @@ async function guardarEdicion() {
 }
 
 function alternarEditor() {
+    if (!puedeEditarMapa()) return;
     editorActivo = !editorActivo;
     document.body.classList.toggle('mapa-editando', editorActivo);
     if (editorActivo && mapa) { try { mapa.closePopup(); } catch (e) {} }
@@ -1261,7 +1276,7 @@ function setModoEditor(modo) {
 }
 
 async function clickEditor(latlng) {
-    if (!editorActivo || !modoEditor) return;
+    if (!editorActivo || !modoEditor || !puedeEditarMapa()) return;
 
     if (modoEditor === 'punto' || modoEditor === 'retro' || modoEditor === 'excavadora') {
         const { data } = await db.from('mapa_puntos').select('orden').order('orden', { ascending: false }).limit(1);
@@ -1399,6 +1414,7 @@ async function borrarPunto(id) {
 }
 
 async function borrarTodo() {
+    if (!puedeEditarMapa()) return;
     if (!confirm('¿Borrar TODOS los puntos y líneas?')) return;
     await db.from('mapa_puntos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await db.from('mapa_lineas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
