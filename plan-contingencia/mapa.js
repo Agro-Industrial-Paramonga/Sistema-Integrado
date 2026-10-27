@@ -587,6 +587,15 @@ async function cargarMaquinas() {
         marca.bindTooltip(m.unidad + (m.punto_orden ? ' · punto ' + m.punto_orden : ''),
             { permanent: false, direction: 'top' });
 
+        marca.on('click', async () => {
+            if (!editorActivo) return;
+            if (!confirm('¿Eliminar ' + m.unidad + ' del mapa?')) return;
+            await db.from('mapa_maquinas').delete().eq('id', m.id);
+            const est = document.getElementById('estado');
+            if (est) est.textContent = '✓ ' + m.unidad + ' eliminada';
+            cargarMaquinas();
+        });
+
         marca.on('contextmenu', async (ev) => {
             L.DomEvent.stopPropagation(ev);
             if (!editorActivo) return;
