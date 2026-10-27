@@ -829,8 +829,7 @@ async function alertarMaquina(unidad, punto) {
                     title: 'Dirígete al punto ' + punto.orden + ' – ' + (punto.nombre || ''),
                     body: 'Se te asignó este punto crítico. Dirígete de inmediato.',
                     userId: null,
-                    token: token,
-                    excluir: (localStorage.getItem('pushToken') || null)
+                    token: token
                 })
             });
             const datos = await resp.json().catch(() => ({}));
