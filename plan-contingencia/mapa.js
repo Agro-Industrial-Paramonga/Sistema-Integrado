@@ -570,8 +570,8 @@ async function cargarMaquinas() {
     maquinasCache = data || [];
 
     maquinasCache.forEach(m => {
-        const tipo = m.unidad.includes('EXCAVADORA DE ARRASTRE') ? 'excavadora'
-            : m.unidad.includes('EXCAVADORA') ? 'excavadora' : 'retro';
+        const tipo = m.unidad.includes('RETRO') ? 'retro'
+            : (m.unidad.includes('ARRASTRE') || m.unidad.includes('EXCAVADORA')) ? 'excavadora' : 'retro';
         const tam = m.tamano || 40;
 
         const marca = L.marker([m.lat, m.lon], {
@@ -604,16 +604,36 @@ async function cargarMaquinas() {
             cargarMaquinas();
         });
 
+        marca.on('drag', async (ev) => {
+            const pos = ev.target.getLatLng();
+            const punto = await puntoMasCercano(pos.lat, pos.lng);
+            const div = ev.target.getElement()?.querySelector('.icono-maquina');
+            if (div) div.classList.toggle('choque', !!punto);
+        });
+
         marca.on('dragend', async (ev) => {
             const pos = ev.target.getLatLng();
             const punto = await puntoMasCercano(pos.lat, pos.lng);
 
+            const div = (ev.target.getElement() || {}).querySelector
+                ? ev.target.getElement().querySelector('.icono-maquina') : null;
+            if (div) div.classList.remove('choque');
+
+            const anterior = m.punto_orden;
             m.lat = pos.lat; m.lon = pos.lng;
             m.punto_orden = punto ? punto.orden : null;
             m.__dirty = true;
 
             const est = document.getElementById('estado');
-            if (est) est.textContent = m.unidad + ' movida · pulsa Guardar para confirmar';
+
+            if (punto && punto.orden !== anterior) {
+                await alertarMaquina(m.unidad, punto);   // alarma a pantalla completa
+                if (est) est.textContent = '🚨 ' + m.unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '');
+            } else if (punto) {
+                if (est) est.textContent = m.unidad + ' en el punto ' + punto.orden + ' · pulsa Guardar';
+            } else {
+                if (est) est.textContent = m.unidad + ' movida (sin punto cercano) · pulsa Guardar';
+            }
         });
     });
 }

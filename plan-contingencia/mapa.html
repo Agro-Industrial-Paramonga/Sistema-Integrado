@@ -61,6 +61,13 @@
             box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: move;
         }
 
+        @keyframes choquePulso {
+            0%   { filter: drop-shadow(0 0 0 rgba(220,38,38,0)); transform: scale(1); }
+            50%  { filter: drop-shadow(0 0 12px rgba(220,38,38,.95)); transform: scale(1.12); }
+            100% { filter: drop-shadow(0 0 0 rgba(220,38,38,0)); transform: scale(1); }
+        }
+        .icono-maquina.choque { animation: choquePulso .55s infinite; }
+
         .icono-maquina {
             filter: drop-shadow(0 2px 4px rgba(0,0,0,.45));
             cursor: move;
@@ -154,6 +161,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=23"></script>
+    <script src="mapa.js?v=24"></script>
 </body>
 </html>
