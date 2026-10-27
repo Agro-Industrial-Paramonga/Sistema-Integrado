@@ -213,6 +213,123 @@ public class MainActivity extends BridgeActivity {
 
     private boolean dialogoUbicacionVisible = false;
 
+    /**
+     * Revisa lo que hace falta para que la ALERTA EMERGENTE aparezca de verdad.
+     * La alarma se muestra como notificacion con fullScreenIntent: sin permiso de
+     * notificaciones, sin "pantalla completa" o con el canal silenciado, no sale nada.
+     */
+    private void verificarAlarmaEmergente(boolean alAbrir) {
+        try {
+            // 1) Permiso de notificaciones (Android 13+)
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                boolean notificaciones = androidx.core.content.ContextCompat.checkSelfPermission(
+                        this, "android.permission.POST_NOTIFICATIONS")
+                        == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+                if (!notificaciones) {
+                    if (alAbrir) {
+                        androidx.core.app.ActivityCompat.requestPermissions(this,
+                                new String[]{"android.permission.POST_NOTIFICATIONS"}, CODIGO_NOTIFICACIONES);
+                    } else {
+                        avisarNotificacionesApagadas();
+                    }
+                    return;
+                }
+            }
+
+            android.app.NotificationManager nm =
+                    (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            // 2) Permitir pantalla completa (Android 14+)
+            if (android.os.Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()) {
+                avisarPantallaCompleta();
+                return;
+            }
+
+            // 3) El canal de la alarma silenciado por el usuario
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                android.app.NotificationChannel canal =
+                        nm.getNotificationChannel(AlarmaNotificacion.CANAL_ID);
+                if (canal != null && canal.getImportance() == android.app.NotificationManager.IMPORTANCE_NONE) {
+                    avisarCanalSilenciado();
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "verificarAlarmaEmergente", e);
+        }
+    }
+
+    /** Evita repetir el mismo aviso cada vez que se abre la app. */
+    private boolean puedoAvisar(String clave, long cadaMs) {
+        android.content.SharedPreferences prefs = getSharedPreferences("avisos", MODE_PRIVATE);
+        long ultima = prefs.getLong(clave, 0);
+        if (System.currentTimeMillis() - ultima < cadaMs) return false;
+        prefs.edit().putLong(clave, System.currentTimeMillis()).apply();
+        return true;
+    }
+
+    private void abrirAjustesApp() {
+        try {
+            android.content.Intent i = new android.content.Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            i.setData(android.net.Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void avisarNotificacionesApagadas() {
+        if (!puedoAvisar("aviso_notificaciones", 6L * 60 * 60 * 1000)) return;
+        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
+                .setTitle("Sin permiso de notificaciones")
+                .setMessage("Así no pueden aparecer las alertas de evacuación.\n\nActiva las notificaciones de esta app para recibir la alarma a pantalla completa.")
+                .setPositiveButton("Abrir ajustes", (d1, w) -> {
+                    try {
+                        android.content.Intent i = new android.content.Intent(
+                                android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                        i.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+                        startActivity(i);
+                    } catch (Exception e) { abrirAjustesApp(); }
+                })
+                .setNegativeButton("Ahora no", null)
+                .show());
+    }
+
+    private void avisarPantallaCompleta() {
+        if (!puedoAvisar("pantalla_completa", 12L * 60 * 60 * 1000)) return;
+        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
+                .setTitle("Permitir alertas a pantalla completa")
+                .setMessage("Para que la alarma de evacuación aparezca aunque el teléfono esté bloqueado, activa \"Permitir pantalla completa\".")
+                .setPositiveButton("Abrir ajustes", (d1, w) -> {
+                    try {
+                        android.content.Intent i = new android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                        i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                        startActivity(i);
+                    } catch (Exception e) { abrirAjustesApp(); }
+                })
+                .setNegativeButton("Ahora no", null)
+                .show());
+    }
+
+    private void avisarCanalSilenciado() {
+        if (!puedoAvisar("canal_alarma", 12L * 60 * 60 * 1000)) return;
+        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
+                .setTitle("Alarma silenciada")
+                .setMessage("El aviso \"Alarma de Huayco\" está silenciado en este celular, por eso no aparece la alerta a pantalla completa.")
+                .setPositiveButton("Abrir ajustes", (d1, w) -> {
+                    try {
+                        android.content.Intent i = new android.content.Intent(
+                                android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);
+                        i.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+                        i.putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, AlarmaNotificacion.CANAL_ID);
+                        startActivity(i);
+                    } catch (Exception e) { abrirAjustesApp(); }
+                })
+                .setNegativeButton("Ahora no", null)
+                .show());
+    }
+
     private void pedirPantallaCompletaAlIniciar() {
         if (android.os.Build.VERSION.SDK_INT < 34) return;
 
@@ -271,6 +388,7 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         revisarActualizacion(false);
+        try { verificarAlarmaEmergente(false); } catch (Exception e) { e.printStackTrace(); }
     }
 
     @Override
@@ -294,6 +412,10 @@ public class MainActivity extends BridgeActivity {
         }
 
         try { exigirUbicacionObligatoria(); } catch (Exception e) { }
+
+        if (requestCode == CODIGO_NOTIFICACIONES) {
+            try { verificarAlarmaEmergente(false); } catch (Exception e) { }
+        }
 
         if (requestCode == CODIGO_UBICACION && callbackUbicacion != null) {
             boolean concedido = grantResults.length > 0
@@ -325,7 +447,7 @@ public class MainActivity extends BridgeActivity {
         }, 4000);
 
         // Permiso de pantalla completa para que la alarma salte sola
-        try { pedirPantallaCompletaAlIniciar(); } catch (Exception e) { e.printStackTrace(); }
+        try { verificarAlarmaEmergente(true); } catch (Exception e) { e.printStackTrace(); }
 
         // Si habia un turno activo, reactivar el envio de ubicacion al abrir
         try { reanudarServicioSiHabiaTurno(); } catch (Exception e) { e.printStackTrace(); }
