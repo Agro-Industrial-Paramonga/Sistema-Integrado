@@ -360,7 +360,7 @@ async function registrarLog(paso, detalle) {
     try { await db.from('app_log').insert({ origen: 'conductor.push', detalle: paso + ' :: ' + (detalle || '') }); } catch (e) {}
 }
 
-function registrarPush(nombre) {
+function registrarPush(nombre, unidad) {
     return new Promise(async (resolver) => {
         let terminado = false;
         const fin = (ok) => { if (!terminado) { terminado = true; resolver(ok); } };
@@ -401,7 +401,13 @@ function registrarPush(nombre) {
                 await registrarLog('TOKEN RECIBIDO', String(token.value).slice(0, 25));
                 try {
                     await db.from('push_subscriptions').delete().eq('user_id', nombre);
-                    await db.from('push_subscriptions').insert({ user_id: nombre, token: token.value });
+                    // Este celular deja de estar asociado a cualquier unidad anterior
+                    await db.from('push_subscriptions').delete().eq('token', token.value);
+                    await db.from('push_subscriptions').insert({
+                        user_id: nombre,
+                        token: token.value,
+                        unidad: unidad || null
+                    });
                     await db.from('ubicaciones').update({ token: token.value }).eq('user_id', nombre);
                     try { localStorage.setItem('pushToken', token.value); } catch (e) {}
                     mostrarAviso('Celular registrado para alarmas ✓');
@@ -484,7 +490,7 @@ async function iniciarTurno() {
         return;   // no deja continuar sin ubicacion
     }
 
-    const listo = await registrarPush(nombre);
+    const listo = await registrarPush(nombre, unidad);
 
     // Servicio nativo: sigue enviando con la app cerrada
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {

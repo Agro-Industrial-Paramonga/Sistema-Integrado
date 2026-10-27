@@ -376,6 +376,27 @@ async function alertarUnidad(usuario, unidad, token) {
 }
 
 /* ------------------------------------------------------------
+   Suscripcion del celular (a que unidad corresponde)
+   ------------------------------------------------------------ */
+async function sincronizarSuscripcion(c) {
+    if (!c || !c.nombre) return;
+    let token = null;
+    try { token = localStorage.getItem('pushToken'); } catch (e) {}
+    if (!token || String(token).length < 30) return;
+
+    try {
+        await db.from('push_subscriptions').delete().eq('token', token);
+        await db.from('push_subscriptions').insert({
+            user_id: c.nombre,
+            token: token,
+            unidad: c.unidad || null
+        });
+    } catch (e) {
+        console.warn('sincronizar suscripcion', e);
+    }
+}
+
+/* ------------------------------------------------------------
    Sesion de conductor
    ------------------------------------------------------------ */
 function aplicarSesionConductor() {
@@ -384,6 +405,9 @@ function aplicarSesionConductor() {
 
     // 1) Primero el envio de ubicacion: nunca debe depender de la interfaz
     try { iniciarRastreoSilencioso(c); } catch (e) { console.warn('rastreo', e); }
+
+    // 2) Refrescar que esta unidad corresponde a este celular (para las alertas)
+    try { sincronizarSuscripcion(c); } catch (e) { console.warn('suscripcion', e); }
 
     // 2) Luego la pantalla de turno (si algo falla, el mapa sigue visible)
     try { mostrarPantallaTurno(c); } catch (e) { console.warn('pantalla turno', e); }
@@ -489,7 +513,11 @@ async function cerrarTurno() {
         window.AndroidUbicacion.detenerServicio();
     }
 
-    if (c && c.nombre) await db.from('ubicaciones').delete().eq('user_id', c.nombre);
+    if (c && c.nombre) {
+        await db.from('ubicaciones').delete().eq('user_id', c.nombre);
+        // El celular deja de estar suscrito a esa persona
+        await db.from('push_subscriptions').delete().eq('user_id', c.nombre);
+    }
 
     localStorage.removeItem('conductor');
     localStorage.removeItem('pushToken');
@@ -788,28 +816,36 @@ async function cargarMaquinas() {
     });
 }
 
-/* Junta TODOS los celulares asociados a una unidad (puede haber mas de un conductor) */
+/* Celulares de una unidad: manda la suscripcion hecha al iniciar turno */
 async function tokensDeUnidad(unidad) {
     const buscado = normalizar(unidad);
-    const { data } = await db.from('ubicaciones').select('user_id, unidad, token');
-
-    const filas = (data || []).filter(u => normalizar(u.unidad) === buscado);
+    const ahora = Date.now();
     const tokens = new Set();
     const conductores = [];
 
-    for (const f of filas) {
-        if (f.user_id) conductores.push(f.user_id);
-        if (f.token && String(f.token).length > 30) {
-            tokens.add(f.token);
-        } else {
-            const t = await buscarToken(f.user_id);
-            if (t) tokens.add(t);
-        }
-    }
+    // 1) Suscripcion del turno (se escribe al iniciar sesion y al abrir el mapa)
+    const { data: subs } = await db.from('push_subscriptions')
+        .select('user_id, token, unidad, created_at');
 
-    // Tambien puede estar registrado con el nombre de la unidad
-    const tUnidad = await buscarToken(unidad);
-    if (tUnidad) tokens.add(tUnidad);
+    (subs || []).forEach(s => {
+        if (!s.unidad || normalizar(s.unidad) !== buscado) return;
+        if (!s.token || String(s.token).length < 30) return;
+        const t = s.created_at ? new Date(s.created_at).getTime() : 0;
+        if (isFinite(t) && t > 0 && (ahora - t) > 24 * 60 * 60 * 1000) return;   // caduca a 24 h
+        tokens.add(s.token);
+        if (s.user_id) conductores.push(s.user_id);
+    });
+
+    // 2) Respaldo: fila de ubicacion de esa unidad, solo si esta reportando
+    const { data } = await db.from('ubicaciones').select('user_id, unidad, token, actualizado_en');
+
+    (data || []).forEach(u => {
+        if (normalizar(u.unidad) !== buscado) return;
+        const t = new Date(u.actualizado_en).getTime();
+        if (!isFinite(t) || (ahora - t) > 15 * 60 * 1000) return;
+        if (u.token && String(u.token).length > 30) tokens.add(u.token);
+        if (u.user_id) conductores.push(u.user_id);
+    });
 
     return { tokens: [...tokens], conductores };
 }
