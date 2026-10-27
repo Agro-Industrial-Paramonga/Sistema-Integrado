@@ -371,19 +371,58 @@ async function alertarUnidad(usuario, unidad, token) {
    ------------------------------------------------------------ */
 function aplicarSesionConductor() {
     const c = sesionConductor();
-
-    const botonCerrar = document.getElementById('btn-cerrar-turno');
-    if (botonCerrar) botonCerrar.style.display = c ? 'inline-flex' : 'none';
-
-    const volver = document.querySelector('.barra a[href="index.html"]');
-    if (volver) volver.style.display = c ? 'none' : 'inline-flex';
-
     if (!c) return;
 
-    const botonAjustar = document.getElementById('btn-ajustar');
-    if (botonAjustar) botonAjustar.style.display = 'none';
+    // 1) Primero el envio de ubicacion: nunca debe depender de la interfaz
+    try { iniciarRastreoSilencioso(c); } catch (e) { console.warn('rastreo', e); }
 
-    iniciarRastreoSilencioso(c);
+    // 2) Luego la pantalla de turno (si algo falla, el mapa sigue visible)
+    try { mostrarPantallaTurno(c); } catch (e) { console.warn('pantalla turno', e); }
+}
+
+/* Overlay creado por JS: no depende del HTML y no oculta el mapa */
+function mostrarPantallaTurno(c) {
+    if (document.getElementById('pantalla-turno')) return;
+
+    const capa = document.createElement('div');
+    capa.id = 'pantalla-turno';
+    capa.style.cssText = 'position:fixed;inset:0;z-index:5000;background:linear-gradient(160deg,#ecfdf5 0%,#f8fafc 55%,#eef2ff 100%);display:flex;align-items:center;justify-content:center;padding:22px;';
+
+    let inicio = new Date();
+    try { if (c.inicio) inicio = new Date(c.inicio); } catch (e) {}
+    const fecha = inicio.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+    const hora = inicio.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+    capa.innerHTML = `
+        <div style="width:100%;max-width:400px;background:#fff;border-radius:22px;padding:26px 22px;box-shadow:0 18px 50px rgba(15,23,42,.16);text-align:center;font-family:inherit;">
+            <div style="width:62px;height:62px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+                <i class="fas fa-satellite-dish" style="font-size:25px;color:#16a34a"></i>
+            </div>
+            <h1 style="margin:0 0 6px;font-size:1.25rem;color:#0f172a">Turno activo</h1>
+            <p style="margin:0 0 18px;font-size:.84rem;color:#64748b">Tu ubicación se está compartiendo con el centro de operaciones.</p>
+
+            <div style="text-align:left;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:16px;">
+                <div style="font-size:.62rem;letter-spacing:.09em;color:#94a3b8;font-weight:700">UNIDAD</div>
+                <div style="font-size:1.02rem;font-weight:700;color:#166534;margin-bottom:10px">${(c.unidad || '—')}</div>
+                <div style="font-size:.62rem;letter-spacing:.09em;color:#94a3b8;font-weight:700">CONDUCTOR</div>
+                <div style="font-size:.9rem;font-weight:600;color:#0f172a;margin-bottom:10px">${(c.nombre || '—')}</div>
+                <div style="font-size:.62rem;letter-spacing:.09em;color:#94a3b8;font-weight:700">INICIO DEL TURNO</div>
+                <div style="font-size:.84rem;color:#334155">${fecha} · ${hora}</div>
+            </div>
+
+            <div style="font-size:.72rem;color:#b45309;background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:9px 11px;margin-bottom:16px;text-align:left;">
+                Mantén la ubicación activada. Si la desactivas, la app se bloqueará hasta permitirla otra vez.
+            </div>
+
+            <button id="btn-turno-cerrar" style="width:100%;padding:12px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:12px;font-size:.88rem;font-weight:700;cursor:pointer;">
+                <i class="fas fa-right-from-bracket"></i> Cerrar turno
+            </button>
+        </div>`;
+
+    document.body.appendChild(capa);
+
+    const boton = document.getElementById('btn-turno-cerrar');
+    if (boton) boton.addEventListener('click', cerrarTurno);
 }
 
 function iniciarRastreoSilencioso(c) {
