@@ -830,8 +830,7 @@ async function tokensDeUnidad(unidad) {
     (subs || []).forEach(s => {
         if (!s.unidad || normalizar(s.unidad) !== buscado) return;
         if (!s.token || String(s.token).length < 30) return;
-        const t = s.created_at ? new Date(s.created_at).getTime() : 0;
-        if (isFinite(t) && t > 0 && (ahora - t) > 24 * 60 * 60 * 1000) return;   // caduca a 24 h
+        // Sin caducidad: un turno puede quedar abierto varios dias y debe seguir recibiendo
         tokens.add(s.token);
         if (s.user_id) conductores.push(s.user_id);
     });
