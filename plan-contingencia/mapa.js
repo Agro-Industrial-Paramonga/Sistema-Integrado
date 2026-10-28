@@ -692,7 +692,7 @@ async function cargarCampos() {
 const RADIO_EVAC_M = 300;             // "cerca" del campo
 const COLOR_CAMPO = '#06b6d4';        // turquesa normal
 const COLOR_CAMPO_ROJO = '#dc2626';
-const LS_EVAC = 'evac_rojo_ts_v2';
+const LS_EVAC = 'evac_rojo_ts_v3';
 
 let semaforoActual = { nivel: 'verde', vigente_desde: null };
 
@@ -778,7 +778,20 @@ function aplicarSemaforoEnCampos() {
 /* Aviso de evacuación con el mismo texto que ya usa el sistema */
 async function evacuarUnidad(fila) {
     const unidad = fila.unidad || fila.user_id || '';
-    const token = fila.token && String(fila.token).length > 30 ? String(fila.token) : null;
+
+    /* El celular se busca igual que en la alerta manual: primero el del turno
+       de esa unidad y, si no, el registrado a nombre del conductor. */
+    let token = fila.token && String(fila.token).length > 30 ? String(fila.token) : null;
+    if (!token) {
+        try {
+            const debidos = await tokensDeUnidad(unidad);
+            if (debidos.tokens.length) token = debidos.tokens[0];
+        } catch (e) {}
+    }
+    if (!token && fila.user_id) {
+        try { token = await buscarToken(fila.user_id); } catch (e) {}
+    }
+
     if (!token) {
         await registrarAlerta(unidad, fila.user_id, null, 'sin_token', 'evacuacion rojo');
         return false;
@@ -839,8 +852,8 @@ async function revisarEvacuacion() {
             });
         });
         if (!afectada) continue;
-        await evacuarUnidad(fila);
-        avisadas++;
+        const llego = await evacuarUnidad(fila);
+        if (llego) avisadas++;
     }
 
     /* Sólo se marca como hecha si de verdad hubo a quién avisar:
