@@ -797,14 +797,15 @@ async function evacuarUnidad(fila) {
         return false;
     }
     try {
+        /* Se envía igual que la alarma manual: por nombre de usuario, sin token,
+           para que el celular la reciba por la misma vía que ya funciona. */
         const resp = await fetch(FUNC_PUSH, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 title: 'EVACUACIÓN · ' + unidad,
                 body: 'Evacue de inmediato y diríjase a un lugar seguro.',
-                userId: fila.user_id || null,
-                token: token
+                userId: fila.user_id || unidad
             })
         });
         const datos = await resp.json().catch(() => ({}));
