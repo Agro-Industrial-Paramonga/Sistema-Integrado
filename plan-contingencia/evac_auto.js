@@ -173,11 +173,8 @@
         });
         if (!cerca) return;
 
-        if (await yaAvisado(s.unidad)) {
-            try { localStorage.setItem(LS_MARCA, marca); } catch (e) {}
-            return;
-        }
-
+        /* La alarma del propio celular es la que se ve a pantalla completa,
+           así que no se espera a ningún push. */
         try { localStorage.setItem(LS_MARCA, marca); } catch (e) {}
         disparar(s.unidad);
     }

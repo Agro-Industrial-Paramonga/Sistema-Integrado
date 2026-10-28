@@ -777,46 +777,12 @@ function aplicarSemaforoEnCampos() {
 
 /* Aviso de evacuación con el mismo texto que ya usa el sistema */
 async function evacuarUnidad(fila) {
+    /* La alerta de evacuación la dispara el propio celular del conductor
+       (evac_auto.js) para que salga a pantalla completa. El mapa sólo registra
+       que la unidad estaba en zona roja. */
     const unidad = fila.unidad || fila.user_id || '';
-
-    /* El celular se busca igual que en la alerta manual: primero el del turno
-       de esa unidad y, si no, el registrado a nombre del conductor. */
-    let token = fila.token && String(fila.token).length > 30 ? String(fila.token) : null;
-    if (!token) {
-        try {
-            const debidos = await tokensDeUnidad(unidad);
-            if (debidos.tokens.length) token = debidos.tokens[0];
-        } catch (e) {}
-    }
-    if (!token && fila.user_id) {
-        try { token = await buscarToken(fila.user_id); } catch (e) {}
-    }
-
-    if (!token) {
-        await registrarAlerta(unidad, fila.user_id, null, 'sin_token', 'evacuacion rojo');
-        return false;
-    }
-    try {
-        /* Se envía igual que la alarma manual: por nombre de usuario, sin token,
-           para que el celular la reciba por la misma vía que ya funciona. */
-        const resp = await fetch(FUNC_PUSH, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: 'EVACUACIÓN · ' + unidad,
-                body: 'Evacue de inmediato y diríjase a un lugar seguro.',
-                userId: fila.user_id || unidad
-            })
-        });
-        const datos = await resp.json().catch(() => ({}));
-        const enviados = datos.fcm_enviados || 0;
-        await registrarAlerta(unidad, fila.user_id, token, enviados > 0 ? 'enviada' : 'sin_entrega',
-            'evacuación rojo · ' + enviados + ' envio(s)');
-        return enviados > 0;
-    } catch (e) {
-        console.warn('evacuarUnidad', e);
-        return false;
-    }
+    await registrarAlerta(unidad, fila.user_id, null, 'zona_roja', 'unidad dentro o cerca del campo');
+    return false;
 }
 
 /* Revisa el semáforo: pinta campos y, si es rojo, avisa una sola vez */
@@ -853,12 +819,12 @@ async function revisarEvacuacion() {
             });
         });
         if (!afectada) continue;
-        const llego = await evacuarUnidad(fila);
-        if (llego) avisadas++;
+        await evacuarUnidad(fila);
+        avisadas++;
     }
 
-    /* Sólo se marca como hecha si de verdad hubo a quién avisar:
-       así, si todavía no había unidades en los campos, se reintenta. */
+    /* Se marca la declaración como procesada para no repetir el registro
+       cada minuto; la alarma la dispara el celular del conductor. */
     if (avisadas > 0) {
         try { localStorage.setItem(LS_EVAC, marca); } catch (e) {}
     }
