@@ -676,10 +676,151 @@ async function cargarCampos() {
                 capa.bindTooltip(nombre, { permanent: false, direction: 'center', className: 'etiqueta-unidad' });
             }
         }).addTo(capaCampos);
+
+        /* Si el semáforo ya estaba en rojo, pintar los campos y evacuar */
+        try { revisarEvacuacion(); } catch (e) {}
     } catch (e) {
         console.warn('campos', e);
     }
 }
+
+/* ============================================================
+   ROJO = EVACUACIÓN: campos en rojo y aviso a las unidades
+   dentro o cerca de ellos. Un aviso por unidad y una sola vez
+   por cada declaración de rojo.
+   ============================================================ */
+const RADIO_EVAC_M = 300;             // "cerca" del campo
+const COLOR_CAMPO = '#06b6d4';        // turquesa normal
+const COLOR_CAMPO_ROJO = '#dc2626';
+const LS_EVAC = 'evac_rojo_ts';
+
+let semaforoActual = { nivel: 'verde', vigente_desde: null };
+
+/* Anillos de todos los campos, en orden [lat, lng] */
+function anillosDeCampos() {
+    const salida = [];
+    if (!capaCampos) return salida;
+    capaCampos.eachLayer(function (capa) {
+        if (typeof capa.getLatLngs !== 'function') return;
+        const ll = capa.getLatLngs();
+        const anillo = Array.isArray(ll[0]) ? ll[0] : ll;
+        const pts = anillo.map(function (p) { return [p.lat, p.lng]; });
+        if (pts.length < 3) return;
+        salida.push({ nombre: (capa.options && capa.options.campo) || '', anillo: pts, capa: capa });
+    });
+    return salida;
+}
+
+/* Ray casting: ¿el punto está dentro del anillo? */
+function puntoEnAnillo(lat, lon, anillo) {
+    let dentro = false;
+    for (let i = 0, j = anillo.length - 1; i < anillo.length; j = i++) {
+        const yi = anillo[i][0], xi = anillo[i][1];
+        const yj = anillo[j][0], xj = anillo[j][1];
+        const cruza = ((yi > lat) !== (yj > lat)) &&
+            (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+        if (cruza) dentro = !dentro;
+    }
+    return dentro;
+}
+
+/* Distancia mínima del punto al borde del anillo (metros) */
+function distanciaAAnillo(lat, lon, anillo) {
+    let menor = Infinity;
+    for (let i = 0; i < anillo.length; i++) {
+        const a = anillo[i], b = anillo[(i + 1) % anillo.length];
+        const dy = (b[0] - a[0]) * 111320;
+        const dx = (b[1] - a[1]) * 111320 * Math.cos(lat * Math.PI / 180);
+        const py = (lat - a[0]) * 111320;
+        const px = (lon - a[1]) * 111320 * Math.cos(lat * Math.PI / 180);
+        const len2 = dx * dx + dy * dy;
+        let t = len2 ? (px * dx + py * dy) / len2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        const ddx = px - dx * t, ddy = py - dy * t;
+        menor = Math.min(menor, Math.sqrt(ddx * ddx + ddy * ddy));
+    }
+    return menor;
+}
+
+/* Pinta los campos de rojo (evacuación) o los devuelve a su color normal */
+function aplicarSemaforoEnCampos() {
+    const rojo = semaforoActual.nivel === 'rojo';
+    anillosDeCampos().forEach(function (c) {
+        if (!c.capa.setStyle) return;
+        c.capa.setStyle(rojo
+            ? { color: COLOR_CAMPO_ROJO, weight: 2.5, opacity: 1, fillColor: COLOR_CAMPO_ROJO, fillOpacity: 0.32 }
+            : { color: COLOR_CAMPO, weight: 1.5, opacity: 0.95, fillColor: '#22d3ee', fillOpacity: 0.10 });
+    });
+}
+
+/* Aviso de evacuación con el mismo texto que ya usa el sistema */
+async function evacuarUnidad(fila) {
+    const unidad = fila.unidad || fila.user_id || '';
+    const token = fila.token && String(fila.token).length > 30 ? String(fila.token) : null;
+    if (!token) {
+        await registrarAlerta(unidad, fila.user_id, null, 'sin_token', 'evacuacion rojo');
+        return false;
+    }
+    try {
+        const resp = await fetch(FUNC_PUSH, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: 'EVACUACIÓN · ' + unidad,
+                body: 'Evacue de inmediato y diríjase a un lugar seguro.',
+                userId: fila.user_id || null,
+                token: token
+            })
+        });
+        const datos = await resp.json().catch(() => ({}));
+        const enviados = datos.fcm_enviados || 0;
+        await registrarAlerta(unidad, fila.user_id, token, enviados > 0 ? 'enviada' : 'sin_entrega',
+            'evacuación rojo · ' + enviados + ' envio(s)');
+        return enviados > 0;
+    } catch (e) {
+        console.warn('evacuarUnidad', e);
+        return false;
+    }
+}
+
+/* Revisa el semáforo: pinta campos y, si es rojo, avisa una sola vez */
+async function revisarEvacuacion() {
+    aplicarSemaforoEnCampos();
+    if (semaforoActual.nivel !== 'rojo') return;
+
+    const marca = String(semaforoActual.vigente_desde || 'sin-fecha');
+    let yaHecho = null;
+    try { yaHecho = localStorage.getItem(LS_EVAC); } catch (e) {}
+    if (yaHecho === marca) return;
+
+    const anillos = anillosDeCampos();
+    if (!anillos.length) return;   // todavía no cargaron los campos: se reintenta
+
+    try { localStorage.setItem(LS_EVAC, marca); } catch (e) {}
+
+    const { data } = await db.from('ubicaciones').select('user_id, unidad, lat, lon, token');
+    let avisadas = 0;
+    for (const fila of (data || [])) {
+        const lat = Number(fila.lat), lon = Number(fila.lon);
+        if (!isFinite(lat) || !isFinite(lon)) continue;
+        const afectada = anillos.some(function (c) {
+            return puntoEnAnillo(lat, lon, c.anillo) || distanciaAAnillo(lat, lon, c.anillo) <= RADIO_EVAC_M;
+        });
+        if (!afectada) continue;
+        await evacuarUnidad(fila);
+        avisadas++;
+    }
+
+    const est = document.getElementById('estado');
+    if (est && avisadas) est.textContent = 'Rojo: evacuación avisada a ' + avisadas + ' unidad(es)';
+}
+
+/* El semáforo avisa cada vez que se pinta */
+window.addEventListener('sem:nivel', function (ev) {
+    const d = (ev && ev.detail) || {};
+    semaforoActual = { nivel: d.nivel || 'verde', vigente_desde: d.vigente_desde || null };
+    try { revisarEvacuacion(); } catch (e) {}
+});
 
 /* ================= MAQUINAS DE PUNTOS CRITICOS ================= */
 const RADIO_PUNTO_M = 150;      // distancia para asignar la maquina al punto
@@ -1066,7 +1207,8 @@ function aplicarVisibilidadCapas() {
     mostrarGrupo(capaLineasSeg, esSeguimiento);
 
     mostrarGrupo(capaPuntos, !esSeguimiento);
-    mostrarGrupo(capaMaquinas, !esSeguimiento);
+    /* Las máquinas de Puntos Críticos se ven sólo con sesión iniciada */
+    mostrarGrupo(capaMaquinas, !esSeguimiento && !!usuarioPlan());
     mostrarGrupo(capaLineas, !esSeguimiento);
 }
 

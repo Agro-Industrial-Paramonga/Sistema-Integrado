@@ -2,16 +2,14 @@
    SEMÁFORO DE CONTINGENCIA
    Banda siempre visible en el mapa y en el ingreso de conductores.
 
-   Niveles anclados al plan:
+   Niveles anclados al plan (tres luces: el naranja se retiró):
    verde -> estado base, siempre vigente; NO se declara
    amarillo -> antes de la emergencia: señales iniciales
-   naranja -> durante: bocatomas, compuertas, maquinaria (Nivel II)
-   rojo -> Churlin Alto / zona industrial (Nivel III, AAQ)
+   rojo -> emergencia: absorbe las acciones del antiguo naranja
 
-   Quién declara:
-   amarillo Jefe de Seguridad Industrial (o gerencia)
-   naranja Gerente General / Gerente Legal (o Jefe SST como guardia)
-   rojo solo Gerente General o alterno (Gerente Legal y RR.LL)
+   Quién declara: Seguridad Industrial o gerencia, pero el semáforo
+   queda siempre registrado a nombre del Gerente General
+   (MELGAR BELMONT JOSE MARIANO), que es el declarador oficial.
    Cerrar la alerta devuelve el semáforo a verde (estado base), con
    verificación en campo y queda registrado quién la cerró.
    Todo queda en semaforo_estado / semaforo_eventos (ver sql/semaforo.sql).
@@ -25,6 +23,9 @@
     const LS_ESTADO = 'sem_estado';
     const LS_HISTORIAL = 'sem_historial';
     const REFRESCO_MS = 60000;
+
+    /* Declarador oficial: siempre el Gerente General, aunque declare otra persona */
+    const DECLARADOR = { nombre: 'MELGAR BELMONT JOSE MARIANO', rol: 'gerente_general' };
 
     /* ------------------------------------------------------------
        Definición de los niveles: texto de la lámina + acciones del plan
@@ -48,39 +49,49 @@
             pasos: [
                 'Monitoreo de las quebradas Julquillas y Rinconada-Choque por Administración 1 y 3 con Seguridad Patrimonial.',
                 'Contacto con la minera Castor (924823461) durante la época de lluvias.',
-                'Aviso inmediato al Jefe de Seguridad y a las gerencias.',
-                'Cuadrillas a los puntos de vigilancia: quebrada cargada de agua, turbiedad o crecida.',
-                'Aviso preventivo a la Junta de Usuarios del Valle de Pativilca (997009846).',
-                'Alistar maquinaria, personal de guardia, radios, linternas y lampas; botiquines abastecidos.',
+                'Alistar maquinaria, personal de guardia, radios, linternas, lampas y herramientas.',
             ],
         },
-        naranja: {
-            orden: 2,
-            nombre: 'NARANJA',
-            frase: 'Riesgo alto · Restringir y movilizar',
-            color: '#ea580c',
-            color2: '#9a3412',
-            pasos: [
-                'Solicitar a la Junta de Usuarios el cierre de bocatomas: Huayto, Otorongo, Paramonga, La Vega y Alpas.',
-                'Abrir las compuertas de los laterales de riego de los 15 campos — se registra en el panel Compuertas.',
-                'Trasladar la maquinaria de las Administraciones 1 y 3 a zona segura.',
-                'Restringir accesos y reducir dotación en el centro de distribución.',
-                'Instalar el Puesto de Comando en el Centro de Operaciones de Seguridad (Nivel II).',
-                'Paralizar actividades en campo y evacuar al personal expuesto.',
-            ],
-        },
+        /* Naranja ya no existe: el rojo absorbe sus acciones. */
         rojo: {
-            orden: 3,
+            orden: 2,
             nombre: 'ROJO',
-            frase: 'Peligro inminente · Activar AAQ',
+            frase: 'Peligro inminente · Evacuar',
             color: '#dc2626',
             color2: '#991b1b',
             pasos: [
-                'Contención con tierra desde la puerta 1 hasta la puerta 3 cuando el huayco llegue a Churlin Alto.',
-                'Detener el despacho de azúcar y sellar el almacén de producto terminado.',
-                'Evacuación total o parcial de la planta; sirena de emergencia continua.',
-                'Corte de energía en zonas administrativas y sectores afectados, bajo condiciones seguras.',
-                'Activar el AAQ y comunicar a entidades externas: solo el Coordinador General habla con prensa.',
+                { texto: 'Instalar el Puesto de Comando en la sala del Directorio N° 1.' },
+                { texto: 'Solicitar a la Junta de Usuarios el cierre de bocatomas: Huayto, Otorongo, Paramonga, La Vega y Alpas.',
+                  area: 'Ingeniería Agrícola', tel: '986645803' },
+                { texto: 'Abrir las compuertas de los laterales de riego de los campos Olívar, San Antonio, Tabla Larga, Lampay, Huarangal, San Patricio, Canoa, Las Monjas, San Francisco, Santa Rita, Santa Rosa, Totor, Santa Beatriz, Molle y Menacho.',
+                  areas: [
+                      { area: 'Administración 1', tel: '913016919' },
+                      { area: 'Administración 2', tel: '989201463' },
+                      { area: 'Administración 3', tel: '994640342' },
+                  ] },
+                { texto: 'Movilizar excavadoras y retroexcavadoras de ruedas desde Sanjón hasta Menacho.',
+                  area: 'Ingeniería Agrícola', tel: '986645803' },
+                { texto: 'Paralizar actividades y las maquinarias agrícolas y equipos que estén en los campos mencionados anteriormente se trasladarán a una zona segura.',
+                  areas: [
+                      { area: 'Administración 1', tel: '913016919' },
+                      { area: 'Administración 2', tel: '989201463' },
+                      { area: 'Administración 3', tel: '994640342' },
+                  ] },
+                { texto: 'Contención con tierra desde la puerta 1 hasta la puerta 3, cuando el huayco llegue a Churlin Alto.',
+                  areas: [
+                      { area: 'Operaciones Agrícolas', tel: '987803991' },
+                      { area: 'Infraestructura', tel: '962372947' },
+                  ] },
+                { texto: 'Detener el despacho de azúcar y sellar el almacén de producto terminado.',
+                  areas: [
+                      { area: 'APT', tel: '940387152' },
+                      { area: 'Infraestructura', tel: '962372947' },
+                      { area: 'Operaciones Agrícolas', tel: '987803991' },
+                  ] },
+                { texto: 'Corte de energía en zonas administrativas y sectores afectados, bajo condiciones seguras.',
+                  area: 'Taller eléctrico · Omar Castro', tel: '994640344' },
+                { texto: 'Comunicar a entidades externas.',
+                  area: 'Gerente de Desarrollo Organizacional' },
             ],
         },
     };
@@ -196,7 +207,7 @@
 
     /* El verde es el estado base: no se declara, se está. */
     function semNivelesAlerta() {
-        return ['amarillo', 'naranja', 'rojo'];
+        return ['amarillo', 'rojo'];
     }
 
     /* ¿Puede declarar este nivel de alerta? */
@@ -295,7 +306,8 @@
 
             origen = 'nube';
             estado = {
-                nivel: NIVELES[data.nivel] ? data.nivel : 'verde',
+                /* El naranja se retiró: si quedó guardado, se muestra como rojo */
+                nivel: !NIVELES[data.nivel] ? 'verde' : (data.nivel === 'naranja' ? 'rojo' : data.nivel),
                 motivo: data.motivo || '',
                 declarado_por: data.declarado_por || '',
                 declarado_por_rol: data.declarado_por_rol || '',
@@ -327,8 +339,8 @@
             nivel: nivel,
             nivel_anterior: anterior,
             motivo: '',
-            declarado_por: semNombre(usuario),
-            declarado_por_rol: rol,
+            declarado_por: DECLARADOR.nombre,
+            declarado_por_rol: DECLARADOR.rol,
             es_guardia: false,
             vigente_desde: ahora,
             verifico: !!verifico,
@@ -344,7 +356,7 @@
                         nivel: nivel,
                         motivo: null,
                         declarado_por: nuevo.declarado_por,
-                        declarado_por_rol: rol,
+                        declarado_por_rol: DECLARADOR.rol,
                         es_guardia: false,
                         vigente_desde: ahora,
                         actualizado_en: ahora,
@@ -357,7 +369,7 @@
                         nivel: nivel,
                         nivel_anterior: anterior,
                         declarado_por: nuevo.declarado_por,
-                        declarado_por_rol: rol,
+                        declarado_por_rol: DECLARADOR.rol,
                         es_guardia: false,
                         verificado: !!verifico,
                     });
@@ -541,7 +553,7 @@
         #sem-luces:focus-visible { outline: 3px solid #0f172a; outline-offset: 2px; }
         #sem-luces .foco {
             width: 22px; height: 22px; border-radius: 50%;
-            background: var(--c); opacity: .22; filter: grayscale(.65);
+            background: var(--c); opacity: .42; filter: saturate(.7) brightness(1.08);
             transition: opacity .22s ease, box-shadow .22s ease, filter .22s ease, transform .22s ease;
         }
         #sem-luces .foco.on {
@@ -553,11 +565,44 @@
         #sem-luces.chico .foco { width: 19px; height: 19px; }
         #sem-grupo { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; }
         #sem-grupo-txt { font-size: .66rem; font-weight: 800; letter-spacing: .06em; color: #334155; }
+        /* Rótulo SEMÁFORO arriba de las luces */
+        .sem-wrap { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+        .sem-wrap .sem-cap {
+            font-size: .52rem; font-weight: 800; letter-spacing: .14em;
+            color: #475569; line-height: 1; text-transform: uppercase;
+        }
+
+        /* Áreas responsables dentro de un paso del plan: al costado del texto */
+        .sem-pasos li .sem-paso {
+            display: flex; flex-direction: row; align-items: flex-start;
+            gap: 10px; min-width: 0; flex: 1 1 auto;
+        }
+        .sem-paso-txt { flex: 1 1 auto; min-width: 0; }
+        .sem-chips {
+            display: flex; flex-direction: column; align-items: flex-end;
+            gap: 4px; flex: 0 0 auto; max-width: 46%;
+        }
+        .sem-area {
+            display: inline-flex; align-items: baseline; gap: 5px; text-decoration: none;
+            background: #ecfeff; border: 1px solid #a5f3fc; color: #0e7490;
+            border-radius: 999px; padding: 3px 9px; font-size: .68rem; line-height: 1.2;
+        }
+        .sem-area b { font-weight: 800; }
+        .sem-area span { font-variant-numeric: tabular-nums; opacity: .95; }
+        .sem-area:active { transform: scale(.97); }
+        .sem-area.sin-tel {
+            background: #f1f5f9; border-color: #e2e8f0; color: #64748b;
+        }
         @media (max-width: 900px) {
             #sem-grupo { margin-left: 8px; }
             #sem-grupo-txt { display: none; }
             #sem-luces .foco { width: 19px; height: 19px; }
             #sem-luces { gap: 7px; padding: 6px 10px; }
+        }
+        /* En pantallas angostas el área vuelve abajo del texto */
+        @media (max-width: 560px) {
+            .sem-pasos li .sem-paso { flex-direction: column; gap: 6px; }
+            .sem-chips { flex-direction: row; flex-wrap: wrap; align-items: flex-start; max-width: 100%; }
         }
 
         /* Aviso flotante propio (cuando mapa.js no está) */
@@ -636,7 +681,15 @@
                 semAbrirPanel();
             }
         });
-        destino.appendChild(caja);
+        const envoltura = document.createElement('span');
+        envoltura.className = 'sem-wrap';
+        const rotulo = document.createElement('span');
+        rotulo.className = 'sem-cap';
+        rotulo.textContent = 'Semáforo';
+        envoltura.appendChild(rotulo);
+
+        destino.appendChild(envoltura);
+        envoltura.appendChild(caja);
         luces = caja;
         return caja;
     }
@@ -647,7 +700,7 @@
         luces.querySelectorAll('.foco').forEach(function (f) {
             f.classList.toggle('on', f.dataset.nivel === nivel);
         });
-        luces.classList.toggle('sem-pulso', nivel === 'naranja' || nivel === 'rojo');
+        luces.classList.toggle('sem-pulso', nivel === 'rojo');
     }
 
     /* Portal: encabezado con el color del nivel + semáforo al lado del logo */
@@ -709,12 +762,19 @@
     }
 
     function semPintar() {
+        /* Avisa al mapa: con rojo se pintan los campos y se evacúa */
+        try {
+            window.dispatchEvent(new CustomEvent('sem:nivel', {
+                detail: { nivel: estado.nivel, vigente_desde: estado.vigente_desde }
+            }));
+        } catch (e) {}
+
         if (banda) {
             const n = NIVELES[estado.nivel] || NIVELES.verde;
             banda.style.background = 'linear-gradient(90deg,' + n.color + ',' + n.color2 + ')';
             banda.classList.toggle(
                 'sem-pulso',
-                estado.nivel === 'naranja' || estado.nivel === 'rojo'
+                estado.nivel === 'rojo'
             );
 
             const niv = document.getElementById('sem-niv');
@@ -791,6 +851,38 @@
         semAjustarAlto();
     }
 
+    /* Cada paso puede traer el área responsable y su teléfono: al tocarlo se
+       ve el número y abre el marcador con el número ya puesto. */
+    function semPasoHtml(p) {
+        const texto = (typeof p === 'string') ? p : (p.texto || '');
+        let chips = [];
+        if (p && typeof p === 'object') {
+            if (Array.isArray(p.areas)) chips = p.areas;
+            else if (p.area) chips = [{ area: p.area, tel: p.tel }];
+        }
+
+        const chipsHtml = chips
+            .filter((c) => c && c.area)
+            .map(function (c) {
+                const area = semEscape(c.area);
+                if (!c.tel) return '<span class="sem-area sin-tel"><b>' + area + '</b></span>';
+                const num = String(c.tel).replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+                return (
+                    '<a class="sem-area" href="tel:+51' + String(c.tel).replace(/\D/g, '') + '" ' +
+                    'title="Llamar al área de ' + area + '">' +
+                    '<b>' + area + '</b><span>' + num + '</span></a>'
+                );
+            })
+            .join('');
+
+        return (
+            '<li><i class="fas fa-circle-check"></i>' +
+            '<div class="sem-paso"><span class="sem-paso-txt">' + semEscape(texto) + '</span>' +
+            (chipsHtml ? '<div class="sem-chips">' + chipsHtml + '</div>' : '') +
+            '</div></li>'
+        );
+    }
+
     function semHtmlDetalle() {
         const n = NIVELES[estado.nivel];
         const esBase = estado.nivel === 'verde';
@@ -858,9 +950,7 @@
             '</div>' +
             '<p class="sem-sub">Qué hacer en este nivel</p>' +
             '<ul class="sem-pasos">' +
-            n.pasos
-                .map((p) => '<li><i class="fas fa-circle-check"></i><span>' + semEscape(p) + '</span></li>')
-                .join('') +
+            n.pasos.map(semPasoHtml).join('') +
             '</ul>' +
             '<p class="sem-sub">Últimos cambios</p>' +
             '<div class="sem-hist">' +
@@ -911,7 +1001,7 @@
             .join('');
 
         const avisoBajar =
-            estado.nivel === 'naranja'
+            estado.nivel === 'rojo'
                 ? '<label class="sem-check"><input type="checkbox" id="sem-verifico"> Verifiqué en campo antes de bajar de nivel</label>'
                 : '';
 
