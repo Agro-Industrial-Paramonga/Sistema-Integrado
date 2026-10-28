@@ -1,4 +1,4 @@
-﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const FCM_PROJECT_ID    = Deno.env.get('FCM_PROJECT_ID')!;
 const FCM_CLIENT_EMAIL  = Deno.env.get('FCM_CLIENT_EMAIL')!;
@@ -74,16 +74,25 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { title, body, userId, token, excluir } = await req.json();
+    const { title, body, userId, token, excluir, tipo } = await req.json();
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // ============================================================
     // 1. Obtener tokens del destinatario + webhooks globales de iPhone
+    //
+    // Quien recibe lo decide la base, no este archivo: la funcion
+    // destinatarios_push() solo devuelve jefes con sesion abierta.
+    //  - con "tipo" explicito  -> solo ese canal
+    //  - sin "tipo" ni userId  -> jefes (alarma general)
+    //  - con userId            -> ese usuario, del canal que sea
     // ============================================================
+    const canal = (tipo === 'jefe' || tipo === 'conductor')
+      ? tipo
+      : (userId ? null : 'jefe');
+
     const { data: todos, error } = await supabase
-      .from('push_subscriptions')
-      .select('token, notialarm_webhook, user_id');
+      .rpc('destinatarios_push', { p_tipo: canal });
 
     if (error) throw new Error('Error al leer tokens: ' + error.message);
 
@@ -237,7 +246,8 @@ Deno.serve(async (req) => {
       ok: true,
       fcm_enviados: enviados,
       notialarm_disparados: notialarmCount,
-      total_subs: subs?.length || 0
+      total_subs: subs?.length || 0,
+      canal
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

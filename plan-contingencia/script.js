@@ -334,7 +334,8 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
                 body: JSON.stringify({
                                         title: `⚠️ ${medida.actividad} · ${area}`.slice(0, 95),
                     body: `${quienEnvia()} solicita atención para esta medida:\n${medida.actividad}\nÁrea: ${area}\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
-                    userId: area
+                    userId: area,
+                    tipo: 'jefe'
                 })
             });
             const resultado = await response.json().catch(() => ({}));
@@ -584,11 +585,9 @@ let usuariosLogin = [];
 let areasResponsables = [];   // areas/secciones a cargo de los jefes
 
 async function cargarAreasEnLogin() {
-    const { data, error } = await db
-        .from('usuarios')
-        .select('area, gerencia_key, seccion')
-        .eq('activo', true)
-        .order('area', { ascending: true });
+    // La tabla usuarios ya no se puede leer desde el navegador: la lista
+    // de áreas la entrega la función login_areas() (sin contraseñas).
+    const { data, error } = await db.rpc('login_areas');
 
     const selGerencia = document.getElementById('login-gerencia');
 
@@ -694,24 +693,20 @@ async function iniciarSesion() {
         return;
     }
 
-    const { data, error } = await db
-        .from('usuarios')
-        .select('area, rol, gerencia_key, seccion')
-        .eq('area', area)
-        .eq('password', pass)
-        .eq('activo', true)
-        .maybeSingle();
+    // Login contra la base: la función valida la contraseña, abre la sesión
+    // del equipo y devuelve rol/sección. La tabla usuarios ya no se lee.
+    const ses = await abrirSesionPanel(area, pass);
 
-    if (error || !data) {
+    if (!ses || !ses.ok) {
         err.textContent = 'Credenciales incorrectas. Verifica e inténtalo de nuevo.';
         return;
     }
 
     guardarSesion({
-            area: data.area,
-            rol: data.rol,
-            gerencia_key: data.gerencia_key || null,
-            seccion: data.seccion || null
+            area: area,
+            rol: ses.rol,
+            gerencia_key: ses.gerencia_key || null,
+            seccion: ses.seccion || null
         });
     entrarApp();
 }
@@ -719,6 +714,9 @@ async function iniciarSesion() {
 async function cerrarSesion() {
     const ok = await mostrarConfirm('¿Cerrar sesión?', 'Cerrar sesión', 'warn');
     if (!ok) return;
+
+    // Cierra la sesión en la base: deja de recibir alarmas aunque el token siga en el celular
+    await cerrarSesionPanel();
 
     limpiarSesion();
     document.getElementById('login-password').value = '';
@@ -791,11 +789,7 @@ async function entrarApp() {
 
     // Refrescar seccion/rol/gerencia desde la base (por si cambiaron)
     try {
-        const { data } = await db
-            .from('usuarios')
-            .select('rol, gerencia_key, seccion')
-            .eq('area', u.area)
-            .maybeSingle();
+        const { data } = await db.rpc('mi_perfil', { p_area: u.area });
 
         if (data) {
             const actualizada = {
@@ -1488,7 +1482,8 @@ async function togglePlanesAccion() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: '🚨 ALERTA DE HUAYCO',
-                    body: 'Gerencia General ha autorizado el inicio de los planes de acción.'
+                    body: 'Gerencia General ha autorizado el inicio de los planes de acción.',
+                    tipo: 'jefe'
                 })
             });
             if (resp.ok) {
@@ -1971,11 +1966,7 @@ async function activarNotificacionesPush() {
         let clave = (user.seccion || '').trim();
 
         if (!clave) {
-            const { data } = await db
-                .from('usuarios')
-                .select('seccion')
-                .eq('area', user.area)
-                .maybeSingle();
+            const { data } = await db.rpc('mi_perfil', { p_area: user.area });
             clave = (data && data.seccion ? data.seccion : '').trim();
             if (clave) {
                 guardarSesion({ ...user, seccion: clave });
@@ -2000,21 +1991,30 @@ async function activarNotificacionesPush() {
    ------------------------------------------------------------ */
 async function guardarTokenPush(userId, token) {
     try {
+        try { localStorage.setItem('pc_push_token', token); } catch (e) {}
+
         const { data: existente } = await db
             .from('push_subscriptions')
-            .select('id')
+            .select('id, tipo')
             .eq('user_id', userId)
             .eq('token', token)
             .maybeSingle();
 
         if (existente) {
             console.log('[FCM] Token ya registrado para este usuario.');
+            if (existente.tipo !== 'jefe') {
+                await db.from('push_subscriptions')
+                    .update({ tipo: 'jefe' })
+                    .eq('id', existente.id);
+            }
+            await adjuntarTokenSesion(token);
             return;
         }
 
         const { error } = await db.from('push_subscriptions').insert({
             user_id: userId,
-            token: token
+            token: token,
+            tipo: 'jefe'
         });
 
         if (error) {
@@ -2022,8 +2022,67 @@ async function guardarTokenPush(userId, token) {
         } else {
             console.log('[FCM] Token guardado en Supabase.');
         }
+
+        await adjuntarTokenSesion(token);
     } catch (err) {
         console.error('[FCM] Error al guardar token:', err);
+    }
+}
+
+/* ------------------------------------------------------------
+   Sesión del portal en la base (sesiones_panel).
+   Mientras esta sesión exista, este equipo recibe las alarmas de
+   jefe/gerencia. Al cerrar sesión deja de recibirlas, aunque el
+   celular conserve su token de notificaciones.
+   ------------------------------------------------------------ */
+const CLAVE_SESION = 'pc_sesion_clave';
+
+function claveSesionPanel() {
+    try { return localStorage.getItem(CLAVE_SESION) || ''; } catch (e) { return ''; }
+}
+
+function tokenPushGuardado() {
+    try { return localStorage.getItem('pc_push_token') || localStorage.getItem('pushToken') || ''; }
+    catch (e) { return ''; }
+}
+
+async function abrirSesionPanel(area, password) {
+    try {
+        const { data, error } = await db.rpc('abrir_sesion_panel', { p_area: area, p_password: password });
+        if (error || !data || !data.ok) {
+            console.warn('[SESION] no se pudo abrir:', error ? error.message : data);
+            return null;
+        }
+        try { localStorage.setItem(CLAVE_SESION, data.clave); } catch (e) {}
+        const t = tokenPushGuardado();
+        if (t) await adjuntarTokenSesion(t);
+        return data;
+    } catch (e) {
+        console.warn('[SESION] no se pudo abrir:', e);
+        return null;
+    }
+}
+
+async function adjuntarTokenSesion(token) {
+    const clave = claveSesionPanel();
+    if (!clave || !token) return;
+    try {
+        const { error } = await db.rpc('adjuntar_token_panel', { p_clave: clave, p_token: token });
+        if (error) console.warn('[SESION] no se pudo asociar el token:', error.message);
+    } catch (e) {
+        console.warn('[SESION] no se pudo asociar el token:', e);
+    }
+}
+
+async function cerrarSesionPanel() {
+    const clave = claveSesionPanel();
+    try { localStorage.removeItem(CLAVE_SESION); } catch (e) {}
+    if (!clave) return;
+    try {
+        const { error } = await db.rpc('cerrar_sesion_panel', { p_clave: clave });
+        if (error) console.warn('[SESION] no se pudo cerrar:', error.message);
+    } catch (e) {
+        console.warn('[SESION] no se pudo cerrar:', e);
     }
 }
 
