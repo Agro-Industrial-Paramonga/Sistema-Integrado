@@ -767,6 +767,7 @@ function distanciaAAnillo(lat, lon, anillo) {
 /* Pinta los campos de rojo (evacuación) o los devuelve a su color normal */
 function aplicarSemaforoEnCampos() {
     const rojo = semaforoActual.nivel === 'rojo';
+    try { document.body.classList.toggle('mapa-evac', rojo); } catch (e) {}
     capasDeCampos().forEach(function (capa) {
         capa.setStyle(rojo
             ? { color: COLOR_CAMPO_ROJO, weight: 2.5, opacity: 1, fillColor: COLOR_CAMPO_ROJO, fillOpacity: 0.45 }

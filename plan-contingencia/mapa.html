@@ -41,6 +41,15 @@
         }
         .etiqueta-unidad::before { display: none; }
 
+        /* En rojo los campos delimitados se ven como zona de evacuación.
+           Va por CSS además del setStyle, para que no falle por tiempos de carga. */
+        body.mapa-evac .leaflet-overlay-pane svg path.campo-poligono {
+            stroke: #dc2626 !important;
+            stroke-width: 2.5 !important;
+            fill: #dc2626 !important;
+            fill-opacity: 0.45 !important;
+        }
+
         /* Con el editor activo los campos delimitados dejan pasar el clic:
            la línea se dibuja encima sin abrir el cartel del campo */
         body.mapa-editando .leaflet-overlay-pane svg path.campo-poligono {
@@ -385,7 +394,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=42"></script>
+    <script src="mapa.js?v=43"></script>
     <script src="compuertas.js?v=4"></script>
     <script src="semaforo.js?v=4"></script>
 </body>
