@@ -54,23 +54,26 @@ function normalizar(v) {
     return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 }
 
+/* Quién ve el mapa: toda la Gerencia de Campo, el gerente directo de cada
+   gerencia y César Chunga (el único que lo edita). Nadie más. */
+
 function accesoPermitido() {
     if (sesionConductor()) return true;
     const u = usuarioPlan();
     if (!u) return false;
-    if (u.rol === 'gerente_general' || u.rol === 'gerencial_legal' || u.rol === 'gerente_campo') return true;
-    const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
-    return texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
+    if (['gerente_general', 'gerencial_legal', 'gdo', 'gerente_campo'].indexOf(u.rol) !== -1) return true;
+    if (normalizar(u.gerencia_key || '').indexOf('gerencia de campo') === 0) return true;
+    return puedeEditarMapa();
 }
 
-/* Editar el mapa (puntos, líneas, máquinas, georreferencia) es solo de Seguridad
-   Industrial —César Chunga—. El resto entra y ve todo lo que él publica. */
+/* Editar el mapa (puntos, líneas, máquinas, georreferencia) es solo de
+   Seguridad Industrial —César Chunga—. El resto entra y ve todo lo que él publica. */
 function puedeEditarMapa() {
     if (sesionConductor()) return false;
     const u = usuarioPlan();
     if (!u) return false;
     const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
-    return texto.includes('seguridad industrial') || texto.includes('chunga');
+    return texto.includes('chunga');
 }
 
 function esMovil() {

@@ -740,18 +740,24 @@ function mostrarPantalla(id) {
 }
 
 
+/* Quién ve el mapa: toda la Gerencia de Campo, el gerente directo de cada
+   gerencia y César Chunga (el único que lo edita). Nadie más. */
+const ROLES_JEFE_MAPA = ['gerente_general', 'gerencial_legal', 'gdo', 'gerente_campo'];
+
+function puedeVerMapa(u) {
+    if (!u) return false;
+    if (ROLES_JEFE_MAPA.indexOf(u.rol) !== -1) return true;
+    if (claveArea(u.gerencia_key || '').indexOf('gerencia de campo') === 0) return true;
+    return claveArea((u.seccion || '') + ' ' + (u.area || '')).indexOf('chunga') !== -1;
+}
+
 function mostrarBotonMapa() {
     const b = document.getElementById('btn-mapa-plan');
     if (!b) return;
     const u = obtenerSesion();
     if (!u) { b.style.display = 'none'; return; }
 
-    const dentro = (u.rol === 'gerente_general' || u.rol === 'gerencial_legal' || u.rol === 'gerente_campo');
-    const texto = String((u.seccion || '') + ' ' + (u.area || ''))
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const porArea = texto.includes('operaciones agricolas') || texto.includes('seguridad industrial');
-
-    b.style.display = (dentro || porArea) ? 'flex' : 'none';
+    b.style.display = puedeVerMapa(u) ? 'flex' : 'none';
 }
 
 function aplicarVisibilidadGerente() {
@@ -947,14 +953,27 @@ function esSeguridadIndustrial() {
     return texto.indexOf('seguridad industrial') !== -1;
 }
 
+/* Personas con edición total en Medidas antes / durante / después, igual que
+   Seguridad Industrial, aunque su sección sea otra. Se comparan por nombre. */
+const EDITAN_TODO = ['HIDALGO JAMANCA EVA'];
+
+function esEditorTotal() {
+    if (esSeguridadIndustrial()) return true;
+    const u = obtenerSesion();
+    if (!u) return false;
+    const nombre = claveArea(u.area || '');
+    if (!nombre) return false;
+    return EDITAN_TODO.some(n => nombre.indexOf(claveArea(n)) === 0);
+}
+
 function puedeEditar(medida) {
     const user = obtenerSesion();
     if (!user) return false;
     if (esSoloLectura()) return false;
     if (modoLectura) return false;
 
-    // Seguridad Industrial puede editar cualquier area
-    if (esSeguridadIndustrial()) return true;
+    // Seguridad Industrial y los editores totales pueden editar cualquier area
+    if (esEditorTotal()) return true;
 
     // Gerente de Campo edita solo las áreas de campo
     if (esGerenteCampo()) return medidaEsDeCampo(medida);
@@ -1732,7 +1751,7 @@ function abrirModalAgregar(tabla) {
 
     const user = obtenerSesion();
     const seccionUsuario = (user.seccion || '').trim();
-    if (esSeguridadIndustrial()) {
+    if (esEditorTotal()) {
         agregarAreaFila(seccionUsuario, false, false);
     } else {
         agregarAreaFila(seccionUsuario, true, true);
@@ -2412,7 +2431,7 @@ async function cargarAvances() {
         return;
     }
     const puede = puedeEditar(avanceCtx.medida);
-    const verMeta = esSeguridadIndustrial();   // solo Seguridad Industrial ve fecha y autor
+    const verMeta = esEditorTotal();   // Seguridad Industrial y editores totales ven fecha y autor
     cont.innerHTML = data.map(a => {
         const f = new Date(a.created_at);
         const fecha = f.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) +
