@@ -769,7 +769,7 @@ function aplicarSemaforoEnCampos() {
     const rojo = semaforoActual.nivel === 'rojo';
     capasDeCampos().forEach(function (capa) {
         capa.setStyle(rojo
-            ? { color: COLOR_CAMPO_ROJO, weight: 2.5, opacity: 1, fillColor: COLOR_CAMPO_ROJO, fillOpacity: 0.35 }
+            ? { color: COLOR_CAMPO_ROJO, weight: 2.5, opacity: 1, fillColor: COLOR_CAMPO_ROJO, fillOpacity: 0.45 }
             : { color: COLOR_CAMPO, weight: 1.5, opacity: 0.95, fillColor: '#22d3ee', fillOpacity: 0.10 });
     });
 }
@@ -806,6 +806,16 @@ async function evacuarUnidad(fila) {
 
 /* Revisa el semáforo: pinta campos y, si es rojo, avisa una sola vez */
 async function revisarEvacuacion() {
+    /* Si el semáforo todavía no emitió su nivel, se usa la copia del equipo */
+    if (!semaforoActual.vigente_desde) {
+        try {
+            const local = JSON.parse(localStorage.getItem('sem_estado') || 'null');
+            if (local && local.nivel) {
+                semaforoActual = { nivel: local.nivel, vigente_desde: local.vigente_desde || null };
+            }
+        } catch (e) {}
+    }
+
     aplicarSemaforoEnCampos();
     if (semaforoActual.nivel !== 'rojo') return;
 
@@ -1230,13 +1240,17 @@ function aplicarVisibilidadCapas() {
     /* Seguimiento: unidades y campos. Nada de puntos críticos. */
     /* Puntos críticos: puntos, maquinarias y sus líneas. Nada de campos. */
     mostrarGrupo(capaUnidades, esSeguimiento);
-    mostrarGrupo(capaCampos, esSeguimiento);
+    /* En rojo los campos se ven en las dos pestañas: es la zona de evacuación */
+    mostrarGrupo(capaCampos, esSeguimiento || semaforoActual.nivel === 'rojo');
     mostrarGrupo(capaLineasSeg, esSeguimiento);
 
     mostrarGrupo(capaPuntos, !esSeguimiento);
     /* Las máquinas de Puntos Críticos se ven sólo con sesión iniciada */
     mostrarGrupo(capaMaquinas, !esSeguimiento && !!usuarioPlan());
     mostrarGrupo(capaLineas, !esSeguimiento);
+
+    /* Reaplicar el color de evacuación cada vez que cambia la pestaña */
+    aplicarSemaforoEnCampos();
 }
 
 
