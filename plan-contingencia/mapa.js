@@ -692,21 +692,43 @@ async function cargarCampos() {
 const RADIO_EVAC_M = 300;             // "cerca" del campo
 const COLOR_CAMPO = '#06b6d4';        // turquesa normal
 const COLOR_CAMPO_ROJO = '#dc2626';
-const LS_EVAC = 'evac_rojo_ts';
+const LS_EVAC = 'evac_rojo_ts_v2';
 
 let semaforoActual = { nivel: 'verde', vigente_desde: null };
+
+/* Capas (polígonos) de los campos tal como están dibujadas */
+function capasDeCampos() {
+    const salida = [];
+    if (!capaCampos) return salida;
+    capaCampos.eachLayer(function (capa) {
+        if (typeof capa.setStyle === 'function' && typeof capa.getLatLngs === 'function') salida.push(capa);
+    });
+    return salida;
+}
+
+/* Los 33 campos vienen como MultiPolygon: getLatLngs devuelve varios niveles.
+   Se recorre hasta juntar anillos de vértices reales. */
+function anillosDesdeNiveles(niveles, salida) {
+    if (!Array.isArray(niveles) || !niveles.length) return salida;
+    const primero = niveles[0];
+    if (primero && typeof primero.lat === 'number') {
+        const anillo = niveles
+            .filter(function (p) { return p && typeof p.lat === 'number'; })
+            .map(function (p) { return [p.lat, p.lng]; });
+        if (anillo.length >= 3) salida.push(anillo);
+        return salida;
+    }
+    niveles.forEach(function (hijo) { anillosDesdeNiveles(hijo, salida); });
+    return salida;
+}
 
 /* Anillos de todos los campos, en orden [lat, lng] */
 function anillosDeCampos() {
     const salida = [];
-    if (!capaCampos) return salida;
-    capaCampos.eachLayer(function (capa) {
-        if (typeof capa.getLatLngs !== 'function') return;
-        const ll = capa.getLatLngs();
-        const anillo = Array.isArray(ll[0]) ? ll[0] : ll;
-        const pts = anillo.map(function (p) { return [p.lat, p.lng]; });
-        if (pts.length < 3) return;
-        salida.push({ nombre: (capa.options && capa.options.campo) || '', anillo: pts, capa: capa });
+    capasDeCampos().forEach(function (capa) {
+        const anillos = anillosDesdeNiveles(capa.getLatLngs(), []);
+        if (!anillos.length) return;
+        salida.push({ anillo: anillos[0], anillos: anillos, capa: capa });
     });
     return salida;
 }
@@ -745,10 +767,9 @@ function distanciaAAnillo(lat, lon, anillo) {
 /* Pinta los campos de rojo (evacuación) o los devuelve a su color normal */
 function aplicarSemaforoEnCampos() {
     const rojo = semaforoActual.nivel === 'rojo';
-    anillosDeCampos().forEach(function (c) {
-        if (!c.capa.setStyle) return;
-        c.capa.setStyle(rojo
-            ? { color: COLOR_CAMPO_ROJO, weight: 2.5, opacity: 1, fillColor: COLOR_CAMPO_ROJO, fillOpacity: 0.32 }
+    capasDeCampos().forEach(function (capa) {
+        capa.setStyle(rojo
+            ? { color: COLOR_CAMPO_ROJO, weight: 2.5, opacity: 1, fillColor: COLOR_CAMPO_ROJO, fillOpacity: 0.35 }
             : { color: COLOR_CAMPO, weight: 1.5, opacity: 0.95, fillColor: '#22d3ee', fillOpacity: 0.10 });
     });
 }
@@ -796,19 +817,25 @@ async function revisarEvacuacion() {
     const anillos = anillosDeCampos();
     if (!anillos.length) return;   // todavía no cargaron los campos: se reintenta
 
-    try { localStorage.setItem(LS_EVAC, marca); } catch (e) {}
-
     const { data } = await db.from('ubicaciones').select('user_id, unidad, lat, lon, token');
     let avisadas = 0;
     for (const fila of (data || [])) {
         const lat = Number(fila.lat), lon = Number(fila.lon);
         if (!isFinite(lat) || !isFinite(lon)) continue;
         const afectada = anillos.some(function (c) {
-            return puntoEnAnillo(lat, lon, c.anillo) || distanciaAAnillo(lat, lon, c.anillo) <= RADIO_EVAC_M;
+            return (c.anillos || [c.anillo]).some(function (a) {
+                return puntoEnAnillo(lat, lon, a) || distanciaAAnillo(lat, lon, a) <= RADIO_EVAC_M;
+            });
         });
         if (!afectada) continue;
         await evacuarUnidad(fila);
         avisadas++;
+    }
+
+    /* Sólo se marca como hecha si de verdad hubo a quién avisar:
+       así, si todavía no había unidades en los campos, se reintenta. */
+    if (avisadas > 0) {
+        try { localStorage.setItem(LS_EVAC, marca); } catch (e) {}
     }
 
     const est = document.getElementById('estado');
