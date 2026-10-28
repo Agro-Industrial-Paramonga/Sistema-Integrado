@@ -47,6 +47,22 @@
         }
     }
 
+    /* Deja rastro en app_log para poder revisar desde fuera qué ve el celular */
+    async function log(detalle) {
+        try {
+            await fetch(SEM_URL + '/rest/v1/app_log', {
+                method: 'POST',
+                headers: {
+                    apikey: SEM_KEY,
+                    Authorization: 'Bearer ' + SEM_KEY,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=minimal',
+                },
+                body: JSON.stringify({ origen: 'evac_auto', detalle: String(detalle).slice(0, 400) }),
+            });
+        } catch (e) {}
+    }
+
     async function cargarCampos() {
         const salida = [];
         try {
@@ -145,13 +161,15 @@
         return (filas || []).some(function (f) { return norm(f.unidad) === buscada; });
     }
 
+    let ultimoLog = '';
+
     async function revisar() {
         const s = sesion();
         if (!s || !s.unidad) return;
 
         const estado = await api('semaforo_estado?select=nivel,vigente_desde&id=eq.1');
         const fila = (estado || [])[0];
-        if (!fila) return;
+        if (!fila) { await log('sin respuesta del semaforo'); return; }
         if (fila.nivel !== 'rojo') return;
 
         const marca = String(fila.vigente_desde || 'rojo');
@@ -168,14 +186,31 @@
         if (anillos === null) await cargarCampos();
         if (!anillos || !anillos.length) return;
 
-        const cerca = anillos.some(function (a) {
-            return dentro(lat, lon, a) || distancia(lat, lon, a) <= RADIO_M;
+        let dist = Infinity, ins = false;
+        anillos.forEach(function (a) {
+            if (dentro(lat, lon, a)) ins = true;
+            const d = distancia(lat, lon, a);
+            if (d < dist) dist = d;
         });
+        const cerca = ins || dist <= RADIO_M;
+
+        const marcaLog = fila.nivel + '|' + Math.round(dist) + '|' + ins;
+        if (marcaLog !== ultimoLog) {
+            ultimoLog = marcaLog;
+            await log('eval ' + s.unidad + ' · nivel=' + fila.nivel + ' · enCampo=' + ins +
+                ' · distMin=' + Math.round(dist) + 'm · anillos=' + anillos.length +
+                ' · dispara=' + cerca);
+        }
+
         if (!cerca) return;
 
         /* La alarma del propio celular es la que se ve a pantalla completa,
            así que no se espera a ningún push. */
         try { localStorage.setItem(LS_MARCA, marca); } catch (e) {}
+        const cap = window.Capacitor;
+        const hay = !!(cap && cap.Plugins && cap.Plugins.Alarma && cap.Plugins.Alarma.probarAlarma);
+        await log('DISPARO ' + s.unidad + ' · pluginNativo=' + hay + ' · plataforma=' +
+            (cap && cap.getPlatform ? cap.getPlatform() : 'sin capacitor'));
         disparar(s.unidad);
     }
 
