@@ -245,6 +245,12 @@
         }
     }
 
+    /* Clave de la sesión que abrió el portal (script.js). Sin ella la base
+       no acepta cambios de semáforo: así nadie de afuera puede declarar rojo. */
+    function semClaveSesion() {
+        try { return localStorage.getItem('pc_sesion_clave') || ''; } catch (e) { return ''; }
+    }
+
     /* ------------------------------------------------------------
        Carga y guardado
     ------------------------------------------------------------ */
@@ -347,37 +353,32 @@
         };
 
         let subio = false;
+        let fallo = '';
 
         if (cliente) {
-            try {
-                const { error } = await cliente.from('semaforo_estado').upsert(
-                    {
-                        id: 1,
-                        nivel: nivel,
-                        motivo: null,
-                        declarado_por: nuevo.declarado_por,
-                        declarado_por_rol: DECLARADOR.rol,
-                        es_guardia: false,
-                        vigente_desde: ahora,
-                        actualizado_en: ahora,
-                    },
-                    { onConflict: 'id' },
-                );
+            const clave = semClaveSesion();
 
-                if (!error) {
-                    await cliente.from('semaforo_eventos').insert({
-                        nivel: nivel,
-                        nivel_anterior: anterior,
-                        declarado_por: nuevo.declarado_por,
-                        declarado_por_rol: DECLARADOR.rol,
-                        es_guardia: false,
-                        verificado: !!verifico,
+            if (!clave) {
+                fallo = 'sin_sesion';
+            } else {
+                try {
+                    const { data, error } = await cliente.rpc('declarar_semaforo', {
+                        p_clave: clave,
+                        p_nivel: nivel,
+                        p_verificado: !!verifico,
                     });
-                    subio = true;
-                    origen = 'nube';
+
+                    if (error) {
+                        fallo = 'error';
+                    } else if (!data || data.ok !== true) {
+                        fallo = (data && data.motivo) || 'sin_permiso';
+                    } else {
+                        subio = true;
+                        origen = 'nube';
+                    }
+                } catch (e) {
+                    fallo = 'error';
                 }
-            } catch (e) {
-                /* sigue el modo local */
             }
         }
 
@@ -392,6 +393,16 @@
                     ? 'Alerta cerrada: el semáforo queda en vigilancia normal.'
                     : 'Semáforo: ' + NIVELES[nivel].nombre + ' declarado y publicado.',
                 nivel === 'verde' ? 'ok' : 'warn',
+            );
+        } else if (fallo === 'sin_sesion') {
+            semAvisar(
+                'Tu sesión no está abierta en este equipo. Cierra sesión y vuelve a entrar para declarar el semáforo.',
+                'warn',
+            );
+        } else if (fallo === 'sin_permiso') {
+            semAvisar(
+                'Solo Seguridad Industrial o gerencia pueden cambiar el semáforo.',
+                'warn',
             );
         } else {
             semAvisar(
