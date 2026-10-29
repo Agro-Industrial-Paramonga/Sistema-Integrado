@@ -742,6 +742,10 @@ async function cerrarSesion() {
     const ok = await mostrarConfirm('¿Cerrar sesión?', 'Cerrar sesión', 'warn');
     if (!ok) return;
 
+    /* La cierra el propio usuario: la vigilancia no debe saltar */
+    sesionPanelAnulada = true;
+    if (temporizadorPanel) { clearInterval(temporizadorPanel); temporizadorPanel = null; }
+
     // Cierra la sesión en la base: deja de recibir alarmas aunque el token siga en el celular
     await cerrarSesionPanel();
 
@@ -834,6 +838,10 @@ async function entrarApp() {
     document.getElementById('main-header').style.display = 'flex';
     mostrarMenuLogin(false);
     document.getElementById('user-name').textContent = u.area;
+
+    /* La sesión vive en la base: se vigila que siga abierta */
+    sesionPanelAnulada = false;
+    try { vigilarSesionPanel(); } catch (e) { console.warn('vigilancia sesion', e); }
 
     aplicarVisibilidadGerente();
     mostrarBotonMapa();
@@ -2093,6 +2101,60 @@ async function sesionDesdeBase() {
         console.warn('[SESION] no se pudo consultar:', e);
         return null;
     }
+}
+
+/* ------------------------------------------------------------
+   Vigilancia de la sesion del portal
+   Cada medio minuto la base confirma si este equipo sigue con
+   sesion abierta. Si la liberaron desde el panel, se vuelve al
+   login y se avisa. Un fallo de red NO cierra la sesion.
+   ------------------------------------------------------------ */
+const MS_VIGILANCIA_PANEL = 30000;
+let temporizadorPanel = null;
+let sesionPanelAnulada = false;
+
+async function panelSigueAbierto() {
+    const disp = dispositivoActual();
+    if (!disp) return 'error';
+    try {
+        const { data, error } = await db.rpc('sesion_panel_por_dispositivo', { p_dispositivo: disp });
+        if (error) return 'error';
+        if (!data || data.ok === false) return 'no';
+        return 'si';
+    } catch (e) {
+        return 'error';
+    }
+}
+
+function vigilarSesionPanel() {
+    if (temporizadorPanel || sesionPanelAnulada) return;
+    const revisar = async () => {
+        if (sesionPanelAnulada) return;
+        if (await panelSigueAbierto() === 'no') salirPorLiberacion();
+    };
+    temporizadorPanel = setInterval(revisar, MS_VIGILANCIA_PANEL);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
+}
+
+/* Seguridad Industrial libero este equipo desde el panel */
+function salirPorLiberacion() {
+    if (sesionPanelAnulada) return;
+    sesionPanelAnulada = true;
+    if (temporizadorPanel) { clearInterval(temporizadorPanel); temporizadorPanel = null; }
+
+    limpiarSesion();
+    try { localStorage.removeItem('pc_sesion_clave'); } catch (e) {}
+
+    document.getElementById('main-header').style.display = 'none';
+    mostrarPantalla('screen-login');
+    mostrarMenuLogin(true);
+    mostrarModoBotones(false);
+    cargarAreasEnLogin();
+    mostrarAlerta(
+        'Seguridad Industrial cerró tu sesión desde el panel. Vuelve a iniciar sesión con tu clave.',
+        'Sesión cerrada',
+        'warn'
+    );
 }
 
 async function abrirSesionPanel(area, password) {

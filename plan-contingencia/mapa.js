@@ -96,8 +96,9 @@ async function cargarSesionConductor() {
 
     // Turno abierto por una version anterior (sin id de equipo): el celular
     // guarda usuario y unidad en sus preferencias nativas. La base confirma
-    // que ese turno sigue abierto y a nombre de esa persona; si es asi se
-    // adopta, sin crear ni duplicar nada.
+    // que ese turno sigue abierto y a nombre de esa persona; solo entonces se
+    // anota el equipo en ese turno. NUNCA se crea ni se recupera un turno
+    // desde la memoria del telefono: si lo liberaron, se pide DNI otra vez.
     let nativa = '';
     try {
         if (window.AndroidUbicacion && window.AndroidUbicacion.obtenerSesionGuardada) {
@@ -111,12 +112,10 @@ async function cargarSesionConductor() {
         const unidad = partes[1].trim();
         if (usuario && unidad) {
             try {
-                const { data } = await db.rpc('abrir_turno', {
+                const { data } = await db.rpc('adoptar_turno', {
                     p_unidad: unidad,
                     p_user_id: usuario,
-                    p_dni: null,
-                    p_dispositivo: disp,
-                    p_token: null
+                    p_dispositivo: disp
                 });
                 if (data && data.ok) {
                     const adoptada = await buscar();
@@ -669,7 +668,10 @@ function aplicarSesionConductor() {
     // 2) Refrescar que esta unidad corresponde a este celular (para las alertas)
     try { sincronizarSuscripcion(c); } catch (e) { console.warn('suscripcion', e); }
 
-    // 2) Luego la pantalla de turno (si algo falla, el mapa sigue visible)
+    // 3) Vigilar que el turno siga abierto: si lo liberan, el celular se cierra
+    try { vigilarTurno(); } catch (e) { console.warn('vigilancia', e); }
+
+    // 4) Luego la pantalla de turno (si algo falla, el mapa sigue visible)
     try { mostrarPantallaTurno(c); } catch (e) { console.warn('pantalla turno', e); }
 }
 
@@ -729,7 +731,7 @@ function iniciarRastreoSilencioso(c) {
 
     if (!window.__vigilando) {
         window.__vigilando = true;
-        navigator.geolocation.watchPosition(
+        window.__vigiaGps = navigator.geolocation.watchPosition(
             (pos) => enviarUbicacion(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
             (err) => {
                 const est = document.getElementById('estado');
@@ -740,7 +742,95 @@ function iniciarRastreoSilencioso(c) {
     }
 }
 
+/* ------------------------------------------------------------
+   Vigilancia del turno
+   Cada medio minuto el celular le pregunta a la base si este equipo
+   sigue en turno. Solo cuando la base responde "no" se cierra: un
+   fallo de red no cierra nada.
+   ------------------------------------------------------------ */
+const MS_VIGILANCIA = 30000;
+let temporizadorTurno = null;
+let turnoAnulado = false;
+
+async function vigilarTurno() {
+    if (temporizadorTurno || turnoAnulado) return;
+
+    const revisar = async () => {
+        if (turnoAnulado || !SESION_CONDUCTOR) return;
+        const disp = dispositivoEquipo();
+        if (!disp) return;
+        let data = null;
+        try {
+            const res = await db.rpc('sesion_unidad_por_dispositivo', { p_dispositivo: disp });
+            if (res.error) return;          // sin datos: se reintenta, no se cierra
+            data = res.data;
+        } catch (e) {
+            return;                          // idem
+        }
+        if (!data || data.ok === false) cerrarPorLiberacion();
+    };
+
+    temporizadorTurno = setInterval(revisar, MS_VIGILANCIA);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
+}
+
+/* El turno desaparecio de la base: el celular deja de enviar y se cierra */
+function cerrarPorLiberacion() {
+    if (turnoAnulado) return;
+    turnoAnulado = true;
+    SESION_CONDUCTOR = null;
+
+    if (temporizadorTurno) { clearInterval(temporizadorTurno); temporizadorTurno = null; }
+    try {
+        if (window.__vigiaGps !== null && window.__vigiaGps !== undefined) {
+            navigator.geolocation.clearWatch(window.__vigiaGps);
+        }
+    } catch (e) {}
+    window.__vigilando = false;
+    window.__vigiaGps = null;
+
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
+            window.AndroidUbicacion.detenerServicio();
+        }
+    } catch (e) {}
+
+    try {
+        localStorage.removeItem('conductor');
+        localStorage.removeItem('pushToken');
+    } catch (e) {}
+
+    if (document.getElementById('pantalla-liberado')) return;
+
+    const capa = document.createElement('div');
+    capa.id = 'pantalla-liberado';
+    capa.style.cssText = 'position:fixed;inset:0;z-index:6000;background:linear-gradient(160deg,#fef2f2 0%,#f8fafc 55%,#eef2ff 100%);display:flex;align-items:center;justify-content:center;padding:22px;';
+    capa.innerHTML = `
+        <div style="width:100%;max-width:400px;background:#fff;border-radius:22px;padding:26px 22px;box-shadow:0 18px 50px rgba(15,23,42,.16);text-align:center;font-family:inherit;">
+            <div style="width:62px;height:62px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+                <i class="fas fa-unlink" style="font-size:24px;color:#b91c1c"></i>
+            </div>
+            <h1 style="margin:0 0 8px;font-size:1.2rem;color:#0f172a">Turno cerrado</h1>
+            <p style="margin:0 0 6px;font-size:.86rem;color:#334155;line-height:1.45">
+                Seguridad Industrial cerró este turno desde el panel.
+            </p>
+            <p style="margin:0 0 18px;font-size:.84rem;color:#64748b;line-height:1.45">
+                Tu ubicación ya no se comparte. Para volver a trabajar, ingresa de nuevo con tu DNI.
+            </p>
+            <button id="btn-liberado-seguir" style="width:100%;padding:12px;border:none;background:#0f172a;color:#fff;border-radius:12px;font-size:.88rem;font-weight:700;cursor:pointer;font-family:inherit;">
+                <i class="fas fa-right-to-bracket"></i> Ingresar de nuevo
+            </button>
+        </div>`;
+
+    document.body.appendChild(capa);
+    const boton = document.getElementById('btn-liberado-seguir');
+    if (boton) boton.addEventListener('click', () => { window.location.href = 'conductor.html?v=22'; });
+
+    setTimeout(() => { window.location.href = 'conductor.html?v=22'; }, 5000);
+}
+
 async function enviarUbicacion(lat, lon, precision) {
+    if (turnoAnulado) return;
     const ahora = Date.now();
     if (ahora - ultimoEnvio < 60000) return;
     ultimoEnvio = ahora;
@@ -768,6 +858,11 @@ async function enviarUbicacion(lat, lon, precision) {
 async function cerrarTurno() {
     if (!confirm('¿Finalizar el turno? Se dejará de compartir la ubicación.')) return;
     const c = sesionConductor();
+
+    /* El cierre lo pidio el conductor: la vigilancia no debe mostrar
+       el aviso de "cerrado desde el panel". */
+    turnoAnulado = true;
+    if (temporizadorTurno) { clearInterval(temporizadorTurno); temporizadorTurno = null; }
 
     // 1) Cerrar el turno en la base: borra la fila, limpia posicion y
     //    suscripcion, y deja el registro en el historial
