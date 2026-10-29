@@ -1147,6 +1147,10 @@ let medidasAntesCache = [];
 let medidasDuranteCache = [];
 let medidasDespuesCache = [];
 
+/* Última lista pintada de "antes" (ya ordenada y filtrada): es la que
+   usan las flechas de subir/bajar para saber cuál es la vecina. */
+let visiblesAntes = [];
+
 let filtroEstadoAntes = 'all';
 let filtroEstadoDurante = 'all';
 let filtroEstadoDespues = 'all';
@@ -1194,6 +1198,7 @@ async function cargarMedidasAntes() {
     const { data, error } = await db
         .from('medidas_antes')
         .select('*')
+        .order('orden', { ascending: true, nullsFirst: true })
         .order('id', { ascending: true });
 
     if (error) {
@@ -1216,20 +1221,23 @@ function renderTablaAntes() {
     actualizarTotalAntes(filtradas);
 
     if (filtradas.length === 0) {
+        visiblesAntes = [];
         tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No hay actividades para mostrar.</td></tr>';
         actualizarProgresoAntes();
         return;
     }
 
     tbody.innerHTML = '';
+    const ordenadas = ordenarPorSegmento(filtradas, 'antes');
+    visiblesAntes = ordenadas;
     let _segAnt = '__x__';
-    ordenarPorSegmento(filtradas, 'antes').forEach(act => {
+    ordenadas.forEach((act, _idx) => {
         const _seg = act.segmento_id || null;
         if (_seg !== _segAnt) { _segAnt = _seg; tbody.insertAdjacentHTML('beforeend', filaSegmentoHTML(_seg, 'antes')); }
         const editable = puedeEditar(act) && !esVistaCompleta();
         const tr = document.createElement('tr');
                 tr.innerHTML = `
-            <td data-label="Actividad">${act.actividad}</td>
+            <td data-label="Actividad">${celdaActividadHTML(act, ordenadas, _idx)}</td>
             <td data-label="Período">${act.periodo || ''}</td>
             <td data-label="Área">${act.area || ''}</td>
             <td data-label="Costo">
@@ -1310,6 +1318,70 @@ function renderTablaAntes() {
     });
 
     actualizarProgresoAntes();
+}
+
+/* ===== ORDEN MANUAL DE LAS MEDIDAS (subir / bajar) ===== */
+function celdaActividadHTML(act, lista, idx) {
+    return `<div class="actividad-celda">${flechasOrdenHTML(act.id, lista, idx)}<span class="actividad-texto">${act.actividad}</span></div>`;
+}
+
+function flechasOrdenHTML(id, lista, idx) {
+    const seg = lista[idx].segmento_id || null;
+    const hayArriba = idx > 0 && (lista[idx - 1].segmento_id || null) === seg;
+    const hayAbajo = idx < lista.length - 1 && (lista[idx + 1].segmento_id || null) === seg;
+    return `<span class="seg-acciones acciones-orden">
+        <button type="button" class="seg-flecha" title="Subir" onclick="moverMedidaAntes('${id}', -1)" ${hayArriba ? '' : 'disabled'}>&#9650;</button>
+        <button type="button" class="seg-flecha" title="Bajar" onclick="moverMedidaAntes('${id}', 1)" ${hayAbajo ? '' : 'disabled'}>&#9660;</button>
+    </span>`;
+}
+
+/* Intercambia el orden con la medida vecina visible (siempre dentro del segmento). */
+async function moverMedidaAntes(id, delta) {
+    const lista = visiblesAntes.length ? visiblesAntes : medidasAntesCache;
+    const i = lista.findIndex(m => String(m.id) === String(id));
+    if (i < 0) return;
+    const j = i + delta;
+    if (j < 0 || j >= lista.length) return;
+
+    const a = lista[i];
+    const b = lista[j];
+    if ((a.segmento_id || null) !== (b.segmento_id || null)) return;
+
+    const oa = Number(a.orden);
+    const ob = Number(b.orden);
+    const cambios = [];
+
+    if (!Number.isFinite(oa) || !Number.isFinite(ob)) {
+        /* Datos viejos sin orden: se renumera el segmento con lo que se ve. */
+        const seg = a.segmento_id || null;
+        const delSeg = lista.filter(m => (m.segmento_id || null) === seg);
+        const k = delSeg.indexOf(a);
+        const l = delSeg.indexOf(b);
+        if (k < 0 || l < 0) return;
+        delSeg[k] = b;
+        delSeg[l] = a;
+        delSeg.forEach((m, n) => {
+            if (Number(m.orden) !== n) { m.orden = n; cambios.push({ id: m.id, orden: n }); }
+        });
+    } else {
+        a.orden = ob;
+        b.orden = oa;
+        cambios.push({ id: a.id, orden: ob }, { id: b.id, orden: oa });
+    }
+
+    renderTablaAntes();
+
+    for (const c of cambios) {
+        const { error } = await db
+            .from('medidas_antes')
+            .update({ orden: c.orden })
+            .eq('id', c.id);
+        if (error) {
+            console.error('Error al guardar el orden:', error);
+            cargarMedidasAntes();
+            return;
+        }
+    }
 }
 
 function actualizarProgresoAntes() {
@@ -1936,6 +2008,13 @@ async function guardarNuevaMedida() {
             segmento_id: document.getElementById('agregar-segmento')?.value || null,
             updated_at: new Date().toISOString()
         };
+        /* Si cambió de segmento, entra al final del segmento nuevo. */
+        if (tablaModalActual === 'antes' &&
+            (payload.segmento_id || null) !== (medidaEditando.segmento_id || null)) {
+            const nuevoSeg = payload.segmento_id || null;
+            const hermanos = medidasAntesCache.filter(m => (m.segmento_id || null) === nuevoSeg);
+            payload.orden = hermanos.reduce((mx, m) => Math.max(mx, Number(m.orden) || 0), -1) + 1;
+        }
         const { error } = await db.from(nombreTabla)
             .update(payload)
             .eq('id', medidaEditando.id);
@@ -2454,10 +2533,16 @@ function nombreSegmento(id) {
 function ordenarPorSegmento(lista, tabla) {
     const orden = new Map();
     segmentosDe(tabla).forEach((s, i) => orden.set(s.id, i));
+    /* Segundo criterio: el orden manual de la medida dentro de su segmento. */
+    const clave = (m) => (Number.isFinite(Number(m.orden)) ? Number(m.orden) : 0);
     return lista.slice().sort((a, b) => {
         const oa = a.segmento_id && orden.has(a.segmento_id) ? orden.get(a.segmento_id) : 999;
         const ob = b.segmento_id && orden.has(b.segmento_id) ? orden.get(b.segmento_id) : 999;
-        return oa - ob;
+        if (oa !== ob) return oa - ob;
+        const ka = clave(a);
+        const kb = clave(b);
+        if (ka !== kb) return ka - kb;
+        return String(a.id).localeCompare(String(b.id));
     });
 }
 
