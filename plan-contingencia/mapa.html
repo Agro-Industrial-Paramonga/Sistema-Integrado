@@ -9,6 +9,51 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
     <style>
+        /* Miniatura clickeable */
+.panel-foto-img { cursor: zoom-in; }
+
+/* Lightbox */
+.lightbox-mapa {
+    position: fixed; inset: 0; z-index: 5000;
+    background: rgba(15,23,42,.95);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+}
+.lightbox-mapa.visible { display: flex; }
+.lb-img {
+    max-width: 92vw; max-height: 88vh;
+    object-fit: contain; border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.6);
+    user-select: none; -webkit-user-drag: none;
+}
+.lb-cerrar {
+    position: absolute; top: 12px; right: 14px;
+    width: 44px; height: 44px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,.15); color: #fff;
+    font-size: 26px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.lb-cerrar:hover { background: rgba(255,255,255,.28); }
+.lb-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 48px; height: 48px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,.18); color: #fff;
+    font-size: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.lb-nav:hover { background: rgba(255,255,255,.3); }
+.lb-prev { left: 14px; }
+.lb-next { right: 14px; }
+.lb-contador {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: .82rem; font-weight: 700;
+    background: rgba(15,23,42,.7); padding: 6px 12px; border-radius: 999px;
+}
+@media (max-width: 600px) {
+    .lb-nav { width: 40px; height: 40px; font-size: 18px; }
+    .lb-prev { left: 6px; }
+    .lb-next { right: 6px; }
+}
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; }
         #mapa { position: absolute; inset: 0; }
@@ -318,15 +363,16 @@
         }
         .tip-sector::before { border-top-color: #166534; }
 
-        .tip-punto, .tip-compuerta {
+                .tip-punto, .tip-compuerta {
             background: #0f172a; color: #fff; border: none; border-radius: 10px;
-            font-size: .7rem; padding: 6px 9px; max-width: 240px; white-space: normal;
+            font-size: .7rem; padding: 6px 9px; max-width: 400px; /* Aumentamos el ancho */
+            white-space: nowrap; /* Evita que el texto baje de línea */
             box-shadow: 0 8px 22px rgba(15,23,42,.35);
         }
         .tip-punto::before, .tip-compuerta::before { border-top-color: #0f172a; }
         .tip-ficha-tit { font-weight: 800; margin-bottom: 4px; }
-        .tip-ficha-fila { display: flex; gap: 6px; font-size: .68rem; line-height: 1.35; }
-        .tip-ficha-fila span { color: #94a3b8; min-width: 74px; }
+        .tip-ficha-fila { display: flex; gap: 6px; font-size: .68rem; line-height: 1.35; align-items: center; }
+        .tip-ficha-fila span { color: #94a3b8; min-width: 74px; flex-shrink: 0; }
 
         .punto-critico.sin-numero {
             background: #fff; border-color: #94a3b8; color: #64748b;
@@ -510,6 +556,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
     <script src="mapa.js?v=56"></script>
     <script src="compuertas.js?v=7"></script>
-    <script src="semaforo.js?v=7"></script>
+    <script src="semaforo.js?v=8"></script>
 </body>
 </html>

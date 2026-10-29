@@ -20,6 +20,7 @@
 
     const SEM_URL = 'https://bfhfnldqwsrcpsdqpyat.supabase.co';
     const SEM_KEY = 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
+    const FUNC_PUSH = SEM_URL + '/functions/v1/send-push-notification';
     const LS_ESTADO = 'sem_estado';
     const LS_HISTORIAL = 'sem_historial';
     const REFRESCO_MS = 60000;
@@ -338,6 +339,34 @@
         }
     }
 
+    /* Aviso a los jefes cuando cambia el semáforo.
+       La función de push, con tipo 'jefe', solo entrega a jefes que tienen
+       sesión abierta en el portal; el que declara queda excluido. */
+    async function semAvisarJefes(nivel, anterior) {
+        const n = NIVELES[nivel] || NIVELES.verde;
+        const antes = (NIVELES[anterior] || {}).nombre || '';
+        const quien = (DECLARADOR && DECLARADOR.nombre) || 'Seguridad Industrial';
+        let excluir = null;
+        try { excluir = localStorage.getItem('pushToken'); } catch (e) {}
+
+        const cuerpo = (antes ? 'Antes ' + antes + '. ' : '') + n.frase + ' · Declaró ' + quien;
+
+        try {
+            await fetch(FUNC_PUSH, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', apikey: SEM_KEY },
+                body: JSON.stringify({
+                    title: 'Semáforo: ' + n.nombre,
+                    body: cuerpo,
+                    tipo: 'jefe',
+                    excluir: excluir || undefined
+                })
+            });
+        } catch (e) {
+            console.warn('aviso semaforo', e);
+        }
+    }
+
     async function semGuardar(nivel, verifico) {
         const anterior = estado.nivel;
         const ahora = new Date().toISOString();
@@ -383,6 +412,9 @@
         }
 
         estado = nuevo;
+
+        /* Solo si el nivel cambió de verdad, y solo a los jefes */
+        if (subio && nivel !== anterior) semAvisarJefes(nivel, anterior);
         semLocalGuardar(nuevo);
         semPintar();
         if (panel) semPintarPanel();
@@ -636,10 +668,20 @@
         #sem-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
         #sem-toast.warn { background: #b45309; }
         #sem-toast.ok { background: #166534; }
+
+        /* Semáforo exclusivo para el portal principal (top-bar) */
+        .top-bar #sem-luces {
+            padding: 4px 10px !important;
+            gap: 6px !important;
+        }
+        .top-bar #sem-luces .foco {
+            width: 16px !important;
+            height: 16px !important;
+        }
         `;
         document.head.appendChild(css);
     }
-
+       
     /* ------------------------------------------------------------
        Banda superior (siempre visible)
     ------------------------------------------------------------ */
@@ -731,10 +773,9 @@
         const marca = cabecera.querySelector('.logo-area');
         const grupo = document.createElement('span');
         grupo.id = 'sem-grupo';
-        semMontarLuces(grupo, false);
-        const txt = document.createElement('span');
-        txt.id = 'sem-grupo-txt';
-        grupo.appendChild(txt);
+        
+        // true para usar la clase 'chico'
+        semMontarLuces(grupo, true); 
 
         if (marca) marca.appendChild(grupo);
         else cabecera.appendChild(grupo);
@@ -748,8 +789,6 @@
             encabezado.style.background =
                 'linear-gradient(180deg, #ffffff 52%, ' + semRgba(n.color, 0.14) + ' 100%)';
         }
-        const txt = document.getElementById('sem-grupo-txt');
-        if (txt) txt.textContent = n.nombre;
         semPintarLuces();
     }
 
