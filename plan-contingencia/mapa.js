@@ -932,6 +932,7 @@ let capaLineas = null;      /* líneas de la pestaña Puntos críticos */
 let capaLineasSeg = null;   /* líneas de la pestaña Seguimiento de maquinarias */
 let capaCamposAipsa = null; /* sectores del KMZ, solo en Seguimiento */
 let capaCompuertasMapa = null; /* compuertas con coordenadas, solo en Puntos críticos */
+let capaZonasCriticas = null;  /* huaico y desborde, solo en Puntos críticos */
 let verticesLinea = [];
 let lineaTemporal = null;
 let marcadoresVertices = [];
@@ -944,12 +945,14 @@ function initCapasVectoriales() {
     capaLineasSeg = L.layerGroup();
     capaCamposAipsa = L.layerGroup();
     capaCompuertasMapa = L.layerGroup();
+    capaZonasCriticas = L.layerGroup();
     capaCampos = L.layerGroup().addTo(mapa);
     cargarVectores();
     cargarMaquinas();
     cargarListaMaquinas();
     cargarCampos();
     cargarCamposAipsa();
+    cargarZonasCriticas();
     cargarCompuertasMapa();
     aplicarVisibilidadCapas();
 }
@@ -1536,8 +1539,10 @@ function aplicarVisibilidadCapas() {
     /* En rojo los campos se ven en las dos pestañas: es la zona de evacuación */
     mostrarGrupo(capaCampos, esSeguimiento || semaforoActual.nivel === 'rojo');
     mostrarGrupo(capaLineasSeg, esSeguimiento);
-    /* Sectores del KMZ: solo en Seguimiento de maquinarias */
-    mostrarGrupo(capaCamposAipsa, esSeguimiento);
+    /* Sectores del KMZ: en Seguimiento y también en Puntos críticos */
+    mostrarGrupo(capaCamposAipsa, true);
+    /* Huaico y desborde: solo en Puntos críticos */
+    mostrarGrupo(capaZonasCriticas, !esSeguimiento);
     /* Compuertas: solo en Puntos críticos */
     mostrarGrupo(capaCompuertasMapa, !esSeguimiento);
 
@@ -2018,6 +2023,42 @@ async function cargarCamposAipsa() {
         }).addTo(capaCamposAipsa);
     } catch (e) {
         console.warn('campos AIPSA', e);
+    }
+}
+
+/* ============================================================
+   HUAICO Y DESBORDE: solo en Puntos criticos
+   Cada zona lleva el color de su KMZ (huaico celeste, desborde rojo).
+   ============================================================ */
+async function cargarZonasCriticas() {
+    if (!capaZonasCriticas) return;
+    try {
+        const resp = await fetch('assets/zonas-criticas.geojson?v=1');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const datos = await resp.json();
+        capaZonasCriticas.clearLayers();
+
+        L.geoJSON(datos, {
+            className: 'zona-critica',
+            style: (f) => {
+                const p = f.properties || {};
+                const relleno = p.relleno || '#dc2626';
+                return {
+                    color: relleno, weight: 2, opacity: 0.9,
+                    fillColor: relleno, fillOpacity: p.alfa || 0.2
+                };
+            },
+            onEachFeature: (f, capa) => {
+                const p = f.properties || {};
+                if (p.nombre) {
+                    capa.bindTooltip(p.nombre, {
+                        sticky: true, direction: 'top', className: 'tip-sector'
+                    });
+                }
+            }
+        }).addTo(capaZonasCriticas);
+    } catch (e) {
+        console.warn('zonas criticas', e);
     }
 }
 

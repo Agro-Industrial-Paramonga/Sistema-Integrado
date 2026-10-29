@@ -306,6 +306,7 @@
         /* ===== Campos del KMZ (solo Seguimiento de maquinarias) ===== */
         /* En edición el polígono no captura el clic ni muestra carteles */
         body.mapa-editando .leaflet-pane > svg path.sector-aipsa { pointer-events: none !important; }
+        body.mapa-editando .leaflet-pane > svg path.zona-critica { pointer-events: none !important; }
         body.mapa-editando .tip-sector,
         body.mapa-editando .tip-punto,
         body.mapa-editando .tip-compuerta { display: none !important; }
@@ -507,7 +508,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
-    <script src="mapa.js?v=55"></script>
+    <script src="mapa.js?v=56"></script>
     <script src="compuertas.js?v=7"></script>
     <script src="semaforo.js?v=7"></script>
 </body>
