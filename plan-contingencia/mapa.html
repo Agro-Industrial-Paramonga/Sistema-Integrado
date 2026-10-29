@@ -62,6 +62,20 @@
         }
         .btn-modo-ed.activo { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
 
+        /* Paleta de colores de la línea */
+        .pc-color {
+            width: 18px; height: 18px; border-radius: 50%; padding: 0;
+            border: 2px solid #fff; box-shadow: 0 0 0 1px #cbd5e1; cursor: pointer;
+        }
+        .pc-color.activo { box-shadow: 0 0 0 2px #0f172a; }
+
+        /* En modo edición la barra muestra solo el editor */
+        .barra.editando > *:not(#editor-controles):not(#btn-guardar-editor):not(#btn-guardar):not(#btn-editar-puntos):not(#btn-ajustar) {
+            display: none !important;
+        }
+        .barra.editando #editor-controles { flex: 1 1 auto; }
+        .barra.editando #btn-borrar-ed { margin-left: auto; }
+
         .tab-capa {
             border: 1px solid #e2e8f0; background: #fff; color: #475569;
             border-radius: 10px; padding: 8px 14px; font-size: .8rem; font-weight: 700;
@@ -304,14 +318,19 @@
         <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
         <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
                                 <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
-        <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar puntos</button>
+        <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar</button>
         <button id="btn-compuertas" onclick="pcAbrir()" style="display:none;border-color:#bae6fd;background:#f0f9ff;color:#0e7490;"><i class="fas fa-water"></i> Compuertas</button>
         <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
             <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed"><i class="fas fa-location-dot"></i> Punto</button>
-            <button data-modo="roja" onclick="setModoEditor('roja')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#dc2626"></i> Línea roja</button>
-            <button data-modo="amarilla" onclick="setModoEditor('amarilla')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#eab308"></i> Línea amarilla</button>
-            <button data-modo="turquesa" onclick="setModoEditor('turquesa')" class="btn-modo-ed"><i class="fas fa-draw-polygon" style="color:#06b6d4"></i> Línea turquesa</button>
-            <button data-modo="borrar" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-eraser"></i> Borrar</button>
+            <button data-modo="linea" onclick="setModoEditor('linea')" class="btn-modo-ed"><i class="fas fa-draw-polygon"></i> Línea</button>
+            <span id="paleta-linea" style="display:none;gap:5px;align-items:center;">
+                <button type="button" class="pc-color activo" data-color="#06b6d4" onclick="setColorLinea('#06b6d4')" title="Turquesa" style="background:#06b6d4"></button>
+                <button type="button" class="pc-color" data-color="#dc2626" onclick="setColorLinea('#dc2626')" title="Rojo" style="background:#dc2626"></button>
+                <button type="button" class="pc-color" data-color="#eab308" onclick="setColorLinea('#eab308')" title="Amarillo" style="background:#eab308"></button>
+                <button type="button" class="pc-color" data-color="#16a34a" onclick="setColorLinea('#16a34a')" title="Verde" style="background:#16a34a"></button>
+                <button type="button" class="pc-color" data-color="#2563eb" onclick="setColorLinea('#2563eb')" title="Azul" style="background:#2563eb"></button>
+                <button type="button" class="pc-color" data-color="#0f172a" onclick="setColorLinea('#0f172a')" title="Negro" style="background:#0f172a"></button>
+            </span>
             <span id="ctrl-maquina" style="display:none;gap:6px;align-items:center;">
                 <select id="sel-maquina" style="border:1px solid #e2e8f0;border-radius:10px;padding:7px 10px;font-size:.76rem;"></select>
                 <button onclick="setModoEditor('maquina')" data-modo="maquina" class="btn-modo-ed"><i class="fas fa-tractor"></i> Colocar</button>
@@ -321,7 +340,7 @@
             </span>
             <button onclick="cerrarZona()"  id="btn-cerrar-zona" style="display:none;background:#0ea5e9;color:#fff;border-color:#0ea5e9;">Cerrar zona</button>
             <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981;">Terminar línea</button>
-            <button onclick="borrarTodo()" style="font-size:.72rem;">Borrar todo</button>
+            <button data-modo="borrar" id="btn-borrar-ed" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-eraser"></i> Borrar</button>
         </span>
         <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
                 <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
@@ -395,7 +414,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
-    <script src="mapa.js?v=51"></script>
+    <script src="mapa.js?v=52"></script>
     <script src="compuertas.js?v=7"></script>
     <script src="semaforo.js?v=5"></script>
 </body>

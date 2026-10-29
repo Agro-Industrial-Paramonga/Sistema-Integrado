@@ -410,8 +410,9 @@ function actualizarControles() {
         botonEd.style.display = puede ? 'inline-flex' : 'none';
     }
 
+    /* «Ajustar capa» solo se muestra dentro del editor */
     const botonAjustar = document.getElementById('btn-ajustar');
-    if (botonAjustar) botonAjustar.style.display = (!esMovil() && puedeEditarMapa()) ? 'inline-flex' : 'none';
+    if (botonAjustar) botonAjustar.style.display = 'none';
 }
 
 /* ------------------------------------------------------------
@@ -825,6 +826,8 @@ async function moverSimulacion(lat, lon) {
    ============================================================ */
 let editorActivo = false;
 let modoEditor = null;
+/* Color con el que se dibujan las líneas y zonas nuevas */
+let colorLinea = '#06b6d4';
 let capaUnidades = null;
 let capaMaquinas = null;
 let capaCampos = null;
@@ -1572,10 +1575,11 @@ async function cargarVectores() {
 
 async function guardarEdicion() {
     if (!puedeEditarMapa()) return;
+    if (!confirm('¿Seguro que querés guardar los cambios del mapa?')) return;
     const est = document.getElementById('estado');
     let cambios = 0;
 
-    for (const p of mapasPuntosCache()) {
+    for (const p of puntosCache) {
         if (!p.__dirty) continue;
         await db.from('mapa_puntos').update({ lat: p.lat, lon: p.lon }).eq('id', p.id);
         p.__dirty = false;
@@ -1598,16 +1602,24 @@ async function guardarEdicion() {
     }
 
     if (est) est.textContent = cambios > 0 ? ('✓ ' + cambios + ' cambio(s) guardado(s)') : 'Sin cambios pendientes';
+
+    /* Al guardar se cierra el editor */
+    if (editorActivo) alternarEditor();
 }
 
 function alternarEditor() {
     if (!puedeEditarMapa()) return;
     editorActivo = !editorActivo;
     document.body.classList.toggle('mapa-editando', editorActivo);
+    document.querySelector('.barra')?.classList.toggle('editando', editorActivo);
     if (editorActivo && mapa) { try { mapa.closePopup(); } catch (e) {} }
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
     const bg = document.getElementById('btn-guardar-editor');
     if (bg) bg.style.display = editorActivo ? 'inline-flex' : 'none';
+    const ba = document.getElementById('btn-ajustar');
+    if (ba) ba.style.display = editorActivo ? 'inline-flex' : 'none';
+    const pal = document.getElementById('paleta-linea');
+    if (pal) pal.style.display = 'none';
 
     // recrear maquinas y puntos para que el arrastre quede habilitado/deshabilitado
     try { cargarMaquinas(); cargarVectores(); } catch (e) {}
@@ -1626,25 +1638,46 @@ function alternarEditor() {
     }
 }
 
+/* Cambia el color de la línea en curso y lo deja elegido para la próxima */
+function setColorLinea(color) {
+    colorLinea = color;
+    document.querySelectorAll('.pc-color').forEach(b => {
+        b.classList.toggle('activo', b.dataset.color === color);
+    });
+    if (lineaTemporal) {
+        const e = estiloLinea(colorLinea);
+        lineaTemporal.setStyle({ color: e.color, weight: e.weight });
+    }
+}
+
 function setModoEditor(modo) {
+    /* Los nombres viejos de línea siguen entrando por compatibilidad */
+    if (modo === 'roja' || modo === 'amarilla' || modo === 'turquesa') {
+        if (modo === 'roja') colorLinea = '#dc2626';
+        if (modo === 'amarilla') colorLinea = '#eab308';
+        if (modo === 'turquesa') colorLinea = '#06b6d4';
+        modo = 'linea';
+    }
     modoEditor = modo;
 
     document.querySelectorAll('.btn-modo-ed').forEach(b => {
         b.classList.toggle('activo', b.dataset.modo === modo);
     });
 
-    const esLinea = (modo === 'roja' || modo === 'amarilla' || modo === 'turquesa');
+    const esLinea = (modo === 'linea');
+    const pal = document.getElementById('paleta-linea');
+    if (pal) pal.style.display = esLinea ? 'inline-flex' : 'none';
     document.getElementById('btn-terminar-linea').style.display = esLinea ? 'inline-flex' : 'none';
     document.getElementById('btn-cerrar-zona').style.display = esLinea ? 'inline-flex' : 'none';
+    if (esLinea) setColorLinea(colorLinea);
 
     // El mapa SIEMPRE se puede arrastrar; el clic (sin mover) marca el vertice
     mapa.dragging.enable();
     mapa.getContainer().style.cursor =
-        (modo === 'punto' || modo === 'retro' || modo === 'excavadora'
-         || modo === 'roja' || modo === 'amarilla' || modo === 'turquesa')
+        (modo === 'punto' || modo === 'retro' || modo === 'excavadora' || modo === 'linea')
             ? 'crosshair' : '';
 
-    if (modo !== 'roja' && modo !== 'amarilla') terminarLinea(true);
+    if (modo !== 'linea') terminarLinea(true);
 }
 
 async function clickEditor(latlng) {
@@ -1666,7 +1699,7 @@ async function clickEditor(latlng) {
         return;
     }
 
-    if (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa') {
+    if (modoEditor === 'linea') {
         agregarVertice(latlng.lat, latlng.lng);
     }
 }
@@ -1712,7 +1745,7 @@ function redibujarTemporal() {
     if (lineaTemporal) { mapa.removeLayer(lineaTemporal); lineaTemporal = null; }
     if (verticesLinea.length < 2) return;
 
-    const cTmp = modoEditor === 'roja' ? '#dc2626' : (modoEditor === 'turquesa' ? '#06b6d4' : '#eab308');
+    const cTmp = colorLinea;
     const eTmp = estiloLinea(cTmp);
 
     lineaTemporal = L.polyline(verticesLinea, {
@@ -1739,12 +1772,11 @@ async function cerrarZona() {
         return;
     }
 
-    const colorFinal = modoEditor === 'roja' ? '#dc2626'
-        : (modoEditor === 'turquesa' ? '#06b6d4' : '#eab308');
+    const colorFinal = colorLinea;
     const eFinal = estiloLinea(colorFinal);
 
     await db.from('mapa_lineas').insert({
-        nombre: 'Zona ' + (modoEditor === 'roja' ? 'roja' : (modoEditor === 'turquesa' ? 'turquesa' : 'amarilla')),
+        nombre: 'Zona',
         color: colorFinal,
         grosor: eFinal.weight,
         tipo: 'poligono',
@@ -1760,14 +1792,12 @@ async function cerrarZona() {
 async function terminarLinea(cancelar) {
     limpiarVertices();
 
-    if (!cancelar && verticesLinea.length >= 2 && (modoEditor === 'roja' || modoEditor === 'amarilla' || modoEditor === 'turquesa')) {
-        const colorFinal = modoEditor === 'roja' ? '#dc2626'
-            : (modoEditor === 'turquesa' ? '#06b6d4' : '#eab308');
+    if (!cancelar && verticesLinea.length >= 2 && modoEditor === 'linea') {
+        const colorFinal = colorLinea;
         const eFinal = estiloLinea(colorFinal);
 
         await db.from('mapa_lineas').insert({
-            nombre: modoEditor === 'roja' ? 'Línea roja'
-                : (modoEditor === 'turquesa' ? 'Línea turquesa' : 'Línea amarilla'),
+            nombre: 'Línea',
             color: colorFinal,
             grosor: eFinal.weight,
             tipo: 'linea',
@@ -1784,15 +1814,6 @@ async function borrarPunto(id) {
     await db.from('mapa_puntos').delete().eq('id', id);
     cargarVectores();
 }
-
-async function borrarTodo() {
-    if (!puedeEditarMapa()) return;
-    if (!confirm('¿Borrar TODOS los puntos y líneas?')) return;
-    await db.from('mapa_puntos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await db.from('mapa_lineas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    cargarVectores();
-}
-
 
 /* La sesion del conductor se resuelve en la base antes de arrancar */
 (async () => {
