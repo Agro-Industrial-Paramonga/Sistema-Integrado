@@ -75,7 +75,7 @@ public class Actualizador {
                 String apk = info.optString("apk", "");
                 if (apk.isEmpty()) return;
 
-                new Handler(Looper.getMainLooper()).post(() -> mostrarDialogo(actividad, nueva, notas, apk));
+                new Handler(Looper.getMainLooper()).post(() -> mostrarBloqueo(actividad, nueva, notas, apk));
 
             } catch (Exception e) {
                 Log.w(TAG, "No se pudo verificar actualizacion", e);
@@ -109,29 +109,141 @@ public class Actualizador {
         }
     }
 
-    private static void mostrarDialogo(final Activity actividad, int version,
+    /* BLINDAJE: mientras se descarga o instala, la app no se puede usar.
+       El diálogo no se cancela, no tiene "después" y el botón atrás no lo cierra. */
+    private static android.app.Dialog bloqueo;
+    private static android.widget.ProgressBar barraBloqueo;
+    private static android.widget.TextView textoBloqueo;
+    private static android.widget.Button botonBloqueo;
+    private static boolean descargando = false;
+
+    private static final String CANAL_ACTUALIZACION = "actualizacion";
+    private static final int ID_NOTIFICACION_DESCARGA = 6011;
+
+    /** Pantalla obligatoria: sin actualizar no se puede usar la app. */
+    private static void mostrarBloqueo(final Activity actividad, int version,
                                        String notas, final String urlApk) {
+        if (bloqueo != null && bloqueo.isShowing()) return;
         try {
             if (actividad == null || actividad.isFinishing()) return;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1
                     && actividad.isDestroyed()) return;
 
-            new AlertDialog.Builder(actividad)
-                    .setTitle("Nueva versión disponible")
-                    .setMessage(notas)
-                    .setPositiveButton("Actualizar", (d, w) -> descargarEInstalar(actividad, urlApk))
-                    .setNegativeButton("Después", null)
-                    .setCancelable(true)
-                    .show();
+            int relleno = Math.round(20 * actividad.getResources().getDisplayMetrics().density);
+
+            android.widget.LinearLayout caja = new android.widget.LinearLayout(actividad);
+            caja.setOrientation(android.widget.LinearLayout.VERTICAL);
+            caja.setPadding(relleno, relleno, relleno, relleno);
+
+            android.widget.TextView titulo = new android.widget.TextView(actividad);
+            titulo.setText("Actualización obligatoria");
+            titulo.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+            titulo.setTypeface(titulo.getTypeface(), android.graphics.Typeface.BOLD);
+            caja.addView(titulo);
+
+            android.widget.TextView mensaje = new android.widget.TextView(actividad);
+            mensaje.setText("La versión " + version + " ya está disponible.\n" +
+                    "Debes actualizar para seguir usando la app.\n\n" + (notas == null ? "" : notas));
+            mensaje.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+            mensaje.setPadding(0, Math.round(10 * actividad.getResources().getDisplayMetrics().density), 0, 0);
+            caja.addView(mensaje);
+
+            barraBloqueo = new android.widget.ProgressBar(actividad, null,
+                    android.R.attr.progressBarStyleHorizontal);
+            barraBloqueo.setMax(100);
+            barraBloqueo.setProgress(0);
+            android.widget.LinearLayout.LayoutParams paramsBarra =
+                    new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            paramsBarra.topMargin = Math.round(14 * actividad.getResources().getDisplayMetrics().density);
+            barraBloqueo.setLayoutParams(paramsBarra);
+            caja.addView(barraBloqueo);
+
+            textoBloqueo = new android.widget.TextView(actividad);
+            textoBloqueo.setText("Pulsa Actualizar ahora para empezar.");
+            textoBloqueo.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12);
+            textoBloqueo.setPadding(0, Math.round(6 * actividad.getResources().getDisplayMetrics().density), 0, 0);
+            caja.addView(textoBloqueo);
+
+            botonBloqueo = new android.widget.Button(actividad);
+            botonBloqueo.setText("Actualizar ahora");
+            botonBloqueo.setOnClickListener(v -> descargarEInstalar(actividad, urlApk, version));
+            android.widget.LinearLayout.LayoutParams paramsBoton =
+                    new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            paramsBoton.topMargin = Math.round(14 * actividad.getResources().getDisplayMetrics().density);
+            botonBloqueo.setLayoutParams(paramsBoton);
+            caja.addView(botonBloqueo);
+
+            bloqueo = new android.app.Dialog(actividad);
+            bloqueo.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+            bloqueo.setContentView(caja);
+            bloqueo.setCancelable(false);
+            bloqueo.setCanceledOnTouchOutside(false);
+            if (bloqueo.getWindow() != null) {
+                bloqueo.getWindow().setBackgroundDrawable(
+                        new android.graphics.drawable.ColorDrawable(
+                                android.graphics.Color.argb(245, 255, 255, 255)));
+            }
+            bloqueo.setOnKeyListener((d, keyCode, ev) ->
+                    keyCode == android.view.KeyEvent.KEYCODE_BACK);
+            bloqueo.show();
         } catch (Exception e) {
-            Log.w(TAG, "No se pudo mostrar el aviso de actualización", e);
+            Log.w(TAG, "No se pudo mostrar el bloqueo de actualizacion", e);
         }
     }
 
-    private static void descargarEInstalar(final Activity actividad, String urlApk) {
+    /** Notificación con la barra de descarga, para que se vea el avance aunque salga de la app. */
+    private static void notificarProgreso(Activity actividad, int version, int porcentaje, String texto) {
+        try {
+            android.app.NotificationManager nm =
+                    (android.app.NotificationManager) actividad.getSystemService(Activity.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                android.app.NotificationChannel canal = new android.app.NotificationChannel(
+                        CANAL_ACTUALIZACION, "Actualización de la app",
+                        android.app.NotificationManager.IMPORTANCE_LOW);
+                canal.setDescription("Descarga e instalación de la versión nueva");
+                nm.createNotificationChannel(canal);
+            }
+
+            androidx.core.app.NotificationCompat.Builder b =
+                    new androidx.core.app.NotificationCompat.Builder(actividad, CANAL_ACTUALIZACION)
+                            .setSmallIcon(android.R.drawable.stat_sys_download)
+                            .setContentTitle("Descargando versión " + version)
+                            .setContentText(texto)
+                            .setOnlyAlertOnce(true)
+                            .setOngoing(true)
+                            .setProgress(100, porcentaje, false);
+
+            nm.notify(ID_NOTIFICACION_DESCARGA, b.build());
+        } catch (Exception e) {
+            Log.w(TAG, "no se pudo notificar el progreso", e);
+        }
+    }
+
+    private static void cerrarNotificacion(Activity actividad) {
+        try {
+            android.app.NotificationManager nm =
+                    (android.app.NotificationManager) actividad.getSystemService(Activity.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(ID_NOTIFICACION_DESCARGA);
+        } catch (Exception e) { }
+    }
+
+    private static void descargarEInstalar(final Activity actividad, final String urlApk, final int version) {
+        if (descargando) return;
+        descargando = true;
+
+        if (botonBloqueo != null) botonBloqueo.setEnabled(false);
+        if (textoBloqueo != null) textoBloqueo.setText("Conectando…");
+        if (barraBloqueo != null) barraBloqueo.setProgress(0);
+
         new Thread(() -> {
+            File destino = new File(actividad.getCacheDir(), "actualizacion.apk");
             try {
-                File destino = new File(actividad.getCacheDir(), "actualizacion.apk");
                 if (destino.exists()) destino.delete();
 
                 HttpURLConnection conexion = (HttpURLConnection) new URL(urlApk).openConnection();
@@ -139,18 +251,63 @@ public class Actualizador {
                 conexion.setReadTimeout(60000);
                 conexion.setInstanceFollowRedirects(true);
 
-                try (InputStream in = conexion.getInputStream();
-                     FileOutputStream out = new FileOutputStream(destino)) {
-                    byte[] buf = new byte[8192];
-                    int n;
-                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                int total = conexion.getContentLength();
+                InputStream in = conexion.getInputStream();
+                FileOutputStream out = new FileOutputStream(destino);
+
+                byte[] buf = new byte[8192];
+                long leido = 0;
+                int ultimo = -1;
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    leido += n;
+                    int pct = (total > 0) ? (int) (leido * 100 / total) : 0;
+                    if (pct != ultimo && (pct % 2 == 0 || pct == 100)) {
+                        ultimo = pct;
+                        final int p = pct;
+                        final String mb = String.format(java.util.Locale.US, "%.1f MB de %.1f MB",
+                                leido / 1048576.0, total > 0 ? total / 1048576.0 : 0);
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            if (barraBloqueo != null) barraBloqueo.setProgress(p);
+                            if (textoBloqueo != null) textoBloqueo.setText("Descargando… " + p + "% · " + mb);
+                            notificarProgreso(actividad, version, p, "Descargando… " + p + "%");
+                        });
+                    }
                 }
+                out.close();
+                in.close();
                 conexion.disconnect();
 
-                new Handler(Looper.getMainLooper()).post(() -> instalar(actividad, destino));
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (textoBloqueo != null) textoBloqueo.setText("Descarga lista. Instalando…");
+                    if (barraBloqueo != null) barraBloqueo.setProgress(100);
+                    descargando = false;
+                    cerrarNotificacion(actividad);
+                    instalar(actividad, destino);
+                    /* Si cancela el instalador del sistema, puede reintentar
+                       sin volver a descargar. La app sigue bloqueada. */
+                    if (botonBloqueo != null) {
+                        botonBloqueo.setEnabled(true);
+                        botonBloqueo.setText("Instalar de nuevo");
+                        botonBloqueo.setOnClickListener(v -> instalar(actividad, destino));
+                    }
+                });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error descargando APK", e);
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    descargando = false;
+                    if (textoBloqueo != null) {
+                        textoBloqueo.setText("No se pudo descargar (" + e.getClass().getSimpleName() +
+                                "). Revisa tu conexión y vuelve a intentarlo.");
+                    }
+                    if (botonBloqueo != null) {
+                        botonBloqueo.setEnabled(true);
+                        botonBloqueo.setText("Reintentar");
+                    }
+                    cerrarNotificacion(actividad);
+                });
             }
         }).start();
     }
@@ -168,7 +325,8 @@ public class Actualizador {
                             i.setData(Uri.parse("package:" + actividad.getPackageName()));
                             actividad.startActivity(i);
                         })
-                        .setNegativeButton("Cancelar", null)
+                        .setNegativeButton("Reintentar", (d, w) -> instalar(actividad, apk))
+                        .setCancelable(false)
                         .show();
                 return;
             }

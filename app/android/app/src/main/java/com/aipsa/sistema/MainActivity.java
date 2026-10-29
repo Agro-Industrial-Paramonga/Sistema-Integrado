@@ -530,7 +530,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     /** Cada cuanto se vuelve a consultar si hay version nueva. */
-    private static final long CADA_REVISION_MS = 20 * 60 * 1000L;
+    private static final long CADA_REVISION_MS = 60 * 1000L;
     private long ultimaRevision = 0;
 
     /**
