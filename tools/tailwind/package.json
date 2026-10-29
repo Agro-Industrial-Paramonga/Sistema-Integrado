@@ -1,0 +1,13 @@
+{
+  "name": "aip-tailwind-build",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Compila el CSS de Tailwind para hallazgos/index.html (sin Play CDN)",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i input.css -o ../../hallazgos/tailwind.css --minify",
+    "check": "node verificar.js"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

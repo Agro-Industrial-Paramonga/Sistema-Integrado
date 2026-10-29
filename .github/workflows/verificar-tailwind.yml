@@ -1,0 +1,56 @@
+name: Verificar Tailwind
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'hallazgos/**'
+      - 'tools/tailwind/**'
+      - '.github/workflows/verificar-tailwind.yml'
+  pull_request:
+    paths:
+      - 'hallazgos/**'
+      - 'tools/tailwind/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'tools/tailwind/pnpm-lock.yaml'
+
+      - name: Instalar dependencias
+        working-directory: tools/tailwind
+        run: pnpm install --frozen-lockfile
+
+      - name: Recompilar el CSS
+        working-directory: tools/tailwind
+        run: pnpm build
+
+      - name: Comprobar que el CSS commiteado está al día
+        run: |
+          if ! git diff --quiet -- hallazgos/tailwind.css; then
+            echo "::error::hallazgos/tailwind.css está desactualizado. Corré 'pnpm --dir tools/tailwind build' y commiteá el resultado."
+            git --no-pager diff --stat -- hallazgos/tailwind.css
+            exit 1
+          fi
+
+      - name: Comprobar que no falten clases
+        working-directory: tools/tailwind
+        run: node verificar.js

@@ -164,6 +164,119 @@ function esMovil() {
 }
 
 /* ------------------------------------------------------------
+   Fondo del mapa
+   Sentinel-2 cloudless (EOX, CC BY 4.0) es el fondo normal: libre, 10 m por
+   píxel y sin cuota. Esri «World Imagery» (© Esri, Maxar) tiene más detalle,
+   pero se cobra por tile arriba de 2 millones al mes, así que queda como capa
+   opcional para pocos roles.
+
+   Para habilitarla: generar una API key en ArcGIS Location Platform restringida
+   al dominio de la app y pegarla acá abajo. Sin clave, el botón no aparece.
+   ------------------------------------------------------------ */
+const CLAVE_ESRI = 'AAPTaBLvV4_KJp6HMTz__7qr5AQ..5mvKfo9oiozrkyq8yTLYC4BRDRQwh2LS3geDcBClh2bA3pyrGQwAIZJlxPAiJW0xG1M88c8iROHKbK1pVHjCjRS20XQ0Trr4kgBl67D0Fiz6u8dxskhlRCfDV3TOgHEGa420MhggKv6H783cEqYfSFNsXMcgXGWwcwH9BJ4xTzae8zyTvU8O70J8WeNlK_raGYDzEx0hZ2niOQf_WEZj8MoX9fOl8DNPy652QDI74Lz8pGdQnwtw2ug.AT1_eewcXHnE';
+const FONDO_SENTINEL = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg';
+const FONDO_ESRI = 'https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=' + CLAVE_ESRI;
+const ATRIB_SENTINEL = 'Sentinel-2 cloudless — <a href="https://s2maps.eu" target="_blank" rel="noopener">s2maps.eu</a> · EOX IT Services GmbH · CC BY 4.0 · datos Copernicus modificados';
+const ATRIB_ESRI = 'Imágenes © Esri, Maxar';
+const CLAVE_FONDO = 'pc_fondo_mapa';
+
+let capaFondo = null;
+let nombreFondo = 'sentinel';
+
+function puedeAltaResolucion() {
+    if (!CLAVE_ESRI) return false;
+    if (sesionConductor()) return false;
+    const u = usuarioPlan();
+    if (!u) return false;
+    if (['gerente_general', 'gerencial_legal', 'gdo', 'gerente_campo'].indexOf(u.rol) !== -1) return true;
+    return puedeEditarMapa();
+}
+
+function crearCapaFondo(nombre) {
+    const esEsri = nombre === 'esri';
+    const capa = L.tileLayer(esEsri ? FONDO_ESRI : FONDO_SENTINEL, {
+        maxZoom: 18,
+        /* Esri tiene detalle hasta z17 en Paramonga; Sentinel-2 llega a z14
+           por sus 10 m por píxel. Arriba de eso Leaflet amplía. */
+        maxNativeZoom: esEsri ? 17 : 14,
+        attribution: esEsri ? ATRIB_ESRI : ATRIB_SENTINEL
+    });
+    if (esEsri) {
+        capa.on('tileerror', () => {
+            if (nombreFondo !== 'esri') return;
+            avisoFondo('No se pudo cargar la imagen de alta resolución. Vuelvo al fondo libre.');
+            aplicarFondo('sentinel');
+        });
+    }
+    return capa;
+}
+
+function aplicarFondo(nombre) {
+    if (!mapa) return;
+    if (nombre === 'esri' && !puedeAltaResolucion()) nombre = 'sentinel';
+    if (capaFondo) mapa.removeLayer(capaFondo);
+    capaFondo = crearCapaFondo(nombre);
+    capaFondo.addTo(mapa);
+    if (capaFondo.bringToBack) capaFondo.bringToBack();
+    nombreFondo = nombre;
+    try { localStorage.setItem(CLAVE_FONDO, nombre); } catch (e) {}
+    actualizarBotonFondo();
+}
+
+function actualizarBotonFondo() {
+    const b = document.getElementById('btn-fondo');
+    if (!b) return;
+    const esEsri = nombreFondo === 'esri';
+    b.innerHTML = '<i class="fas fa-layer-group"></i> ' + (esEsri ? 'Alta resolución ON' : 'Alta resolución');
+    b.style.background = esEsri ? '#1d4ed8' : '#0f172a';
+}
+
+function avisoFondo(texto) {
+    let caja = document.getElementById('aviso-fondo');
+    if (!caja) {
+        caja = document.createElement('div');
+        caja.id = 'aviso-fondo';
+        caja.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:4000;' +
+            'background:rgba(15,23,42,.94);color:#fff;padding:10px 14px;border-radius:10px;' +
+            'font-size:.76rem;font-weight:600;max-width:88vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.3);';
+        document.body.appendChild(caja);
+    }
+    caja.textContent = texto;
+    clearTimeout(avisoFondo._t);
+    avisoFondo._t = setTimeout(() => { if (caja.parentNode) caja.parentNode.removeChild(caja); }, 3200);
+}
+
+function crearBotonFondo() {
+    if (!puedeAltaResolucion() || document.getElementById('btn-fondo')) return;
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.id = 'btn-fondo';
+    boton.title = 'Cambiar entre imagen satelital libre y de alta resolución';
+    boton.style.cssText = 'display:flex;align-items:center;gap:6px;background:#0f172a;color:#fff;' +
+        'border:none;border-radius:8px;padding:8px 10px;font-size:.72rem;font-weight:700;' +
+        'box-shadow:0 2px 8px rgba(15,23,42,.3);cursor:pointer;';
+    boton.addEventListener('click', () => {
+        if (nombreFondo !== 'esri') {
+            aplicarFondo('esri');
+            avisoFondo('Imagen de alta resolución (Esri). Consume la cuota mensual de la cuenta.');
+        } else {
+            aplicarFondo('sentinel');
+            avisoFondo('Fondo satelital libre (Sentinel-2).');
+        }
+    });
+
+    const control = L.control({ position: 'topright' });
+    control.onAdd = function () {
+        const caja = L.DomUtil.create('div');
+        caja.appendChild(boton);
+        L.DomEvent.disableClickPropagation(caja);
+        return caja;
+    };
+    control.addTo(mapa);
+    actualizarBotonFondo();
+}
+
+/* ------------------------------------------------------------
    Inicio
    ------------------------------------------------------------ */
 function iniciarMapa() {
@@ -175,19 +288,14 @@ function iniciarMapa() {
         return;
     }
 
-    /* Esri no tiene imágenes por encima de z17 en Paramonga: si se piden, el
-       servidor devuelve el cartel "Map data not yet available". maxNativeZoom
-       hace que Leaflet reutilice el z17 y no pida tiles que no existen.
-       maxZoom del mapa acota el acercamiento para que nada quede ilegible. */
-    const ZOOM_NATIVO = 17;
-
     mapa = L.map('mapa', { zoomControl: true, maxZoom: 18 }).setView([-10.7100, -77.7900], 13);
 
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 18, maxNativeZoom: ZOOM_NATIVO, attribution: 'Imágenes © Esri, Maxar' }).addTo(mapa);
-
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 18, maxNativeZoom: ZOOM_NATIVO, opacity: 0.85 }).addTo(mapa);
+    /* Se respeta el fondo elegido la última vez; si era Esri y ya no hay clave
+       o el rol no alcanza, aplicarFondo lo devuelve a Sentinel solo. */
+    let fondoGuardado = null;
+    try { fondoGuardado = localStorage.getItem(CLAVE_FONDO); } catch (e) {}
+    aplicarFondo(fondoGuardado === 'esri' ? 'esri' : 'sentinel');
+    crearBotonFondo();
 
     mapa.on('click', async (e) => {
         if (editorActivo) { await clickEditor(e.latlng); return; }

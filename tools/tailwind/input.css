@@ -1,0 +1,6 @@
+/* Entrada de Tailwind para hallazgos.
+   Se compila con: pnpm --dir tools/tailwind build
+   El resultado (hallazgos/tailwind.css) se commitea: GitHub Pages sirve la rama tal cual. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

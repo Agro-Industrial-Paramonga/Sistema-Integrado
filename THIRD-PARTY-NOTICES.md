@@ -16,6 +16,7 @@ inclusión de avisos de esas licencias.
 | AndroidX AppCompat, CoordinatorLayout, Core SplashScreen | según Plantilla de Capacitor | Apache 2.0 | The Android Open Source Project |
 | AndroidX WorkManager (work-runtime) | 2.9.1 | Apache 2.0 | The Android Open Source Project |
 | Firebase Messaging SDK | 25.0.1 | Apache 2.0 + Términos de Servicio de Google | Google LLC |
+| Tailwind CSS (compilado en `tools/tailwind`) | 3.4.17 | MIT | Tailwind Labs Inc. |
 
 ## 2. Código cargado desde internet (no se redistribuye)
 
@@ -34,19 +35,27 @@ inclusión de avisos de esas licencias.
 
 ## 3. Imágenes y datos geográficos
 
-| Elemento | Licencia / condiciones |
+El material gráfico que viaja en el repositorio es **propiedad de Agro Industrial
+Paramonga** o fue producido para la empresa. La única excepción es el fondo
+satelital, que se descarga de un servicio de terceros y no se redistribuye.
+
+| Elemento | Origen y condiciones |
 |---|---|
-| Fondo satelital «World Imagery» y «World Boundaries and Places» | © Esri, Maxar. Uso sujeto a los Términos de Uso de Esri (no son datos libres). Atribución visible en el mapa. |
-| Logo de la empresa | Marca de Agro Industrial Paramonga. |
-| `assets/compuertas/gate-green.gif`, `gate-red.gif` | Uso interno; procedencia a confirmar con el área que las entregó. |
-| `assets/campos.geojson` | Datos internos de la empresa; procedencia a confirmar. |
+| Logo de la empresa (`assets/logo.png`, `hallazgos/assets/logo.png`, iconos del APK) | Marca de Agro Industrial Paramonga. |
+| `assets/compuertas/gate-green.gif`, `gate-red.gif` | Creados por la empresa con herramientas de IA generativa; sin material de terceros. |
+| `assets/huayco.png`, `huayco2.png`, `antes.png`, `durante.png`, `despues.png`, `flujo.png` | Material propio del plan de contingencia de la empresa. |
+| `assets/mapa-canales.png`, `mapa-puntos-criticos.png` | Material propio de la empresa. |
+| `assets/campos.geojson` | Datos internos de la empresa (linderos de campos). |
+| `hallazgos/assets/*.png` | Material propio de la empresa. |
+| Fondo satelital «Sentinel-2 cloudless 2025» | © EOX IT Services GmbH, con datos modificados de Copernicus Sentinel-2. Licencia **CC BY 4.0**. Atribución visible en el mapa. Es el fondo por defecto. |
+| Fondo de alta resolución «World Imagery» (opcional) | © Esri, Maxar. Solo se activa si se configura una API key de Esri en `plan-contingencia/mapa.js`; sin clave el botón no aparece. Sujeto a los Términos de Uso de Esri y con costo por tile arriba de 2 millones al mes. |
 
 ## 4. Texto de las licencias
 
 ### MIT
 
 Se aplica a Capacitor y sus plugins, @supabase/supabase-js, Chart.js,
-chartjs-plugin-datalabels, jsPDF y html2canvas.
+chartjs-plugin-datalabels, jsPDF, html2canvas y Tailwind CSS.
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -98,7 +107,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Apache License 2.0
 
-Se aplica a AndroidX, WorkManager, Firebase, SheetJS y Tailwind CSS.
+Se aplica a AndroidX, WorkManager, Firebase y SheetJS.
 Texto completo: https://www.apache.org/licenses/LICENSE-2.0
 
 ### CC BY 4.0 (iconos de Font Awesome Free)

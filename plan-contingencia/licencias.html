@@ -74,6 +74,7 @@
             <tr><td class="comp">AndroidX AppCompat, CoordinatorLayout, SplashScreen</td><td>—</td><td>Apache 2.0</td></tr>
             <tr><td class="comp">WorkManager</td><td>2.9.1</td><td>Apache 2.0</td></tr>
             <tr><td class="comp">Firebase Messaging</td><td>25.0.1</td><td>Apache 2.0 · Términos de Google</td></tr>
+            <tr><td class="comp">Tailwind CSS (compilado localmente)</td><td>3.4.17</td><td>MIT</td></tr>
         </tbody>
     </table>
 
@@ -90,7 +91,6 @@
             <tr><td class="comp">html2canvas</td><td>1.4.1</td><td>MIT</td></tr>
             <tr><td class="comp">Font Awesome Free</td><td>6.4.0</td><td>CC BY 4.0 · OFL 1.1 · MIT</td></tr>
             <tr><td class="comp">Tipografías Caveat e Inter</td><td>—</td><td>SIL OFL 1.1</td></tr>
-            <tr><td class="comp">Tailwind CSS</td><td>CDN</td><td>MIT</td></tr>
         </tbody>
     </table>
 
@@ -105,22 +105,36 @@
         Mapa: <strong>Leaflet</strong> © Volodymyr Agafonkin y CloudMade — BSD 2-Clause.
     </div>
     <div class="credito">
-        Imágenes satelitales: <strong>© Esri, Maxar</strong> — «World Imagery» y
-        «World Boundaries and Places», bajo los términos de uso de Esri.
+        Imágenes satelitales: <strong>Sentinel-2 cloudless</strong> — ©
+        <a href="https://s2maps.eu" target="_blank" rel="noopener">EOX IT Services GmbH</a>,
+        con datos modificados de Copernicus Sentinel-2, bajo
+        <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
     </div>
     <div class="credito">
         Tipografías: <strong>Caveat</strong> e <strong>Inter</strong> de Google Fonts — SIL Open Font License 1.1.
     </div>
 
+    <div class="credito">
+        Imágenes, planos, datos de campos y animaciones de compuertas: material propio de
+        <strong>Agro Industrial Paramonga</strong>.
+    </div>
+
+    <div class="credito">
+        Imágenes de alta resolución (opcionales): <strong>© Esri, Maxar</strong> — «World
+        Imagery», bajo los términos de uso de Esri. Solo se activan con una clave de Esri
+        configurada; el fondo normal es Sentinel-2.
+    </div>
+
     <div class="nota">
-        El fondo satelital es un servicio de Esri: si la aplicación se publica fuera del
-        uso interno, hay que contar con una licencia de Esri o cambiar la fuente del mapa.
+        El fondo satelital de Sentinel-2 se usa sin costo con la atribución que aparece en
+        el mapa. La imagen tiene 10 metros por píxel: por encima del nivel 14 el mapa la
+        amplía, así que de cerca se ve suave.
     </div>
 
     <h2>Texto de las licencias</h2>
 
     <details>
-        <summary>Licencia MIT (Capacitor, Supabase, Chart.js, jsPDF, html2canvas)</summary>
+        <summary>Licencia MIT (Capacitor, Supabase, Chart.js, jsPDF, html2canvas, Tailwind)</summary>
         <pre>Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -168,11 +182,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
     </details>
 
     <details>
-        <summary>Apache License 2.0 (AndroidX, WorkManager, Firebase, SheetJS, Tailwind)</summary>
+        <summary>Apache License 2.0 (AndroidX, WorkManager, Firebase, SheetJS)</summary>
         <p style="font-size:.8rem;margin-top:10px">
             Texto completo en
             <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener">apache.org/licenses/LICENSE-2.0</a>.
             Se conservan los avisos de copyright de cada componente.
+        </p>
+    </details>
+
+    <details>
+        <summary>Creative Commons Atribución 4.0 (iconos y fondo satelital)</summary>
+        <p style="font-size:.8rem;margin-top:10px">
+            Se aplica a los iconos de Font Awesome Free y al fondo satelital
+            «Sentinel-2 cloudless» de EOX IT Services GmbH (datos modificados de
+            Copernicus Sentinel-2). Texto completo en
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0</a>.
         </p>
     </details>
 

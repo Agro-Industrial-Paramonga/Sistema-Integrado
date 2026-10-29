@@ -10,3 +10,6 @@ desktop.ini
 *.log
 
 supabase/.temp/
+
+# Dependencias del compilador de Tailwind (el CSS generado sí se commitea)
+tools/tailwind/node_modules/
