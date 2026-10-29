@@ -39,27 +39,30 @@
         .volver { display: inline-block; margin-top: 18px; font-size: .8rem; color: #64748b; text-decoration: none; }
         .paso { font-size: .7rem; color: #94a3b8; font-weight: 700; letter-spacing: .05em; }
 
-        .combo { position: relative; }
-        .lista-conductores {
-            position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40;
-            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
-            box-shadow: 0 14px 34px rgba(15,23,42,.18); max-height: 246px; overflow: auto;
-            display: none;
+        .dni-input {
+            font-size: 1.5rem; letter-spacing: .32em; text-align: center;
+            font-weight: 700; padding: 14px 12px;
         }
-        .lista-conductores.visible { display: block; }
-        .item-conductor {
-            display: flex; align-items: center; justify-content: space-between; gap: 10px;
-            padding: 11px 13px; font-size: .85rem; color: #0f172a; cursor: pointer;
-            border-bottom: 1px solid #f1f5f9;
+        .dni-input::placeholder { letter-spacing: .06em; font-size: .9rem; font-weight: 600; color: #94a3b8; }
+        .ayuda-dni { margin: 8px 0 0; font-size: .74rem; color: #94a3b8; }
+        .error-dni {
+            display: none; margin: 10px 0 0; font-size: .78rem; line-height: 1.4;
+            color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
+            border-radius: 10px; padding: 9px 11px;
         }
-        .item-conductor:last-child { border-bottom: none; }
-        .item-conductor:hover, .item-conductor:active { background: #ecfdf5; }
-        .item-conductor .dni { color: #64748b; font-size: .72rem; font-weight: 700; white-space: nowrap; }
-        .item-conductor.sin { color: #94a3b8; cursor: default; justify-content: center; font-size: .8rem; }
-        .chip {
-            display: none; align-items: center; gap: 6px; margin-top: 10px;
-            background: #dcfce7; color: #166534; border: 1px solid #86efac;
-            border-radius: 999px; padding: 6px 11px; font-size: .74rem; font-weight: 700;
+
+        .identidad {
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px;
+            padding: 12px 14px; margin: 4px 0 2px;
+        }
+        .identidad-dato { display: flex; flex-direction: column; gap: 2px; }
+        .identidad-etq { font-size: .6rem; font-weight: 800; letter-spacing: .1em; color: #15803d; }
+        .identidad-dato strong { font-size: .92rem; color: #0f172a; line-height: 1.25; }
+        .cambiar {
+            width: auto; margin: 0 0 0 auto; padding: 8px 11px; font-size: .72rem;
+            background: #fff; color: #64748b; border: 1px solid #e2e8f0; border-radius: 10px;
+            display: inline-flex; align-items: center; gap: 6px;
         }
 
         .bloqueo {
@@ -88,7 +91,7 @@
         </div>
 
         <h1>Ingreso de conductores</h1>
-        <p class="sub">Identifica tu unidad para compartir tu ubicación durante el turno.</p>
+        <p class="sub">Ingresa tu DNI y elige la unidad para compartir tu ubicación durante el turno.</p>
 
         <div class="bloqueo" id="bloqueo-ubicacion" style="display:none">
             <div class="bloqueo-titulo"><i class="fas fa-location-crosshairs"></i> Ubicación obligatoria</div>
@@ -98,30 +101,53 @@
             </button>
         </div>
 
-        <span class="paso">PASO 1</span>
-        <label>Serie de la unidad</label>
-        <select id="sel-prefijo">
-            <option value="">Selecciona la serie</option>
-        </select>
-
-        <span class="paso">PASO 2</span>
-        <label>Unidad</label>
-        <select id="sel-unidad" disabled>
-            <option value="">Primero elige la serie</option>
-        </select>
-
-        <span class="paso">PASO 3</span>
-        <label>Conductor</label>
-        <div class="combo">
-            <input id="inp-buscar" type="text" placeholder="Escribe tu nombre o DNI"
-                   autocomplete="off" spellcheck="false" autocapitalize="characters">
-            <div id="lista-conductores" class="lista-conductores"></div>
+        <div id="gate-dni">
+            <span class="paso">PASO 1</span>
+            <label for="inp-dni">DNI del conductor</label>
+            <input id="inp-dni" class="dni-input" type="tel" inputmode="numeric" pattern="[0-9]*"
+                   maxlength="8" placeholder="8 dígitos" name="dni-conductor"
+                   autocomplete="off" autocorrect="off" autocapitalize="off"
+                   spellcheck="false" enterkeyhint="done">
+            <p class="ayuda-dni">Solo números, sin puntos ni espacios.</p>
+            <div class="error-dni" id="dni-error"></div>
+            <button type="button" id="btn-validar-dni" onclick="identificar()" disabled>
+                <i class="fas fa-id-card"></i> Continuar
+            </button>
         </div>
-        <div class="chip" id="chip-conductor"></div>
 
-        <button id="btn-entrar" onclick="iniciarTurno()" disabled>
-            <i class="fas fa-play"></i> Iniciar turno
-        </button>
+        <div id="bloque-conductor" style="display:none">
+            <div class="identidad">
+                <div class="identidad-dato">
+                    <span class="identidad-etq">DNI</span>
+                    <strong id="ident-dni">—</strong>
+                </div>
+                <div class="identidad-dato">
+                    <span class="identidad-etq">CONDUCTOR</span>
+                    <strong id="ident-nombre">—</strong>
+                </div>
+                <button type="button" class="cambiar" id="btn-cambiar-dni" onclick="volverADni()">
+                    <i class="fas fa-user-pen"></i> No soy yo
+                </button>
+            </div>
+
+            <div id="pasos-unidad">
+                <span class="paso">PASO 2</span>
+                <label>Serie de la unidad</label>
+                <select id="sel-prefijo">
+                    <option value="">Selecciona la serie</option>
+                </select>
+
+                <span class="paso">PASO 3</span>
+                <label>Unidad</label>
+                <select id="sel-unidad" disabled>
+                    <option value="">Primero elige la serie</option>
+                </select>
+            </div>
+
+            <button id="btn-entrar" onclick="iniciarTurno()" disabled>
+                <i class="fas fa-play"></i> Iniciar turno
+            </button>
+        </div>
 
         <div class="aviso" id="aviso"></div>
 
@@ -129,7 +155,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="conductor.js?v=19"></script>
+    <script src="conductor.js?v=20"></script>
     <script src="evac_auto.js?v=3"></script>
 </body>
 </html>

@@ -108,7 +108,7 @@ cd app\android
 | `segmentos` | Agrupadores de medidas (por tabla) |
 | `medidas_avances` | Bitácora de avances/compromisos por medida |
 | `unidades` | Maquinaria: `nombre` (ej. TRR-263), `prefijo`, `orden`, `activo` |
-| `conductores` | 89 conductores con DNI (aún NO usado en el login) |
+| `conductores` | 95 conductores con DNI: es la identificación del ingreso (capa previa por DNI) |
 | `ubicaciones` | Última posición por conductor: `user_id`, `unidad`, `lat`, `lon`, `token` |
 | `push_subscriptions` | Tokens FCM y webhooks NotiAlarm por usuario/unidad |
 | `mapa_capa` | Posición de las imágenes superpuestas (id 1 = canales, id 2 = puntos críticos) |
@@ -172,10 +172,14 @@ Se revisa cada 4 segundos. Sin esto, el envío en segundo plano muere.
 ## 7. Flujo del conductor
 
 1. Login del plan → menú ☰ → **Ingreso de Maquinarias**
-2. Serie → Unidad → Nombre → **Iniciar turno**
-3. Acepta permisos (ubicación, notificaciones, batería)
-4. Se registra el token y arranca el servicio de 5 minutos
-5. En el mapa, el jefe ve la unidad y puede **alertar evacuación**
+2. **DNI** (capa previa: teclado numérico, sin sugerencias ni autocompletado) → la pantalla fija DNI y nombre del conductor
+3. Serie → Unidad → **Iniciar turno**
+4. Acepta permisos (ubicación, notificaciones, batería)
+5. Se registra el token y arranca el servicio de 5 minutos
+6. En el mapa, el jefe ve la unidad y puede **alertar evacuación**
+
+El DNI identifica, no autentica: quien conozca un DNI de la lista puede usarlo. Una barrera real exigiría PIN o código por unidad.
+Si el DNI no está en `conductores` la pantalla avisa y no deja seguir; el enlace *No soy yo* reinicia la identificación (celular compartido).
 
 Series disponibles: `PUNTOS CRITICOS`, `ESCOCIA`, `TRR`, `TRO`, `RTE`, `EXC`, `CF`, `CF_R`, `MIC`, `VOL`, `CMB`, `CMG`, `CMC`
 
@@ -230,7 +234,7 @@ Cadencia de actos inseguros: el día del reporte y el primer día de plazo no al
 
 | Tema | Estado |
 |---|---|
-| `conductores` (89 con DNI) cargados pero **no usados** en el login | Pendiente: cambiar texto libre por buscador |
+| Ingreso por DNI (capa previa, teclado numérico, sin autocompletado) | Implementado y verificado en navegador; falta probar en celular real |
 | Envío cada 5 min depende de la exención de batería | Implementado, falta validar en campo |
 | Fabricantes (Xiaomi, Huawei, Samsung) pueden matar el servicio | Requiere configuración adicional del teléfono |
 | Caché del WebView | Se limpia automáticamente al cambiar de versión |

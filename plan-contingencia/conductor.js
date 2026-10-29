@@ -1,17 +1,16 @@
 /* ============================================================
    INGRESO DE CONDUCTORES
-   Serie -> Unidad -> Conductor (buscador por nombre o DNI)
+   DNI -> identidad fija -> Serie -> Unidad
    ============================================================ */
 
 const SUPABASE_URL = 'https://bfhfnldqwsrcpsdqpyat.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const LARGO_DNI = 8;
+
 let unidades = [];
-let conductores = [];
-let conductorSel = null;
-let listaFiltrada = [];
-let modoLibre = false;   // si la tabla conductores no se puede leer
+let conductorSel = null;   // conductor identificado por DNI
 
 function norm(v) {
     return String(v || '')
@@ -27,7 +26,6 @@ function escapar(v) {
 
 async function cargar() {
     await cargarUnidades();
-    await cargarConductores();
     conectarEventos();
     revisarUbicacion();
     vigilarUbicacion();
@@ -57,88 +55,117 @@ async function cargarUnidades() {
 }
 
 /* ------------------------------------------------------------
-   Conductores (89 registros con DNI)
+   Identificacion por DNI (capa previa a elegir la unidad)
+   Solo numeros: en movil abre el teclado numerico y no autocompleta
    ------------------------------------------------------------ */
-async function cargarConductores() {
-    const { data, error } = await db.from('conductores')
-        .select('nombre, dni, activo')
-        .eq('activo', true)
-        .order('nombre', { ascending: true })
-        .limit(1000);
+function soloDigitos(v) {
+    return String(v || '').replace(/\D/g, '');
+}
 
-    if (error || !(data || []).length) {
-        modoLibre = true;
-        const inp = document.getElementById('inp-buscar');
-        if (inp) inp.placeholder = 'Nombres y apellidos';
-        mostrarAviso('No se pudo cargar la lista de conductores' +
-            (error ? ': ' + error.message : '') + '. Escribe tu nombre completo.');
+function dniValido(v) {
+    return new RegExp('^\\d{' + LARGO_DNI + '}$').test(String(v || ''));
+}
+
+function mostrarErrorDni(texto) {
+    const p = document.getElementById('dni-error');
+    if (!p) return;
+    p.textContent = texto || '';
+    p.style.display = texto ? 'block' : 'none';
+}
+
+function botonDni(etiqueta, deshabilitado) {
+    const b = document.getElementById('btn-validar-dni');
+    if (!b) return;
+    b.innerHTML = etiqueta;
+    b.disabled = !!deshabilitado;
+}
+
+async function identificar() {
+    const inp = document.getElementById('inp-dni');
+    if (!inp) return;
+
+    const dni = soloDigitos(inp.value);
+    mostrarErrorDni('');
+
+    if (!dniValido(dni)) {
+        mostrarErrorDni('El DNI tiene ' + LARGO_DNI + ' dígitos. Revísalo e intenta otra vez.');
         return;
     }
 
-    conductores = data;
-}
+    botonDni('<i class="fas fa-spinner fa-spin"></i> Verificando…', true);
 
-function filtrarConductores() {
-    const inp = document.getElementById('inp-buscar');
-    const texto = norm(inp.value);
-    const digitos = String(inp.value || '').replace(/\D/g, '');
+    let fila = null;
+    let error = null;
 
-    if (!texto && !digitos) return conductores.slice(0, 8);
+    try {
+        const res = await db.from('conductores')
+            .select('nombre, dni')
+            .eq('dni', dni)
+            .eq('activo', true)
+            .limit(1);
+        error = res.error;
+        fila = error ? null : (res.data || [])[0];
+    } catch (e) {
+        error = e;
+    }
 
-    return conductores.filter(c => {
-        const nombre = norm(c.nombre);
-        if (texto && nombre.includes(texto)) return true;
-        if (digitos && String(c.dni || '').includes(digitos)) return true;
-        return false;
-    }).slice(0, 8);
-}
-
-function renderLista() {
-    const caja = document.getElementById('lista-conductores');
-    if (!caja) return;
-
-    if (modoLibre) {
-        caja.classList.remove('visible');
-        caja.innerHTML = '';
+    if (error) {
+        botonDni('<i class="fas fa-id-card"></i> Continuar', false);
+        mostrarErrorDni('No se pudo verificar el DNI: ' +
+            (error.message || error) + '. Revisa la conexión e intenta otra vez.');
         return;
     }
 
-    listaFiltrada = filtrarConductores();
-
-    if (!listaFiltrada.length) {
-        caja.innerHTML = '<div class="item-conductor sin">Sin coincidencias. Revisa tu nombre o DNI.</div>';
-        caja.classList.add('visible');
+    if (!fila) {
+        botonDni('<i class="fas fa-id-card"></i> Continuar', false);
+        mostrarErrorDni('DNI no registrado en la lista de conductores. ' +
+            'Verifica el número o consulta con Seguridad Industrial.');
         return;
     }
 
-    caja.innerHTML = listaFiltrada.map((c, i) =>
-        `<div class="item-conductor" data-i="${i}">
-            <span>${escapar(c.nombre)}</span>
-            <span class="dni">DNI ${escapar(c.dni || '—')}</span>
-        </div>`).join('');
-    caja.classList.add('visible');
+    fijarConductor(fila);
 }
 
-function ocultarLista() {
-    const caja = document.getElementById('lista-conductores');
-    if (caja) caja.classList.remove('visible');
+function fijarConductor(c) {
+    conductorSel = { nombre: c.nombre, dni: String(c.dni || '') };
+
+    const d = document.getElementById('ident-dni');
+    const n = document.getElementById('ident-nombre');
+    if (d) d.textContent = conductorSel.dni;
+    if (n) n.textContent = conductorSel.nombre;
+
+    // Se cierra la capa previa: de aqui en adelante solo se elige la unidad
+    const gate = document.getElementById('gate-dni');
+    if (gate) gate.style.display = 'none';
+    const bloque = document.getElementById('bloque-conductor');
+    if (bloque) bloque.style.display = 'block';
+
+    botonDni('<i class="fas fa-id-card"></i> Continuar', false);
+    validar();
 }
 
-function elegirConductor(c) {
-    conductorSel = c;
+function volverADni() {
+    conductorSel = null;
 
-    const inp = document.getElementById('inp-buscar');
-    inp.value = c.nombre;
+    const bloque = document.getElementById('bloque-conductor');
+    if (bloque) bloque.style.display = 'none';
+    const gate = document.getElementById('gate-dni');
+    if (gate) gate.style.display = 'block';
 
-    ocultarLista();
-
-    const chip = document.getElementById('chip-conductor');
-    if (chip) {
-        chip.style.display = 'inline-flex';
-        chip.innerHTML = '<i class="fas fa-circle-check"></i> ' + escapar(c.nombre) +
-            ' · DNI ' + escapar(c.dni || '—');
+    // La unidad se elige de nuevo: no se hereda nada del conductor anterior
+    const selP = document.getElementById('sel-prefijo');
+    if (selP) selP.value = '';
+    const selU = document.getElementById('sel-unidad');
+    if (selU) {
+        selU.innerHTML = '<option value="">Primero elige la serie</option>';
+        selU.disabled = true;
     }
 
+    const inp = document.getElementById('inp-dni');
+    if (inp) { inp.value = ''; inp.focus(); }
+
+    mostrarErrorDni('');
+    botonDni('<i class="fas fa-id-card"></i> Continuar', true);
     validar();
 }
 
@@ -167,39 +194,24 @@ function conectarEventos() {
 
     document.getElementById('sel-unidad').addEventListener('change', validar);
 
-    const inp = document.getElementById('inp-buscar');
-    const caja = document.getElementById('lista-conductores');
+    const inpDni = document.getElementById('inp-dni');
+    const btnDni = document.getElementById('btn-validar-dni');
 
-    inp.addEventListener('input', () => {
-        if (conductorSel && norm(inp.value) !== norm(conductorSel.nombre)) {
-            conductorSel = null;
-            const chip = document.getElementById('chip-conductor');
-            if (chip) chip.style.display = 'none';
-        }
-        renderLista();
-        validar();
+    // Entrada restringida a digitos: teclado numerico y sin sugerencias del navegador
+    inpDni.addEventListener('input', () => {
+        const limpio = soloDigitos(inpDni.value).slice(0, LARGO_DNI);
+        if (inpDni.value !== limpio) inpDni.value = limpio;
+        mostrarErrorDni('');
+        if (btnDni) btnDni.disabled = !dniValido(limpio);
     });
 
-    inp.addEventListener('focus', () => { if (!conductorSel) renderLista(); });
-
-    inp.addEventListener('blur', () => { setTimeout(ocultarLista, 180); });
-
-    inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (listaFiltrada.length && !conductorSel) elegirConductor(listaFiltrada[0]);
-        }
-        if (e.key === 'Escape') ocultarLista();
-    });
-
-    // pointerdown en vez de click: elige antes de que el input pierda el foco
-    caja.addEventListener('pointerdown', (e) => {
-        const item = e.target.closest('.item-conductor');
-        if (!item || item.classList.contains('sin')) return;
+    inpDni.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
         e.preventDefault();
-        const i = Number(item.dataset.i);
-        if (listaFiltrada[i]) elegirConductor(listaFiltrada[i]);
+        if (dniValido(inpDni.value)) identificar();
     });
+
+    if (btnDni) btnDni.disabled = !dniValido(inpDni.value);
 
     validar();
 }
@@ -252,9 +264,9 @@ async function reclamarUnidad(unidad, nombre, token) {
 }
 
 function validar() {
-    const unidad = document.getElementById('sel-unidad').value;
+    const selU = document.getElementById('sel-unidad');
     const boton = document.getElementById('btn-entrar');
-    if (!boton) return;
+    if (!selU || !boton) return;
 
     if (!ubicacionOk && !etiquetaBloqueada) {
         etiquetaBloqueada = true;
@@ -264,13 +276,7 @@ function validar() {
         boton.innerHTML = '<i class="fas fa-play"></i> Iniciar turno';
     }
 
-    if (modoLibre) {
-        const nombre = document.getElementById('inp-buscar').value.trim();
-        boton.disabled = !(unidad && nombre.length >= 5 && ubicacionOk);
-        return;
-    }
-
-    boton.disabled = !(unidad && conductorSel && ubicacionOk);
+    boton.disabled = !(selU.value && conductorSel && ubicacionOk);
 }
 
 function mostrarAviso(texto) {
@@ -484,7 +490,17 @@ function registrarPush(nombre, unidad) {
    Iniciar turno
    ------------------------------------------------------------ */
 async function iniciarTurno() {
+    if (!conductorSel) {
+        mostrarAviso('Primero ingresa tu DNI.');
+        volverADni();
+        return;
+    }
+
     const unidad = document.getElementById('sel-unidad').value;
+    if (!unidad) {
+        mostrarAviso('Elige la unidad que vas a conducir.');
+        return;
+    }
 
     const puedeUbicar = await revisarUbicacion();
     if (!puedeUbicar) {
@@ -496,18 +512,11 @@ async function iniciarTurno() {
         return;
     }
 
-    let nombre = '';
-    let dni = null;
+    const nombre = conductorSel.nombre;
+    const dni = conductorSel.dni || null;
 
-    if (conductorSel) {
-        nombre = conductorSel.nombre;
-        dni = conductorSel.dni || null;
-    } else if (modoLibre) {
-        nombre = document.getElementById('inp-buscar').value.trim().toUpperCase();
-    }
-
-    if (!unidad || !nombre) {
-        mostrarAviso('Elige tu unidad y selecciona tu nombre de la lista.');
+    if (!nombre || !dni) {
+        mostrarAviso('No se pudo validar tu identidad. Vuelve a ingresar tu DNI.');
         return;
     }
 
