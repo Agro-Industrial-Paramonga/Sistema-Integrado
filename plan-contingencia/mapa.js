@@ -246,6 +246,16 @@ function avisoFondo(texto) {
     avisoFondo._t = setTimeout(() => { if (caja.parentNode) caja.parentNode.removeChild(caja); }, 3200);
 }
 
+/* La barra blanca va por encima del mapa, así que los controles de Leaflet
+   (zoom y botón de alta resolución) quedaban escondidos debajo. Se empuja el
+   contenedor de controles lo que mide la barra y se recalcula al cambiar el
+   tamaño de la ventana, porque en el celular la barra ocupa más alto. */
+function ajustarControlesAlMapa() {
+    const barra = document.querySelector('.barra');
+    const alto = barra ? Math.ceil(barra.getBoundingClientRect().height) : 0;
+    document.querySelectorAll('.leaflet-top').forEach((el) => { el.style.top = (alto + 6) + 'px'; });
+}
+
 function crearBotonFondo() {
     if (!puedeAltaResolucion() || document.getElementById('btn-fondo')) return;
     const boton = document.createElement('button');
@@ -296,6 +306,17 @@ function iniciarMapa() {
     try { fondoGuardado = localStorage.getItem(CLAVE_FONDO); } catch (e) {}
     aplicarFondo(fondoGuardado === 'esri' ? 'esri' : 'sentinel');
     crearBotonFondo();
+
+    /* Los controles del mapa no deben quedar debajo de la barra blanca. En el
+       celular la barra cambia de alto cuando se acomodan sus filas, así que se
+       observa su tamaño en vez de calcularlo una sola vez. */
+    ajustarControlesAlMapa();
+    setTimeout(ajustarControlesAlMapa, 400);
+    window.addEventListener('resize', ajustarControlesAlMapa);
+    if (window.ResizeObserver) {
+        const barra = document.querySelector('.barra');
+        if (barra) new ResizeObserver(ajustarControlesAlMapa).observe(barra);
+    }
 
     mapa.on('click', async (e) => {
         if (editorActivo) { await clickEditor(e.latlng); return; }
