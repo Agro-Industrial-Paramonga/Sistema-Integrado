@@ -930,6 +930,8 @@ let maquinasCache = [];
 let capaPuntos = null;
 let capaLineas = null;      /* líneas de la pestaña Puntos críticos */
 let capaLineasSeg = null;   /* líneas de la pestaña Seguimiento de maquinarias */
+let capaCamposAipsa = null; /* sectores del KMZ, solo en Seguimiento */
+let capaCompuertasMapa = null; /* compuertas con coordenadas, solo en Puntos críticos */
 let verticesLinea = [];
 let lineaTemporal = null;
 let marcadoresVertices = [];
@@ -940,11 +942,15 @@ function initCapasVectoriales() {
     capaPuntos = L.layerGroup();
     capaLineas = L.layerGroup();
     capaLineasSeg = L.layerGroup();
+    capaCamposAipsa = L.layerGroup();
+    capaCompuertasMapa = L.layerGroup();
     capaCampos = L.layerGroup().addTo(mapa);
     cargarVectores();
     cargarMaquinas();
     cargarListaMaquinas();
     cargarCampos();
+    cargarCamposAipsa();
+    cargarCompuertasMapa();
     aplicarVisibilidadCapas();
 }
 
@@ -1214,7 +1220,7 @@ function resaltarPuntoCercano(orden) {
     Object.keys(marcadoresPuntos).forEach(k => {
         const marca = marcadoresPuntos[k];
         const div = marca && marca.getElement ? marca.getElement().querySelector('.punto-critico') : null;
-        if (div) div.classList.toggle('cerca', Number(k) === Number(orden));
+        if (div) div.classList.toggle('cerca', Number(marca.__orden) === Number(orden));
     });
 }
 
@@ -1530,6 +1536,10 @@ function aplicarVisibilidadCapas() {
     /* En rojo los campos se ven en las dos pestañas: es la zona de evacuación */
     mostrarGrupo(capaCampos, esSeguimiento || semaforoActual.nivel === 'rojo');
     mostrarGrupo(capaLineasSeg, esSeguimiento);
+    /* Sectores del KMZ: solo en Seguimiento de maquinarias */
+    mostrarGrupo(capaCamposAipsa, esSeguimiento);
+    /* Compuertas: solo en Puntos críticos */
+    mostrarGrupo(capaCompuertasMapa, !esSeguimiento);
 
     mostrarGrupo(capaPuntos, !esSeguimiento);
     /* Las máquinas de Puntos Críticos se ven sólo con sesión iniciada */
@@ -1585,6 +1595,7 @@ async function cargarVectores() {
     if (puntos) puntosCache = puntos;
     (puntos || []).forEach(p => {
         const esMaquina = (p.tipo === 'retro' || p.tipo === 'excavadora');
+        const numero = Number(p.orden) || 0;
 
         const icono = esMaquina
             ? L.divIcon({
@@ -1595,7 +1606,8 @@ async function cargarVectores() {
             })
             : L.divIcon({
                 className: '',
-                html: '<div class="punto-critico"><span>' + p.orden + '</span></div>',
+                html: '<div class="punto-critico' + (numero > 0 ? '' : ' sin-numero') + '"><span>' +
+                      (numero > 0 ? numero : '?') + '</span></div>',
                 iconSize: [30, 44],
                 iconAnchor: [15, 40]
             });
@@ -1605,20 +1617,28 @@ async function cargarVectores() {
             icon: icono
         }).addTo(capaPuntos);
 
-        marcadoresPuntos[p.orden] = marcador;
+        marcador.__orden = numero;
+        marcadoresPuntos[p.id] = marcador;
+
+        /* Fuera del editor: al pasar el mouse, responsable y equipos */
+        if (!esMaquina) {
+            marcador.bindTooltip(tarjetaPunto(p), {
+                sticky: true, direction: 'top', className: 'tip-punto', opacity: 1
+            });
+        }
 
         marcador.on('dragend', (ev) => {
             const pos = ev.target.getLatLng();
             p.lat = pos.lat; p.lon = pos.lng;
             p.__dirty = true;
             const est = document.getElementById('estado');
-            if (est) est.textContent = 'Punto ' + p.orden + ' movido · pulsa Guardar para confirmar';
+            if (est) est.textContent = 'Punto ' + (numero || 'sin número') + ' movido · pulsa Guardar para confirmar';
         });
 
         marcador.on('contextmenu', async (ev) => {
             L.DomEvent.stopPropagation(ev);
             if (!editorActivo) return;
-            const nombreTxt = esMaquina ? 'esta maquinaria' : ('el punto ' + p.orden);
+            const nombreTxt = esMaquina ? 'esta maquinaria' : ('el punto ' + (numero || 'sin número'));
             if (!confirm('¿Borrar ' + nombreTxt + '?')) return;
             await db.from('mapa_puntos').delete().eq('id', p.id);
             cargarVectores();
@@ -1626,10 +1646,23 @@ async function cargarVectores() {
 
         marcador.on('click', async () => {
             if (editorActivo && modoEditor === 'borrar') {
-                if (!confirm('¿Borrar el punto ' + p.orden + '?')) return;
+                if (!confirm('¿Borrar el punto ' + (numero || 'sin número') + '?')) return;
                 await db.from('mapa_puntos').delete().eq('id', p.id);
                 cargarVectores();
+                return;
             }
+            if (esMaquina) return;
+            if (editorActivo) {
+                abrirFichaPunto(p);
+                return;
+            }
+            abrirGaleriaFotos({
+                tipo: 'punto',
+                id: p.id,
+                titulo: 'Punto ' + (numero > 0 ? numero : 'sin número') +
+                        (p.nombre ? ' · ' + p.nombre : '') +
+                        (p.responsable ? ' — ' + p.responsable : '')
+            });
         });
     });
 
@@ -1802,13 +1835,20 @@ async function clickEditor(latlng) {
     if (!editorActivo || !modoEditor || !puedeEditarMapa()) return;
 
     if (modoEditor === 'punto' || modoEditor === 'retro' || modoEditor === 'excavadora') {
-        const { data } = await db.from('mapa_puntos').select('orden').order('orden', { ascending: false }).limit(1);
-        const orden = (data && data[0] ? data[0].orden : 0) + 1;
-        await db.from('mapa_puntos').insert({
-            lat: latlng.lat, lon: latlng.lng, orden,
+        /* Sin numero: el numero se pone despues, en la ficha del punto */
+        const { data, error } = await db.from('mapa_puntos').insert({
+            lat: latlng.lat, lon: latlng.lng, orden: 0,
             tipo: modoEditor === 'punto' ? 'punto' : modoEditor
-        });
+        }).select().limit(1);
+        if (error) {
+            console.warn('punto', error);
+            avisar('No se pudo crear el punto: ' + error.message, 'warn');
+            return;
+        }
         cargarVectores();
+        if (data && data[0]) {
+            setTimeout(() => abrirFichaPunto(data[0]), 500);
+        }
         return;
     }
 
@@ -1931,6 +1971,378 @@ async function borrarPunto(id) {
     if (!confirm('¿Borrar este punto?')) return;
     await db.from('mapa_puntos').delete().eq('id', id);
     cargarVectores();
+}
+
+/* ============================================================
+   CAMPOS DEL KMZ: solo en Seguimiento de maquinarias
+   El borde verde ya viene cortado donde hay una linea turquesa
+   (esas mandan: son los campos en riesgo que pasan a rojo).
+   ============================================================ */
+async function cargarCamposAipsa() {
+    if (!capaCamposAipsa) return;
+    try {
+        const resp = await fetch('assets/campos-aipsa.geojson?v=1');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const datos = await resp.json();
+        capaCamposAipsa.clearLayers();
+
+        const sectores = { type: 'FeatureCollection', features: [] };
+        const bordes = { type: 'FeatureCollection', features: [] };
+        (datos.features || []).forEach(f => {
+            const tipo = f.properties && f.properties.tipo;
+            (tipo === 'borde' ? bordes : sectores).features.push(f);
+        });
+
+        L.geoJSON(sectores, {
+            className: 'sector-aipsa',
+            style: {
+                color: '#16a34a', weight: 0, opacity: 0,
+                fillColor: '#16a34a', fillOpacity: 0.16
+            },
+            onEachFeature: (f, capa) => {
+                const nombre = (f.properties && f.properties.nombre) || '';
+                if (nombre) {
+                    capa.bindTooltip(nombre, {
+                        sticky: true, direction: 'top', className: 'tip-sector'
+                    });
+                }
+            }
+        }).addTo(capaCamposAipsa);
+
+        L.geoJSON(bordes, {
+            className: 'borde-aipsa',
+            style: {
+                color: '#16a34a', weight: 2, opacity: 0.95,
+                lineCap: 'round', lineJoin: 'round', interactive: false
+            }
+        }).addTo(capaCamposAipsa);
+    } catch (e) {
+        console.warn('campos AIPSA', e);
+    }
+}
+
+/* ============================================================
+   COMPUERTAS EN EL MAPA (pestaña Puntos criticos)
+   El color sale del estado de la tabla compuertas.
+   ============================================================ */
+let compuertasMapa = [];
+
+function svgCompuerta() {
+    return '<svg viewBox="0 0 40 40" width="38" height="38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<rect x="4" y="7" width="3.6" height="26" rx="1.4" fill="#64748b"/>' +
+        '<rect x="32.4" y="7" width="3.6" height="26" rx="1.4" fill="#64748b"/>' +
+        '<rect x="7.6" y="18" width="24.8" height="4.4" rx="1.6" fill="currentColor"/>' +
+        '<circle cx="20" cy="20.2" r="2.4" fill="#0f172a" fill-opacity=".55"/>' +
+        '</svg>';
+}
+
+function esCompuertaAbierta(c) {
+    return String(c && c.estado || '').toLowerCase().indexOf('abiert') === 0;
+}
+
+async function cargarCompuertasMapa() {
+    if (!capaCompuertasMapa) return;
+    try {
+        const { data, error } = await db
+            .from('compuertas')
+            .select('id, administracion, nombre, estado, lat, lon')
+            .not('lat', 'is', null);
+        if (error) throw error;
+        compuertasMapa = data || [];
+    } catch (e) {
+        console.warn('compuertas mapa', e);
+        return;
+    }
+
+    capaCompuertasMapa.clearLayers();
+
+    compuertasMapa.forEach(c => {
+        if (!isFinite(Number(c.lat)) || !isFinite(Number(c.lon))) return;
+        const abierta = esCompuertaAbierta(c);
+
+        const marca = L.marker([Number(c.lat), Number(c.lon)], {
+            icon: L.divIcon({
+                className: '',
+                html: '<div class="compuerta-mapa ' + (abierta ? 'abierta' : 'cerrada') + '">' +
+                      svgCompuerta() + '</div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            })
+        }).addTo(capaCompuertasMapa);
+
+        marca.bindTooltip(
+            '<b>' + (c.nombre || 'Compuerta') + '</b><br>' +
+            '<span style="opacity:.8">' + (abierta ? 'Abierta' : 'Cerrada') + ' · ' + (c.administracion || '') + '</span>',
+            { direction: 'top', className: 'tip-compuerta', opacity: 1 }
+        );
+
+        marca.on('click', () => {
+            if (editorActivo) {
+                abrirFichaCompuerta(c);
+                return;
+            }
+            abrirGaleriaFotos({
+                tipo: 'compuerta',
+                id: c.id,
+                titulo: (c.nombre || 'Compuerta') + ' · ' + (abierta ? 'abierta' : 'cerrada')
+            });
+        });
+    });
+}
+
+/* ============================================================
+   FICHAS, FOTOS Y GALERIAS
+   ============================================================ */
+const BUCKET_FOTOS = 'medidas-fotos';
+
+function tarjetaPunto(p) {
+    const num = Number(p.orden) > 0 ? 'Punto ' + p.orden : 'Punto sin número';
+    const nombre = p.nombre ? ' · ' + p.nombre : '';
+    const resp = p.responsable
+        ? '<b>' + escaparHtml(p.responsable) + '</b>'
+        : '<i style="opacity:.7">Sin responsable asignado</i>';
+    const equipos = p.equipos
+        ? escaparHtml(p.equipos)
+        : '<i style="opacity:.7">Sin equipos asignados</i>';
+    return '<div class="tip-ficha">' +
+        '<div class="tip-ficha-tit">' + escaparHtml(num + nombre) + '</div>' +
+        '<div class="tip-ficha-fila"><span>Responsable</span>' + resp + '</div>' +
+        '<div class="tip-ficha-fila"><span>Equipo y máquinas</span>' + equipos + '</div>' +
+        '</div>';
+}
+
+function escaparHtml(t) {
+    return String(t == null ? '' : t)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function panelMapa(titulo, cuerpoHtml, botones) {
+    cerrarPanelMapa();
+    const capa = document.createElement('div');
+    capa.id = 'panel-mapa';
+    capa.className = 'panel-mapa';
+    capa.innerHTML = '<div class="panel-mapa-caja">' +
+        '<div class="panel-mapa-cab"><h2>' + escaparHtml(titulo) + '</h2>' +
+        '<button type="button" class="panel-mapa-x" aria-label="Cerrar">&times;</button></div>' +
+        '<div class="panel-mapa-cuerpo">' + cuerpoHtml + '</div>' +
+        (botones ? '<div class="panel-mapa-pie">' + botones + '</div>' : '') +
+        '</div>';
+    document.body.appendChild(capa);
+    capa.addEventListener('click', (ev) => { if (ev.target === capa) cerrarPanelMapa(); });
+    capa.querySelector('.panel-mapa-x').addEventListener('click', cerrarPanelMapa);
+    return capa;
+}
+
+function cerrarPanelMapa() {
+    const p = document.getElementById('panel-mapa');
+    if (p) p.remove();
+}
+
+async function fotosDe(destino) {
+    const campo = destino.tipo === 'punto' ? 'punto_id' : 'compuerta_id';
+    try {
+        const { data, error } = await db.from('mapa_fotos')
+            .select('*').eq(campo, destino.id).order('creado_en');
+        if (error) throw error;
+        return (data || []).map(f => Object.assign({}, f, {
+            url: db.storage.from(BUCKET_FOTOS).getPublicUrl(f.storage_path).data.publicUrl
+        }));
+    } catch (e) {
+        console.warn('fotos', e);
+        return [];
+    }
+}
+
+function htmlGaleria(fotos, editable, destino) {
+    if (!fotos.length) {
+        return '<p class="panel-mapa-vacio">Todavía no hay fotos aquí.</p>' +
+            (editable ? bloqueSubirFoto(destino) : '');
+    }
+    const celdas = fotos.map(f =>
+        '<figure class="panel-foto">' +
+        '<a href="' + f.url + '" target="_blank" rel="noopener">' +
+        '<img src="' + f.url + '" alt="' + escaparHtml(f.nombre || 'Foto') + '" loading="lazy"></a>' +
+        (editable ? '<button type="button" class="panel-foto-x" data-id="' + f.id +
+            '" data-path="' + escaparHtml(f.storage_path) + '" aria-label="Quitar foto">&times;</button>' : '') +
+        '</figure>'
+    ).join('');
+    return '<div class="panel-fotos">' + celdas + '</div>' +
+        (editable ? bloqueSubirFoto(destino) : '');
+}
+
+function bloqueSubirFoto(destino) {
+    return '<label class="panel-subir">' +
+        '<i class="fas fa-camera"></i> Tomar o elegir una foto' +
+        '<input type="file" accept="image/*" capture="environment" data-destino="' +
+        destino.tipo + ':' + destino.id + '">' +
+        '</label>';
+}
+
+async function abrirGaleriaFotos(destino) {
+    const capa = panelMapa(destino.titulo, '<p class="panel-mapa-vacio">Cargando fotos…</p>');
+    const fotos = await fotosDe(destino);
+    const cuerpo = capa.querySelector('.panel-mapa-cuerpo');
+    if (!cuerpo) return;
+    cuerpo.innerHTML = htmlGaleria(fotos, false, destino);
+}
+
+function abrirFichaPunto(p) {
+    const numero = Number(p.orden) > 0 ? String(p.orden) : '';
+    const cuerpo =
+        '<div class="panel-campo"><label>Número del punto</label>' +
+        '<input id="ficha-numero" type="number" min="0" step="1" value="' + escaparHtml(numero) + '" placeholder="Ej. 12"></div>' +
+        '<div class="panel-campo"><label>Responsable</label>' +
+        '<input id="ficha-responsable" type="text" value="' + escaparHtml(p.responsable || '') +
+        '" placeholder="Quién responde por este punto"></div>' +
+        '<div class="panel-campo"><label>Equipo y máquinas necesarias</label>' +
+        '<textarea id="ficha-equipos" rows="3" placeholder="Ej. retroexcavadora, volquete, cuadrilla de 4">' +
+        escaparHtml(p.equipos || '') + '</textarea></div>' +
+        '<div class="panel-campo"><label>Fotos de este punto</label>' +
+        '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div></div>';
+
+    const capa = panelMapa('Punto ' + (numero || 'sin número'), cuerpo,
+        '<button type="button" class="panel-btn principal" id="ficha-guardar">Guardar</button>' +
+        '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>');
+
+    capa.querySelector('#ficha-cerrar').addEventListener('click', cerrarPanelMapa);
+    capa.querySelector('#ficha-guardar').addEventListener('click', async () => {
+        const num = parseInt(capa.querySelector('#ficha-numero').value, 10);
+        const responsable = capa.querySelector('#ficha-responsable').value.trim();
+        const equipos = capa.querySelector('#ficha-equipos').value.trim();
+        const { error } = await db.from('mapa_puntos').update({
+            orden: isFinite(num) && num > 0 ? num : 0,
+            responsable: responsable || null,
+            equipos: equipos || null
+        }).eq('id', p.id);
+        if (error) {
+            avisar('No se pudo guardar: ' + error.message, 'warn');
+            return;
+        }
+        avisar('Punto guardado', 'ok');
+        cerrarPanelMapa();
+        cargarVectores();
+    });
+
+    Promise.all([fotosDe({ tipo: 'punto', id: p.id })]).then(([fotos]) => {
+        const caja = capa.querySelector('#ficha-fotos');
+        if (!caja) return;
+        caja.innerHTML = htmlGaleria(fotos, true, { tipo: 'punto', id: p.id });
+    });
+}
+
+async function abrirFichaCompuerta(c) {
+    const abierta = esCompuertaAbierta(c);
+    const cuerpo = '<p class="panel-mapa-nota">Estado actual: <b>' + (abierta ? 'abierta' : 'cerrada') +
+        '</b> · ' + escaparHtml(c.administracion || '') + '</p>' +
+        '<p class="panel-mapa-nota">El estado se declara en el panel de Compuertas. Aquí solo se agregan las fotos.</p>' +
+        '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div>';
+
+    const capa = panelMapa(c.nombre || 'Compuerta', cuerpo,
+        '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>');
+    capa.querySelector('#ficha-cerrar').addEventListener('click', cerrarPanelMapa);
+
+    const fotos = await fotosDe({ tipo: 'compuerta', id: c.id });
+    const caja = capa.querySelector('#ficha-fotos');
+    if (caja) caja.innerHTML = htmlGaleria(fotos, true, { tipo: 'compuerta', id: c.id });
+}
+
+/* Subir y borrar fotos (una sola ruta para puntos y compuertas) */
+document.addEventListener('change', async (ev) => {
+    const input = ev.target;
+    if (!input || !input.matches || !input.matches('input[data-destino]')) return;
+    const archivo = input.files && input.files[0];
+    if (!archivo) return;
+    if (!archivo.type.startsWith('image/')) {
+        avisar('Solo se permiten imágenes', 'warn');
+        input.value = '';
+        return;
+    }
+    const [tipo, id] = String(input.dataset.destino).split(':');
+    const destino = { tipo: tipo, id: tipo === 'punto' ? id : Number(id) };
+
+    input.value = '';
+    avisar('Subiendo foto…', 'info');
+    try {
+        const comprimida = await comprimirArchivo(archivo);
+        const path = 'mapa/' + tipo + '/' + destino.id + '/' + Date.now() + '.jpg';
+        const { error: errSubida } = await db.storage.from(BUCKET_FOTOS)
+            .upload(path, comprimida, { cacheControl: '31536000', upsert: false });
+        if (errSubida) throw errSubida;
+
+        const fila = { nombre: archivo.name, storage_path: path, subido_por: nombreDeQuien() };
+        if (tipo === 'punto') fila.punto_id = destino.id; else fila.compuerta_id = destino.id;
+        const { error: errInsert } = await db.from('mapa_fotos').insert(fila);
+        if (errInsert) {
+            await db.storage.from(BUCKET_FOTOS).remove([path]);
+            throw errInsert;
+        }
+        avisar('Foto guardada', 'ok');
+        await refrescarFotosDe(destino);
+    } catch (e) {
+        console.error(e);
+        avisar('No se pudo subir la foto: ' + (e.message || e), 'warn');
+    }
+});
+
+function nombreDeQuien() {
+    const u = usuarioPlan();
+    if (u && u.area) return u.area;
+    const c = sesionConductor();
+    if (c && c.nombre) return c.nombre;
+    return null;
+}
+
+async function refrescarFotosDe(destino) {
+    const caja = document.querySelector('#panel-mapa #ficha-fotos');
+    if (!caja) return;
+    const fotos = await fotosDe(destino);
+    caja.innerHTML = htmlGaleria(fotos, editorActivo, destino);
+}
+
+document.addEventListener('click', async (ev) => {
+    const boton = ev.target && ev.target.closest ? ev.target.closest('.panel-foto-x') : null;
+    if (!boton) return;
+    ev.preventDefault();
+    if (!editorActivo) return;
+    if (!confirm('¿Quitar esta foto?')) return;
+    const id = boton.dataset.id;
+    const path = boton.dataset.path;
+    try {
+        const { data } = await db.from('mapa_fotos').select('*').eq('id', id).maybeSingle();
+        await db.from('mapa_fotos').delete().eq('id', id);
+        if (path) await db.storage.from(BUCKET_FOTOS).remove([path]);
+        const destino = data && data.compuerta_id
+            ? { tipo: 'compuerta', id: data.compuerta_id }
+            : { tipo: 'punto', id: data && data.punto_id };
+        await refrescarFotosDe(destino);
+    } catch (e) {
+        console.warn('borrar foto', e);
+        avisar('No se pudo quitar la foto', 'warn');
+    }
+});
+
+/* Reduce la foto antes de subirla (mismo criterio que las fotos de medidas) */
+function comprimirArchivo(archivo, maxLado, calidad) {
+    maxLado = maxLado || 1280;
+    calidad = calidad || 0.72;
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(archivo);
+        const img = new Image();
+        img.onload = () => {
+            let { width: w, height: h } = img;
+            const escala = Math.min(1, maxLado / Math.max(w, h));
+            w = Math.round(w * escala);
+            h = Math.round(h * escala);
+            const lienzo = document.createElement('canvas');
+            lienzo.width = w; lienzo.height = h;
+            lienzo.getContext('2d').drawImage(img, 0, 0, w, h);
+            URL.revokeObjectURL(url);
+            lienzo.toBlob((blob) => resolve(blob || archivo), 'image/jpeg', calidad);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(archivo); };
+        img.src = url;
+    });
 }
 
 /* La sesion del conductor se resuelve en la base antes de arrancar */
