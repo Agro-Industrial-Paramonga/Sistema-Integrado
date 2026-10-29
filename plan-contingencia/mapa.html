@@ -331,6 +331,9 @@
                 <button type="button" class="pc-color" data-color="#2563eb" onclick="setColorLinea('#2563eb')" title="Azul" style="background:#2563eb"></button>
                 <button type="button" class="pc-color" data-color="#0f172a" onclick="setColorLinea('#0f172a')" title="Negro" style="background:#0f172a"></button>
             </span>
+            <button onclick="cerrarZona()"  id="btn-cerrar-zona" style="display:none;background:#0ea5e9;color:#fff;border-color:#0ea5e9;">Cerrar zona</button>
+            <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981;">Terminar línea</button>
+            <button type="button" id="btn-unidad" onclick="alternarUnidad()" class="btn-modo-ed"><i class="fas fa-tractor"></i> Unidad</button>
             <span id="ctrl-maquina" style="display:none;gap:6px;align-items:center;">
                 <select id="sel-maquina" style="border:1px solid #e2e8f0;border-radius:10px;padding:7px 10px;font-size:.76rem;"></select>
                 <button onclick="setModoEditor('maquina')" data-modo="maquina" class="btn-modo-ed"><i class="fas fa-tractor"></i> Colocar</button>
@@ -338,8 +341,6 @@
                     <input id="tamano-maquina" type="range" min="20" max="90" value="40" oninput="cambiarTamanoMaquinas(this.value)">
                 </label>
             </span>
-            <button onclick="cerrarZona()"  id="btn-cerrar-zona" style="display:none;background:#0ea5e9;color:#fff;border-color:#0ea5e9;">Cerrar zona</button>
-            <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981;">Terminar línea</button>
             <button data-modo="borrar" id="btn-borrar-ed" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-eraser"></i> Borrar</button>
         </span>
         <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
@@ -414,7 +415,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
-    <script src="mapa.js?v=52"></script>
+    <script src="mapa.js?v=53"></script>
     <script src="compuertas.js?v=7"></script>
     <script src="semaforo.js?v=5"></script>
 </body>

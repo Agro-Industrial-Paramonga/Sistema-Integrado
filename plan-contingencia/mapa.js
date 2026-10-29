@@ -1624,7 +1624,8 @@ function alternarEditor() {
     // recrear maquinas y puntos para que el arrastre quede habilitado/deshabilitado
     try { cargarMaquinas(); cargarVectores(); } catch (e) {}
     const cm = document.getElementById('ctrl-maquina');
-    if (cm) cm.style.display = editorActivo ? 'inline-flex' : 'none';
+    if (cm) cm.style.display = 'none';
+    document.getElementById('btn-unidad')?.classList.remove('activo');
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
     document.getElementById('btn-editar-puntos').classList.toggle('activo', editorActivo);
 
@@ -1677,7 +1678,29 @@ function setModoEditor(modo) {
         (modo === 'punto' || modo === 'retro' || modo === 'excavadora' || modo === 'linea')
             ? 'crosshair' : '';
 
+    if (modo !== 'maquina') {
+        const cm = document.getElementById('ctrl-maquina');
+        if (cm) cm.style.display = 'none';
+        document.getElementById('btn-unidad')?.classList.remove('activo');
+    }
     if (modo !== 'linea') terminarLinea(true);
+}
+
+/* Muestra u oculta el selector de unidad, para no cargar la barra */
+function alternarUnidad() {
+    if (!editorActivo) return;
+    const cm = document.getElementById('ctrl-maquina');
+    if (!cm) return;
+    const abrir = cm.style.display === 'none' || !cm.style.display;
+    if (abrir) {
+        setModoEditor('maquina');
+        cm.style.display = 'inline-flex';
+        document.getElementById('btn-unidad')?.classList.add('activo');
+    } else {
+        setModoEditor(null);
+        cm.style.display = 'none';
+        document.getElementById('btn-unidad')?.classList.remove('activo');
+    }
 }
 
 async function clickEditor(latlng) {
