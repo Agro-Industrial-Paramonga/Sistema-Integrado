@@ -2195,15 +2195,19 @@ async function fotosDe(destino) {
     }
 }
 
+/* Guardamos las fotos de la galería abierta para el lightbox */
+let fotosGaleriaActual = [];
+
 function htmlGaleria(fotos, editable, destino) {
+    fotosGaleriaActual = fotos || [];
     if (!fotos.length) {
         return '<p class="panel-mapa-vacio">Todavía no hay fotos aquí.</p>' +
             (editable ? bloqueSubirFoto(destino) : '');
     }
-    const celdas = fotos.map(f =>
+    const celdas = fotos.map((f, i) =>
         '<figure class="panel-foto">' +
-        '<a href="' + f.url + '" target="_blank" rel="noopener">' +
-        '<img src="' + f.url + '" alt="' + escaparHtml(f.nombre || 'Foto') + '" loading="lazy"></a>' +
+        '<img src="' + f.url + '" alt="' + escaparHtml(f.nombre || 'Foto') +
+            '" loading="lazy" class="panel-foto-img" data-idx="' + i + '">' +
         (editable ? '<button type="button" class="panel-foto-x" data-id="' + f.id +
             '" data-path="' + escaparHtml(f.storage_path) + '" aria-label="Quitar foto">&times;</button>' : '') +
         '</figure>'
@@ -2211,6 +2215,81 @@ function htmlGaleria(fotos, editable, destino) {
     return '<div class="panel-fotos">' + celdas + '</div>' +
         (editable ? bloqueSubirFoto(destino) : '');
 }
+let lightboxIdx = 0;
+
+function abrirLightbox(idx) {
+    if (!fotosGaleriaActual.length) return;
+    lightboxIdx = Math.max(0, Math.min(idx, fotosGaleriaActual.length - 1));
+    mostrarLightbox();
+}
+
+function mostrarLightbox() {
+    let caja = document.getElementById('lightbox-mapa');
+    if (!caja) {
+        caja = document.createElement('div');
+        caja.id = 'lightbox-mapa';
+        caja.className = 'lightbox-mapa';
+        caja.innerHTML =
+            '<button type="button" class="lb-cerrar" aria-label="Cerrar">&times;</button>' +
+            '<button type="button" class="lb-nav lb-prev" aria-label="Anterior">&#10094;</button>' +
+            '<img class="lb-img" src="" alt="">' +
+            '<button type="button" class="lb-nav lb-next" aria-label="Siguiente">&#10095;</button>' +
+            '<div class="lb-contador"></div>';
+        document.body.appendChild(caja);
+        caja.addEventListener('click', (ev) => { if (ev.target === caja) cerrarLightbox(); });
+        caja.querySelector('.lb-cerrar').addEventListener('click', cerrarLightbox);
+        caja.querySelector('.lb-prev').addEventListener('click', () => moverLightbox(-1));
+        caja.querySelector('.lb-next').addEventListener('click', () => moverLightbox(1));
+
+        /* Deslizar en el celular */
+        let touchX = null;
+        caja.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+        caja.addEventListener('touchend', (e) => {
+            if (touchX === null) return;
+            const dx = e.changedTouches[0].clientX - touchX;
+            if (Math.abs(dx) > 40) moverLightbox(dx > 0 ? -1 : 1);
+            touchX = null;
+        });
+    }
+    const foto = fotosGaleriaActual[lightboxIdx];
+    if (!foto) return;
+    const img = caja.querySelector('.lb-img');
+    img.src = foto.url;
+    img.alt = foto.nombre || 'Foto';
+    caja.querySelector('.lb-contador').textContent =
+        (lightboxIdx + 1) + ' / ' + fotosGaleriaActual.length;
+    const varias = fotosGaleriaActual.length > 1;
+    caja.querySelector('.lb-prev').style.display = varias ? 'flex' : 'none';
+    caja.querySelector('.lb-next').style.display = varias ? 'flex' : 'none';
+    caja.classList.add('visible');
+}
+
+function moverLightbox(dir) {
+    if (!fotosGaleriaActual.length) return;
+    lightboxIdx = (lightboxIdx + dir + fotosGaleriaActual.length) % fotosGaleriaActual.length;
+    mostrarLightbox();
+}
+
+function cerrarLightbox() {
+    const caja = document.getElementById('lightbox-mapa');
+    if (caja) caja.classList.remove('visible');
+}
+
+/* Click en cualquier miniatura */
+document.addEventListener('click', (ev) => {
+    const img = ev.target && ev.target.closest ? ev.target.closest('.panel-foto-img') : null;
+    if (!img) return;
+    abrirLightbox(Number(img.dataset.idx));
+});
+
+/* Teclado: ← → para navegar, Esc para cerrar */
+document.addEventListener('keydown', (ev) => {
+    const caja = document.getElementById('lightbox-mapa');
+    if (!caja || !caja.classList.contains('visible')) return;
+    if (ev.key === 'Escape') cerrarLightbox();
+    else if (ev.key === 'ArrowLeft') moverLightbox(-1);
+    else if (ev.key === 'ArrowRight') moverLightbox(1);
+});
 
 function bloqueSubirFoto(destino) {
     return '<label class="panel-subir">' +
