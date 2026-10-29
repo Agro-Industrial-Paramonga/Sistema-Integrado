@@ -555,21 +555,21 @@
 
         /* Semáforo horizontal: cuatro luces, una por nivel */
         #sem-luces {
-            display: inline-flex; align-items: center; gap: 9px;
-            padding: 6px 13px; border-radius: 999px;
+            display: inline-flex; align-items: center; gap: 12px;
+            padding: 9px 18px; border-radius: 999px;
             background: #0f172a; border: 1px solid #1e293b;
             box-shadow: inset 0 1px 4px rgba(0,0,0,.55), 0 2px 8px rgba(15,23,42,.20);
             cursor: pointer; flex: 0 0 auto;
         }
         #sem-luces:focus-visible { outline: 3px solid #0f172a; outline-offset: 2px; }
         #sem-luces .foco {
-            width: 22px; height: 22px; border-radius: 50%;
+            width: 32px; height: 32px; border-radius: 50%;
             background: var(--c); opacity: .42; filter: saturate(.7) brightness(1.08);
             transition: opacity .22s ease, box-shadow .22s ease, filter .22s ease, transform .22s ease;
         }
         #sem-luces .foco.on {
             opacity: 1; filter: none; transform: scale(1.08);
-            box-shadow: 0 0 12px var(--c), 0 0 26px var(--c);
+            box-shadow: 0 0 16px var(--c), 0 0 34px var(--c);
         }
         #sem-luces.sem-pulso .foco.on { animation: semLatido 1.1s ease-in-out infinite; }
         #sem-luces.chico { padding: 6px 11px; gap: 7px; }
