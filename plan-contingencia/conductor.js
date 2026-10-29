@@ -216,50 +216,28 @@ function conectarEventos() {
     validar();
 }
 
-/* Devuelve la sesion abierta de esa unidad, o null si esta libre */
-async function turnoActivoDeUnidad(unidad) {
-    if (!unidad) return null;
+/* ------------------------------------------------------------
+   Turno en la base: una fila por unidad, identificada por el equipo.
+   El turno se recupera de la base, no de localStorage.
+   ------------------------------------------------------------ */
+const CLAVE_DISPOSITIVO = 'pc_dispositivo';
+
+function dispositivoEquipo() {
     try {
-        const { data } = await db.from('sesiones_unidad')
-            .select('unidad, user_id, token, inicio');
-        return (data || []).find(s => norm(s.unidad) === norm(unidad)) || null;
-    } catch (e) {
-        return null;
-    }
-}
-
-/* Toma la unidad para este conductor y verifica que quedo registrada */
-async function reclamarUnidad(unidad, nombre, token) {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.obtenerDispositivo) {
+            const nativo = String(window.AndroidUbicacion.obtenerDispositivo() || '').trim();
+            if (nativo) return nativo;
+        }
+    } catch (e) {}
     try {
-        const ocupada = await turnoActivoDeUnidad(unidad);
-        if (ocupada && norm(ocupada.user_id) !== norm(nombre)) {
-            return { ok: false, mensaje: 'La unidad ' + unidad + ' esta en turno con ' + ocupada.user_id + '.' };
+        let id = localStorage.getItem(CLAVE_DISPOSITIVO);
+        if (!id) {
+            id = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem(CLAVE_DISPOSITIVO, id);
         }
-
-        const { error } = await db.from('sesiones_unidad').upsert({
-            unidad: unidad,
-            user_id: nombre,
-            token: token || null,
-            inicio: new Date().toISOString()
-        }, { onConflict: 'unidad' });
-
-        if (error) return { ok: false, mensaje: 'No se pudo registrar la sesion: ' + error.message };
-
-        // Verificacion real del token
-        const { data } = await db.from('sesiones_unidad').select('token').eq('unidad', unidad).maybeSingle();
-        const guardado = (data && data.token) ? String(data.token) : '';
-
-        if (token && guardado !== token) {
-            await db.from('sesiones_unidad').update({ token: token }).eq('unidad', unidad);
-            const { data: d2 } = await db.from('sesiones_unidad').select('token').eq('unidad', unidad).maybeSingle();
-            if (!d2 || String(d2.token) !== String(token)) {
-                return { ok: false, mensaje: 'El celular no quedo registrado para alarmas. Revisa las notificaciones e intenta otra vez.' };
-            }
-        }
-
-        return { ok: true };
+        return id;
     } catch (e) {
-        return { ok: false, mensaje: 'Error al registrar la sesion: ' + e.message };
+        return '';
     }
 }
 
@@ -520,15 +498,7 @@ async function iniciarTurno() {
         return;
     }
 
-    // La unidad no puede tener dos sesiones a la vez
-    const ocupada = await turnoActivoDeUnidad(unidad);
-    if (ocupada) {
-        mostrarAviso('⛔ La unidad ' + unidad + ' está en turno con ' +
-            (ocupada.user_id || 'otro conductor') +
-            '. Debe cerrar sesión para liberarla.');
-        return;
-    }
-
+    // La unidad no puede tener dos turnos: lo garantiza la base
     pedirPermisoUbicacion();
 
     const boton = document.getElementById('btn-entrar');
@@ -555,18 +525,42 @@ async function iniciarTurno() {
     const listo = await registrarPush(nombre, unidad);
     const token = listo ? String(listo) : null;
 
-    // Reclamo de la unidad en la base: dueño unico y token verificado
-    const reclamo = await reclamarUnidad(unidad, nombre, token);
-    if (!reclamo.ok) {
-        mostrarAviso('⛔ ' + reclamo.mensaje);
-        const b = document.getElementById('btn-entrar');
-        b.disabled = false;
-        b.innerHTML = 'Iniciar turno';
-        return;
+    // La base abre el turno: dueño unico por unidad y uno por equipo
+    const disp = dispositivoEquipo();
+    let abierto = null;
+    let errorAbrir = null;
+
+    try {
+        const res = await db.rpc('abrir_turno', {
+            p_unidad: unidad,
+            p_user_id: nombre,
+            p_dni: dni || null,
+            p_dispositivo: disp,
+            p_token: token
+        });
+        abierto = res.data;
+        errorAbrir = res.error;
+    } catch (e) {
+        errorAbrir = e;
     }
 
-    const sesion = { unidad, nombre, dni, inicio: new Date().toISOString() };
-    localStorage.setItem('conductor', JSON.stringify(sesion));
+    if (errorAbrir || !abierto || !abierto.ok) {
+        let texto = 'No se pudo registrar el turno.';
+        if (abierto && abierto.motivo === 'ocupada') {
+            texto = '⛔ La unidad ' + unidad + ' está en turno con ' +
+                (abierto.user_id || 'otro conductor') + '. Debe cerrar sesión para liberarla.';
+        } else if (abierto && abierto.motivo === 'ya_tiene_turno') {
+            texto = '⛔ Este celular ya tiene un turno abierto con ' + abierto.unidad +
+                '. Ciérralo antes de tomar otra unidad.';
+        } else if (errorAbrir) {
+            texto = 'No se pudo registrar el turno: ' + (errorAbrir.message || errorAbrir);
+        }
+        mostrarAviso(texto);
+        const b = document.getElementById('btn-entrar');
+        b.disabled = false;
+        b.innerHTML = '<i class="fas fa-play"></i> Iniciar turno';
+        return;
+    }
 
     // Servicio nativo: sigue enviando con la app cerrada
     if (window.AndroidUbicacion && window.AndroidUbicacion.iniciarServicio) {
@@ -586,20 +580,21 @@ async function iniciarTurno() {
 }
 
 async function continuarTurno() {
+    // El turno vigente se pregunta a la base, no a localStorage
     let sesion = null;
-    try { sesion = JSON.parse(localStorage.getItem('conductor') || 'null'); } catch (e) {}
-
-    // Si el navegador perdio la sesion, preguntar al celular
-    if (!sesion && window.AndroidUbicacion && window.AndroidUbicacion.obtenerSesionGuardada) {
-        try {
-            const guardada = window.AndroidUbicacion.obtenerSesionGuardada();
-            if (guardada && guardada.indexOf('|') > 0) {
-                const partes = guardada.split('|');
-                sesion = { nombre: partes[0], unidad: partes[1], inicio: new Date().toISOString() };
-                localStorage.setItem('conductor', JSON.stringify(sesion));
-            }
-        } catch (e) {}
+    try {
+        const { data } = await db.rpc('sesion_unidad_por_dispositivo', {
+            p_dispositivo: dispositivoEquipo()
+        });
+        if (data && data.ok) {
+            sesion = { unidad: data.unidad, nombre: data.user_id, dni: data.dni, inicio: data.inicio };
+        }
+    } catch (e) {
+        sesion = null;
     }
+
+    // Restos del flujo anterior
+    try { localStorage.removeItem('conductor'); } catch (e) {}
 
     if (sesion && sesion.unidad && sesion.nombre) {
         // Turno vigente: reactivar el envio y seguir en el mapa

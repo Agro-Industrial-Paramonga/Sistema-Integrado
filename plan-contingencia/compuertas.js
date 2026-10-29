@@ -118,6 +118,8 @@ function pcAbrir() {
     panel.style.display = 'flex';
     pcBloquearFondo(true);
     pcPintar();
+    pcPintarUnidades();
+    pcPintarSesiones();
 }
 
 function pcCerrar() {
@@ -562,6 +564,193 @@ async function pcRefrescarDetalle(id) {
 }
 
 /* ------------------------------------------------------------
+   Sesiones abiertas de jefes y gerencias (tabla sesiones_panel).
+   Cerrar sesión en el portal borra su fila. Si un equipo quedó con la
+   sesión abierta, desde aquí se libera y el cierre va al historial.
+   ------------------------------------------------------------ */
+function pcClavePortal() {
+    try { return localStorage.getItem('pc_sesion_clave') || ''; } catch (e) { return ''; }
+}
+
+function pcFechaHora(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }) + ' · ' +
+           d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function pcPintarSesiones() {
+    const caja = document.getElementById('pc-sesiones');
+    if (!caja) return;
+    caja.innerHTML = '';
+
+    if (!pcPuedeVer()) return;
+    const clave = pcClavePortal();
+    if (!clave) return;
+
+    let filas = [];
+    try {
+        const { data, error } = await db.rpc('sesiones_panel_lista', { p_clave_quien: clave });
+        if (error || !data) return;
+        filas = data;
+    } catch (e) { return; }
+
+    if (!filas.length) {
+        caja.innerHTML = '<h2 class="pc-ses-titulo"><i class="fas fa-user-clock"></i> Sesiones abiertas</h2>' +
+            '<p class="pc-ses-sub">Ningún equipo tiene sesión abierta ahora mismo.</p>';
+        return;
+    }
+
+    caja.innerHTML =
+        '<h2 class="pc-ses-titulo"><i class="fas fa-user-clock"></i> Sesiones abiertas</h2>' +
+        '<p class="pc-ses-sub">Mientras la sesión exista, ese equipo recibe las alarmas. Al liberarla deja de ' +
+        'recibirlas en el acto y el cierre queda en el historial.</p>' +
+        filas.map(s => {
+            const equipo = s.dispositivo
+                ? 'equipo ' + pcEscape(String(s.dispositivo).slice(0, 8))
+                : 'sin equipo registrado';
+            return '<div class="pc-ses-fila">' +
+                    '<div class="pc-ses-datos">' +
+                        '<div class="pc-ses-nombre">' + pcEscape(s.user_id) + '</div>' +
+                        '<div class="pc-ses-meta">' + pcEscape(s.seccion || 'sin sección') +
+                            ' · desde ' + pcEscape(pcFechaHora(s.inicio)) +
+                            ' · ' + equipo + (s.con_token ? '' : ' · sin token de alarmas') + '</div>' +
+                    '</div>' +
+                    '<button type="button" class="pc-ses-liberar" data-user="' + pcEscape(s.user_id) +
+                        '" data-disp="' + pcEscape(s.dispositivo || '') + '">' +
+                        '<i class="fas fa-unlink"></i> Liberar</button>' +
+                '</div>';
+        }).join('');
+
+    caja.querySelectorAll('.pc-ses-liberar').forEach(b => {
+        b.addEventListener('click', () => pcPedirLiberar(b.dataset.user, b.dataset.disp || null));
+    });
+}
+
+function pcPedirLiberar(userId, dispositivo) {
+    pcConfirmar(
+        'Liberar sesión',
+        '¿Cerrar la sesión de ' + userId + '? Ese equipo dejará de recibir alarmas y el cierre queda en el historial.',
+        'Liberar',
+        'rojo',
+        () => pcLiberarSesion(userId, dispositivo)
+    );
+}
+
+async function pcLiberarSesion(userId, dispositivo) {
+    const clave = pcClavePortal();
+    const caja = document.getElementById('pc-sesiones');
+    if (!clave || !caja) return;
+
+    try {
+        const { data, error } = await db.rpc('liberar_sesion_panel', {
+            p_clave_quien: clave,
+            p_user_id: userId,
+            p_dispositivo: dispositivo || null
+        });
+
+        if (error || !data || !data.ok) {
+            caja.insertAdjacentHTML('afterbegin', '<div class="pc-aviso error">No se pudo liberar: ' +
+                pcEscape(error ? error.message : 'sin permiso') + '</div>');
+            return;
+        }
+
+        await pcPintarSesiones();
+    } catch (e) {
+        caja.insertAdjacentHTML('afterbegin', '<div class="pc-aviso error">No se pudo liberar: ' +
+            pcEscape(e.message) + '</div>');
+    }
+}
+
+/* ------------------------------------------------------------
+   Unidades en turno (tabla sesiones_unidad).
+   El turno se cierra desde el celular del conductor. Si el equipo se
+   perdio o no cierra, desde aqui se libera y queda en el historial.
+   ------------------------------------------------------------ */
+async function pcPintarUnidades() {
+    const caja = document.getElementById('pc-unidades');
+    if (!caja) return;
+    caja.innerHTML = '';
+
+    if (!pcPuedeVer()) return;
+    const clave = pcClavePortal();
+    if (!clave) return;
+
+    let filas = [];
+    try {
+        const { data, error } = await db.rpc('unidades_en_turno', { p_clave_quien: clave });
+        if (error || !data) return;
+        filas = data;
+    } catch (e) { return; }
+
+    if (!filas.length) {
+        caja.innerHTML = '<h2 class="pc-ses-titulo"><i class="fas fa-truck-moving"></i> Unidades en turno</h2>' +
+            '<p class="pc-ses-sub">Ninguna unidad tiene turno abierto ahora mismo.</p>';
+        return;
+    }
+
+    caja.innerHTML =
+        '<h2 class="pc-ses-titulo"><i class="fas fa-truck-moving"></i> Unidades en turno</h2>' +
+        '<p class="pc-ses-sub">Cada turno lo cierra su conductor. Si el celular se perdió o no cierra, ' +
+        'libéralo aquí: deja de enviar ubicación y el cierre queda en el historial.</p>' +
+        filas.map(u => {
+            const equipo = u.dispositivo
+                ? 'equipo ' + pcEscape(String(u.dispositivo).slice(0, 8))
+                : 'sin equipo registrado';
+            return '<div class="pc-ses-fila">' +
+                    '<div class="pc-ses-datos">' +
+                        '<div class="pc-ses-nombre">' + pcEscape(u.unidad) + ' · ' + pcEscape(u.user_id) + '</div>' +
+                        '<div class="pc-ses-meta">' +
+                            (u.dni ? 'DNI ' + pcEscape(u.dni) + ' · ' : '') +
+                            'desde ' + pcEscape(pcFechaHora(u.inicio)) +
+                            ' · ' + equipo + (u.con_token ? '' : ' · sin token de alarmas') + '</div>' +
+                    '</div>' +
+                    '<button type="button" class="pc-ses-liberar" data-unidad="' + pcEscape(u.unidad) + '">' +
+                        '<i class="fas fa-unlink"></i> Liberar</button>' +
+                '</div>';
+        }).join('');
+
+    caja.querySelectorAll('.pc-ses-liberar').forEach(b => {
+        b.addEventListener('click', () => pcPedirLiberarUnidad(b.dataset.unidad));
+    });
+}
+
+function pcPedirLiberarUnidad(unidad) {
+    pcConfirmar(
+        'Liberar unidad',
+        '¿Cerrar el turno de la unidad ' + unidad + '? Dejará de enviar ubicación y el cierre queda en el historial con tu usuario.',
+        'Liberar',
+        'rojo',
+        () => pcLiberarUnidad(unidad)
+    );
+}
+
+async function pcLiberarUnidad(unidad) {
+    const clave = pcClavePortal();
+    const caja = document.getElementById('pc-unidades');
+    if (!clave || !caja) return;
+
+    try {
+        const { data, error } = await db.rpc('liberar_unidad', {
+            p_clave_quien: clave,
+            p_unidad: unidad
+        });
+
+        if (error || !data || !data.ok) {
+            caja.insertAdjacentHTML('afterbegin', '<div class="pc-aviso error">No se pudo liberar: ' +
+                pcEscape(error ? error.message : 'sin permiso') + '</div>');
+            return;
+        }
+
+        await pcPintarUnidades();
+    } catch (e) {
+        caja.insertAdjacentHTML('afterbegin', '<div class="pc-aviso error">No se pudo liberar: ' +
+            pcEscape(e.message) + '</div>');
+    }
+}
+
+/* ------------------------------------------------------------
    Inicio: boton visible solo para Seguridad Industrial
    ------------------------------------------------------------ */
 function pcIniciar() {
@@ -588,7 +777,7 @@ function pcIniciar() {
     if (cerrar) cerrar.addEventListener('click', pcCerrar);
 
     const refrescar = document.getElementById('pc-refrescar');
-    if (refrescar) refrescar.addEventListener('click', () => pcPintar());
+    if (refrescar) refrescar.addEventListener('click', () => { pcPintar(); pcPintarUnidades(); pcPintarSesiones(); });
 
     const nueva = document.getElementById('pc-add-compuerta');
     if (nueva) nueva.addEventListener('click', pcFormCompuerta);

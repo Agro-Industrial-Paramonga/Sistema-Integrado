@@ -686,6 +686,25 @@ public class MainActivity extends BridgeActivity {
                         });
                     }
 
+                    /* Id estable del equipo. Vive en preferencias propias
+                       ("identidad") que nunca se limpian: asi la sesion se
+                       recupera de la base aunque se borre la cache del WebView. */
+                    @JavascriptInterface
+                    public String obtenerDispositivo() {
+                        try {
+                            android.content.SharedPreferences prefs =
+                                    getSharedPreferences("identidad", MODE_PRIVATE);
+                            String id = prefs.getString("dispositivo", null);
+                            if (id == null || id.isEmpty()) {
+                                id = java.util.UUID.randomUUID().toString();
+                                prefs.edit().putString("dispositivo", id).apply();
+                            }
+                            return id;
+                        } catch (Exception e) {
+                            return "";
+                        }
+                    }
+
                     @JavascriptInterface
                     public String obtenerSesionGuardada() {
                         try {

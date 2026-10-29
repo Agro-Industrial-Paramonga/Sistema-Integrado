@@ -41,9 +41,92 @@ let ultimoEnvio = 0;
 
 /* ------------------------------------------------------------
    Sesion y permisos
+   La sesion del conductor se lee de la base al arrancar (por el id del
+   equipo). localStorage ya no decide si hay turno.
    ------------------------------------------------------------ */
+let SESION_CONDUCTOR = null;
+
 function sesionConductor() {
-    try { return JSON.parse(localStorage.getItem('conductor') || 'null'); } catch (e) { return null; }
+    return SESION_CONDUCTOR;
+}
+
+const CLAVE_DISPOSITIVO = 'pc_dispositivo';
+
+function dispositivoEquipo() {
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.obtenerDispositivo) {
+            const nativo = String(window.AndroidUbicacion.obtenerDispositivo() || '').trim();
+            if (nativo) return nativo;
+        }
+    } catch (e) {}
+    try {
+        let id = localStorage.getItem(CLAVE_DISPOSITIVO);
+        if (!id) {
+            id = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem(CLAVE_DISPOSITIVO, id);
+        }
+        return id;
+    } catch (e) {
+        return '';
+    }
+}
+
+async function cargarSesionConductor() {
+    const disp = dispositivoEquipo();
+    if (!disp) return null;
+
+    const buscar = async () => {
+        try {
+            const { data, error } = await db.rpc('sesion_unidad_por_dispositivo', { p_dispositivo: disp });
+            if (error || !data || !data.ok) return null;
+            return {
+                unidad: data.unidad,
+                nombre: data.user_id,
+                dni: data.dni,
+                inicio: data.inicio,
+                dispositivo: disp
+            };
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const directa = await buscar();
+    if (directa) { SESION_CONDUCTOR = directa; return directa; }
+
+    // Turno abierto por una version anterior (sin id de equipo): el celular
+    // guarda usuario y unidad en sus preferencias nativas. La base confirma
+    // que ese turno sigue abierto y a nombre de esa persona; si es asi se
+    // adopta, sin crear ni duplicar nada.
+    let nativa = '';
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.obtenerSesionGuardada) {
+            nativa = String(window.AndroidUbicacion.obtenerSesionGuardada() || '');
+        }
+    } catch (e) { nativa = ''; }
+
+    if (nativa && nativa.indexOf('|') > 0) {
+        const partes = nativa.split('|');
+        const usuario = partes[0].trim();
+        const unidad = partes[1].trim();
+        if (usuario && unidad) {
+            try {
+                const { data } = await db.rpc('abrir_turno', {
+                    p_unidad: unidad,
+                    p_user_id: usuario,
+                    p_dni: null,
+                    p_dispositivo: disp,
+                    p_token: null
+                });
+                if (data && data.ok) {
+                    const adoptada = await buscar();
+                    if (adoptada) { SESION_CONDUCTOR = adoptada; return adoptada; }
+                }
+            } catch (e) {}
+        }
+    }
+
+    return null;
 }
 
 function usuarioPlan() {
@@ -420,25 +503,23 @@ async function sincronizarSuscripcion(c) {
     try { token = localStorage.getItem('pushToken'); } catch (e) {}
     if (!token || String(token).length < 30) return;
 
+    // Solo se mantiene el token al dia: el turno ya existe en la base
     try {
-        const { data } = await db.from('sesiones_unidad')
-            .select('unidad, user_id')
+        await db.from('sesiones_unidad')
+            .update({ token: token })
             .eq('unidad', c.unidad);
 
+        const { data } = await db.from('push_subscriptions')
+            .select('id')
+            .eq('token', token)
+            .limit(1);
+
         if (!data || !data.length) {
-            // Turno anterior a este cambio: se registra la sesion que ya tenia
-            await db.from('sesiones_unidad').insert({
-                unidad: c.unidad,
+            await db.from('push_subscriptions').insert({
                 user_id: c.nombre,
                 token: token,
-                inicio: c.inicio || new Date().toISOString()
+                unidad: c.unidad
             });
-            return;
-        }
-
-        if (normalizar(data[0].user_id) === normalizar(c.nombre)) {
-            // Titular: solo mantiene el token al dia
-            await db.from('sesiones_unidad').update({ token: token }).eq('unidad', c.unidad);
         }
     } catch (e) {
         console.warn('sincronizar sesion', e);
@@ -558,24 +639,18 @@ async function cerrarTurno() {
     if (!confirm('¿Finalizar el turno? Se dejará de compartir la ubicación.')) return;
     const c = sesionConductor();
 
-    // 1) Borrar la sesion de la unidad: desde este momento nada de su celular entra
+    // 1) Cerrar el turno en la base: borra la fila, limpia posicion y
+    //    suscripcion, y deja el registro en el historial
     try {
-        if (c && c.unidad) await db.from('sesiones_unidad').delete().eq('unidad', c.unidad);
+        await db.rpc('cerrar_turno', {
+            p_unidad: c ? c.unidad : null,
+            p_dispositivo: dispositivoEquipo()
+        });
     } catch (e) {
-        console.warn('cerrar sesion', e);
+        console.warn('cerrar turno', e);
     }
 
-    // 2) Borrar sus registros (posicion y suscripcion)
-    try {
-        if (c && c.nombre) await db.from('ubicaciones').delete().eq('user_id', c.nombre);
-        if (c && c.unidad) await db.from('ubicaciones').delete().eq('unidad', c.unidad);
-        if (c && c.nombre) await db.from('push_subscriptions').delete().eq('user_id', c.nombre);
-        if (c && c.unidad) await db.from('push_subscriptions').delete().eq('unidad', c.unidad);
-    } catch (e) {
-        console.warn('limpieza de turno', e);
-    }
-
-    // 3) Detener el servicio nativo
+    // 2) Detener el servicio nativo
     try {
         if (window.AndroidUbicacion && window.AndroidUbicacion.detenerServicio) {
             window.AndroidUbicacion.detenerServicio();
@@ -584,13 +659,14 @@ async function cerrarTurno() {
         console.warn('detener servicio', e);
     }
 
-    // 4) Olvidar la sesión en este celular
+    // 3) Olvidar restos en este celular
+    SESION_CONDUCTOR = null;
     try {
         localStorage.removeItem('conductor');
         localStorage.removeItem('pushToken');
     } catch (e) {}
 
-    window.location.href = 'conductor.html?v=20';
+    window.location.href = 'conductor.html?v=21';
 }
 
 /* ------------------------------------------------------------
@@ -1589,4 +1665,8 @@ async function borrarTodo() {
 }
 
 
-iniciarMapa();
+/* La sesion del conductor se resuelve en la base antes de arrancar */
+(async () => {
+    await cargarSesionConductor();
+    iniciarMapa();
+})();

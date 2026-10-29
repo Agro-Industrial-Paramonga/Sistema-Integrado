@@ -39,6 +39,33 @@ function limpiarSesion() {
 }
 
 /* ============================================================
+   EQUIPO: id estable del celular.
+   El APK lo guarda en sus preferencias nativas (no se borra con la
+   cache del WebView); en navegador se usa uno local como respaldo.
+   La sesion vive en la base y se busca por este id.
+   ============================================================ */
+const CLAVE_DISPOSITIVO = 'pc_dispositivo';
+
+function dispositivoActual() {
+    try {
+        if (window.AndroidUbicacion && window.AndroidUbicacion.obtenerDispositivo) {
+            const nativo = String(window.AndroidUbicacion.obtenerDispositivo() || '').trim();
+            if (nativo) return nativo;
+        }
+    } catch (e) {}
+    try {
+        let id = localStorage.getItem(CLAVE_DISPOSITIVO);
+        if (!id) {
+            id = 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem(CLAVE_DISPOSITIVO, id);
+        }
+        return id;
+    } catch (e) {
+        return '';
+    }
+}
+
+/* ============================================================
    FORMATEO DE COSTOS
    ============================================================ */
 function parsearCosto(valor) {
@@ -859,11 +886,14 @@ function mostrarMenuLogin(visible) {
     if (m) m.style.display = visible ? 'block' : 'none';
 }
 
-function verificarSesion() {
-    const u = obtenerSesion();
+async function verificarSesion() {
+    // La sesión se busca en la base con el id del equipo: si existe, se
+    // recupera aunque se haya limpiado la cache del navegador.
+    const u = await sesionDesdeBase();
     if (u) {
         entrarApp();
     } else {
+        limpiarSesion();
         document.getElementById('main-header').style.display = 'none';
         mostrarPantalla('screen-login');
         mostrarMenuLogin(true);
@@ -2031,29 +2061,52 @@ async function guardarTokenPush(userId, token) {
 
 /* ------------------------------------------------------------
    Sesión del portal en la base (sesiones_panel).
-   Mientras esta sesión exista, este equipo recibe las alarmas de
-   jefe/gerencia. Al cerrar sesión deja de recibirlas, aunque el
+   La sesión es una fila en la base, identificada por el equipo.
+   Mientras exista, este equipo recibe las alarmas de jefe/gerencia.
+   Al cerrar sesión se borra esa fila y deja de recibirlas, aunque el
    celular conserve su token de notificaciones.
    ------------------------------------------------------------ */
-const CLAVE_SESION = 'pc_sesion_clave';
-
-function claveSesionPanel() {
-    try { return localStorage.getItem(CLAVE_SESION) || ''; } catch (e) { return ''; }
-}
 
 function tokenPushGuardado() {
     try { return localStorage.getItem('pc_push_token') || localStorage.getItem('pushToken') || ''; }
     catch (e) { return ''; }
 }
 
+/* ¿Este equipo tiene sesión abierta? La base manda. */
+async function sesionDesdeBase() {
+    const disp = dispositivoActual();
+    if (!disp) return null;
+    try {
+        const { data, error } = await db.rpc('sesion_panel_por_dispositivo', { p_dispositivo: disp });
+        if (error || !data || !data.ok) return null;
+        const u = {
+            area: data.user_id,
+            rol: data.rol,
+            gerencia_key: data.gerencia_key || null,
+            seccion: data.seccion || null
+        };
+        guardarSesion(u);   // copia para la interfaz, no es la fuente de verdad
+        // Copia de la clave para el semáforo; si se pierde, se vuelve a pedir aquí.
+        try { localStorage.setItem('pc_sesion_clave', data.clave || ''); } catch (e) {}
+        return u;
+    } catch (e) {
+        console.warn('[SESION] no se pudo consultar:', e);
+        return null;
+    }
+}
+
 async function abrirSesionPanel(area, password) {
     try {
-        const { data, error } = await db.rpc('abrir_sesion_panel', { p_area: area, p_password: password });
+        const { data, error } = await db.rpc('abrir_sesion_panel', {
+            p_area: area,
+            p_password: password,
+            p_dispositivo: dispositivoActual()
+        });
         if (error || !data || !data.ok) {
             console.warn('[SESION] no se pudo abrir:', error ? error.message : data);
             return null;
         }
-        try { localStorage.setItem(CLAVE_SESION, data.clave); } catch (e) {}
+        try { localStorage.setItem('pc_sesion_clave', data.clave || ''); } catch (e) {}
         const t = tokenPushGuardado();
         if (t) await adjuntarTokenSesion(t);
         return data;
@@ -2064,10 +2117,10 @@ async function abrirSesionPanel(area, password) {
 }
 
 async function adjuntarTokenSesion(token) {
-    const clave = claveSesionPanel();
-    if (!clave || !token) return;
+    const disp = dispositivoActual();
+    if (!disp || !token) return;
     try {
-        const { error } = await db.rpc('adjuntar_token_panel', { p_clave: clave, p_token: token });
+        const { error } = await db.rpc('adjuntar_token_dispositivo', { p_dispositivo: disp, p_token: token });
         if (error) console.warn('[SESION] no se pudo asociar el token:', error.message);
     } catch (e) {
         console.warn('[SESION] no se pudo asociar el token:', e);
@@ -2075,11 +2128,11 @@ async function adjuntarTokenSesion(token) {
 }
 
 async function cerrarSesionPanel() {
-    const clave = claveSesionPanel();
-    try { localStorage.removeItem(CLAVE_SESION); } catch (e) {}
-    if (!clave) return;
+    const disp = dispositivoActual();
+    if (!disp) return;
+    try { localStorage.removeItem('pc_sesion_clave'); } catch (e) {}
     try {
-        const { error } = await db.rpc('cerrar_sesion_panel', { p_clave: clave });
+        const { error } = await db.rpc('cerrar_sesion_panel', { p_dispositivo: disp });
         if (error) console.warn('[SESION] no se pudo cerrar:', error.message);
     } catch (e) {
         console.warn('[SESION] no se pudo cerrar:', e);

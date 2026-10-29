@@ -166,6 +166,24 @@
             display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
         }
         .pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+
+        /* Sesiones abiertas: solo Seguridad Industrial */
+        #pc-sesiones { margin-top: 26px; }
+        .pc-ses-titulo { margin: 0 0 4px; font-size: 1rem; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+        .pc-ses-sub { margin: 0 0 12px; font-size: .78rem; color: #64748b; line-height: 1.45; }
+        .pc-ses-fila {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            padding: 10px 12px; margin-bottom: 8px;
+        }
+        .pc-ses-datos { flex: 1 1 180px; min-width: 0; }
+        .pc-ses-nombre { font-size: .86rem; font-weight: 700; color: #0f172a; }
+        .pc-ses-meta { font-size: .72rem; color: #64748b; margin-top: 2px; }
+        .pc-ses-liberar {
+            border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c;
+            border-radius: 10px; padding: 8px 12px; font-size: .78rem; font-weight: 700;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+        }
         .pc-card {
             position: relative;
             width: 100%; display: block; font: inherit; -webkit-appearance: none; appearance: none;
@@ -375,6 +393,8 @@
             </div>
             <p id="pc-sub"></p>
             <div class="pc-grid" id="pc-grid"></div>
+            <div id="pc-unidades"></div>
+            <div id="pc-sesiones"></div>
         </div>
     </div>
 
@@ -394,8 +414,8 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="mapa.js?v=47"></script>
-    <script src="compuertas.js?v=4"></script>
+    <script src="mapa.js?v=48"></script>
+    <script src="compuertas.js?v=6"></script>
     <script src="semaforo.js?v=5"></script>
 </body>
 </html>
