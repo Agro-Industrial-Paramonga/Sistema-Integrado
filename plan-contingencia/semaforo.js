@@ -576,6 +576,14 @@
         #sem-luces.chico .foco { width: 19px; height: 19px; }
         #sem-grupo { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; }
         #sem-grupo-txt { font-size: .66rem; font-weight: 800; letter-spacing: .06em; color: #334155; }
+        /* Mapa: el semáforo se centra en la barra cuando hay espacio libre */
+        .sem-barra .sep { display: flex; align-items: center; justify-content: center; }
+        .sem-centro-mapa { display: inline-flex; align-items: center; }
+        .barra .sem-centro-mapa.centrado {
+            position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2; pointer-events: auto;
+        }
         /* Rótulo SEMÁFORO arriba de las luces */
         .sem-wrap { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
         .sem-wrap .sem-cap {
@@ -753,13 +761,66 @@
 
         const sep = barra.querySelector('.sep');
         if (sep) {
-            sep.style.display = 'flex';
-            sep.style.alignItems = 'center';
-            sep.style.justifyContent = 'center';
-            semMontarLuces(sep, false);
+            /* El separador sigue empujando el grupo derecho; dentro va el
+               semáforo, que se centra en la barra si el hueco lo permite. */
+            const centro = document.createElement('span');
+            centro.className = 'sem-centro-mapa';
+            sep.appendChild(centro);
+            semMontarLuces(centro, false);
+            semCentrarEnBarra();
+            /* Los botones aparecen y los iconos cargan después: se recalcula */
+            setTimeout(semCentrarEnBarra, 400);
+            setTimeout(semCentrarEnBarra, 1200);
+            window.addEventListener('load', semCentrarEnBarra);
+            if (window.ResizeObserver) {
+                try {
+                    const ro = new ResizeObserver(semCentrarEnBarra);
+                    ro.observe(barra);
+                } catch (e) {}
+            }
+            window.addEventListener('resize', semCentrarEnBarra);
         } else {
             semMontarLuces(barra, true);
         }
+    }
+
+    /* Centra el semáforo en la barra solo si no pisa ningún control.
+       Si choca (pantallas angostas o muchos botones), queda en el hueco
+       libre como antes. */
+    function semCentrarEnBarra() {
+        if (!barraMapa) return;
+        const caja = barraMapa.querySelector('.sem-centro-mapa');
+        if (!caja) return;
+        caja.classList.remove('centrado');
+
+        const br = barraMapa.getBoundingClientRect();
+        if (br.width < 900) return;
+
+        const ancho = caja.offsetWidth || 0;
+        const alto = caja.offsetHeight || 0;
+        if (!ancho || !alto) return;
+
+        const centro = br.left + br.width / 2;
+        const izq = centro - ancho / 2 - 10;
+        const der = centro + ancho / 2 + 10;
+        const arriba = br.top + br.height / 2 - alto / 2 - 4;
+        const abajo = br.top + br.height / 2 + alto / 2 + 4;
+
+        /* Solo se miran los controles con contenido: la fila de pestañas
+           ocupa todo el ancho y siempre daría falso choque. */
+        const piezas = barraMapa.querySelectorAll(
+            'button, a, label, select, input, h1, .estado, .tab-capa'
+        );
+        const choca = Array.prototype.some.call(piezas, function (pieza) {
+            if (caja.contains(pieza) || pieza.contains(caja)) return false;
+            const r = pieza.getBoundingClientRect();
+            if (!r.width || !r.height) return false;
+            const cruzaX = r.left < der && r.right > izq;
+            const cruzaY = r.top < abajo && r.bottom > arriba;
+            return cruzaX && cruzaY;
+        });
+        if (choca) return;
+        caja.classList.add('centrado');
     }
 
     function semPintarMapa() {

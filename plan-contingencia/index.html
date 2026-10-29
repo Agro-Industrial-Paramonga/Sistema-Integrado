@@ -682,8 +682,8 @@
      <script src="./capacitor-push-notifications.js"></script>
      <script src="./capacitor-alarma.js"></script>
      <script src="turnos.js?v=1"></script>
-     <script src="script.js?v=59"></script>
-    <script src="semaforo.js?v=6"></script>
+     <script src="script.js?v=60"></script>
+    <script src="semaforo.js?v=7"></script>
 
 <!-- MODAL: CAMBIAR CONTRASEÑA -->
 <div id="modal-password" class="modal-overlay" style="display:none;">
@@ -757,11 +757,14 @@
             <a href="conductor.html" style="display:flex;align-items:center;gap:10px;padding:14px 16px;text-decoration:none;color:#0f172a;font-size:.88rem;font-weight:600;">
                 <i class="fas fa-truck-moving" style="color:#16a34a;"></i> Ingreso de Maquinarias
             </a>
-            <a href="licencias.html" style="display:flex;align-items:center;gap:10px;padding:14px 16px;text-decoration:none;color:#0f172a;font-size:.88rem;font-weight:600;border-top:1px solid #f1f5f9;">
-                <i class="fas fa-scale-balanced" style="color:#64748b;"></i> Licencias y créditos
-            </a>
         </div>
     </div>
+
+    <!-- Acceso discreto a Licencias y créditos (abajo a la derecha, pantalla de login) -->
+    <a href="licencias.html" title="Licencias y créditos" aria-label="Licencias y créditos"
+       style="position:fixed;bottom:10px;right:12px;z-index:11500;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.55);border:1px solid rgba(148,163,184,.35);color:#94a3b8;font-size:13px;text-decoration:none;opacity:.65;">
+        <i class="fas fa-scale-balanced"></i>
+    </a>
     <script>
     function alternarMenuLogin() {
         const l = document.getElementById('menu-login-lista');
