@@ -30,13 +30,13 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * Servicio en primer plano: envia la ubicacion cada 5 minutos
+ * Servicio en primer plano: envia la ubicacion cada 30 segundos
  * aunque la aplicacion este cerrada.
  *
  * Tres cosas juntas para que no se detenga:
  *  1. Servicio en primer plano con START_STICKY.
  *  2. Escucha activa de GPS (pide posiciones nuevas, no lee solo el cache).
- *  3. Alarma exacta cada 5 minutos que lo revive si Android mata el proceso.
+ *  3. Alarma exacta cada 2 minutos que lo revive si Android mata el proceso.
  */
 public class UbicacionService extends Service {
 
@@ -44,8 +44,8 @@ public class UbicacionService extends Service {
     private static final String CANAL = "ubicacion_activa";
     private static final int ID_NOTIFICACION = 5511;
 
-    private static final long INTERVALO_MS = 5 * 60 * 1000L;          // cada 5 minutos
-    private static final long MINIMO_ENTRE_ENVIOS_MS = 3 * 60 * 1000L; // no saturar
+    private static final long INTERVALO_MS = 30 * 1000L;               // cada 30 segundos
+    private static final long MINIMO_ENTRE_ENVIOS_MS = 10 * 1000L;     // no saturar
 
     private static final String SUPABASE_URL = "https://bfhfnldqwsrcpsdqpyat.supabase.co";
     private static final String SUPABASE_KEY = "sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh";

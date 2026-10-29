@@ -832,7 +832,7 @@ function cerrarPorLiberacion() {
 async function enviarUbicacion(lat, lon, precision) {
     if (turnoAnulado) return;
     const ahora = Date.now();
-    if (ahora - ultimoEnvio < 60000) return;
+    if (ahora - ultimoEnvio < 20000) return;
     ultimoEnvio = ahora;
 
     const c = sesionConductor();

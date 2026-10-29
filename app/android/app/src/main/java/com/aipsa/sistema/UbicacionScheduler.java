@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Mantiene el envio de ubicacion funcionando aunque la app este cerrada:
- *  - Servicio en primer plano (envia cada 5 minutos).
- *  - Alarma exacta cada 5 minutos que revive el servicio si Android lo mata.
+ *  - Servicio en primer plano (envia cada 30 segundos).
+ *  - Alarma exacta cada 2 minutos que revive el servicio si Android lo mata.
  *  - WorkManager cada 15 minutos como ultimo respaldo.
  */
 public class UbicacionScheduler {
@@ -28,7 +28,7 @@ public class UbicacionScheduler {
     private static final String TAG = "UbicacionScheduler";
     private static final String TRABAJO = "envio-ubicacion-periodico";
     private static final int PEDIDO_ALARMA = 4401;
-    private static final long INTERVALO_ALARMA_MS = 5 * 60 * 1000L;
+    private static final long INTERVALO_ALARMA_MS = 2 * 60 * 1000L;   // revive cada 2 minutos
 
     /** Guarda quien es el usuario y su unidad, y arranca el envio periodico. */
     public static void iniciar(Context ctx, String usuario, String unidad) {

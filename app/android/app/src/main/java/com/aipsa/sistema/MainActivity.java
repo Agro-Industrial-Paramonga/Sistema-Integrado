@@ -287,6 +287,36 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
+     * Lleva a "Pausar actividad en la app si no se usa" (Android 11+).
+     * Se usa el nombre literal de la accion porque no esta en todas las
+     * versiones del SDK de compilacion; si el fabricante no la expone,
+     * cae al detalle de la app.
+     */
+    private void abrirAjustesPausaApp() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            try {
+                android.content.Intent i = new android.content.Intent(
+                        "android.settings.AUTO_REVOKE_PERMISSIONS");
+                i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return;
+            } catch (Exception e) {
+                android.util.Log.w("MainActivity", "sin pantalla de pausa, uso detalle de app", e);
+            }
+        }
+        try {
+            android.content.Intent detalle = new android.content.Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            detalle.setData(android.net.Uri.parse("package:" + getPackageName()));
+            detalle.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(detalle);
+        } catch (Exception e2) {
+            e2.printStackTrace();
+        }
+    }
+
+    /**
      * Pide el permiso de ubicacion por la via correcta segun lo que falte:
      *  - permiso de la app       -> dialogo del sistema (o Ajustes si ya no aparece)
      *  - "todo el tiempo"        -> Ajustes de la app (obligatorio en Android 11+)
@@ -670,6 +700,27 @@ public class MainActivity extends BridgeActivity {
                     @JavascriptInterface
                     public String estadoUbicacion() {
                         return estadoUbicacionActual();
+                    }
+
+                    /* Pausa de la app por desuso (Android 11+). Si el sistema puede
+                       hibernarla, corta ubicacion y notificaciones. Exenta = true. */
+                    @JavascriptInterface
+                    public boolean estaExentaDePausa() {
+                        try {
+                            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return true;
+                            return getPackageManager().isAutoRevokeWhitelisted();
+                        } catch (Exception e) {
+                            return true;
+                        }
+                    }
+
+                    @JavascriptInterface
+                    public void abrirAjustesPausa() {
+                        runOnUiThread(() -> {
+                            try { abrirAjustesPausaApp(); } catch (Exception e) {
+                                android.util.Log.e("MainActivity", "ajustes pausa", e);
+                            }
+                        });
                     }
 
                     @JavascriptInterface

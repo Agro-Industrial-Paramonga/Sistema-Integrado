@@ -28,6 +28,7 @@ async function cargar() {
     await cargarUnidades();
     conectarEventos();
     revisarUbicacion();
+    revisarPausa();
     vigilarUbicacion();
 }
 
@@ -246,15 +247,15 @@ function validar() {
     const boton = document.getElementById('btn-entrar');
     if (!selU || !boton) return;
 
-    if (!ubicacionOk && !etiquetaBloqueada) {
-        etiquetaBloqueada = true;
+    if (!pausaOk) {
+        boton.innerHTML = '<i class="fas fa-pause-circle"></i> Desactiva la pausa';
+    } else if (!ubicacionOk) {
         boton.innerHTML = '<i class="fas fa-location-crosshairs"></i> Activa la ubicación';
-    } else if (ubicacionOk && etiquetaBloqueada) {
-        etiquetaBloqueada = false;
+    } else {
         boton.innerHTML = '<i class="fas fa-play"></i> Iniciar turno';
     }
 
-    boton.disabled = !(selU.value && conductorSel && ubicacionOk);
+    boton.disabled = !(selU.value && conductorSel && ubicacionOk && pausaOk);
 }
 
 function mostrarAviso(texto) {
@@ -270,6 +271,10 @@ function mostrarAviso(texto) {
 let ubicacionOk = false;
 let etiquetaBloqueada = false;
 let vigilanteUbicacion = null;
+
+/* Pausa por desuso de Android: si está activa corta ubicación y alarmas.
+   Solo aplica en el APK (Android 11+); en navegador o iPhone queda en true. */
+let pausaOk = true;
 
 const TEXTOS_UBICACION = {
     apagada: 'La ubicación del celular está desactivada. Actívala para poder iniciar turno.',
@@ -354,11 +359,64 @@ async function revisarUbicacion() {
 /* Mientras este bloqueado, revisa cada 4 s: al volver de Ajustes se libera solo */
 function vigilarUbicacion() {
     if (vigilanteUbicacion) clearInterval(vigilanteUbicacion);
-    vigilanteUbicacion = setInterval(() => { if (!ubicacionOk) revisarUbicacion(); }, 4000);
+    vigilanteUbicacion = setInterval(() => {
+        if (!ubicacionOk) revisarUbicacion();
+        if (!pausaOk) revisarPausa();
+    }, 4000);
 }
 
-document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarUbicacion(); });
-window.addEventListener('focus', () => revisarUbicacion());
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { revisarUbicacion(); revisarPausa(); }
+});
+window.addEventListener('focus', () => { revisarUbicacion(); revisarPausa(); });
+
+/* ------------------------------------------------------------
+   Pausa de la app por desuso (Android 11+)
+   La app no puede desactivarla sola: se comprueba y se lleva al
+   usuario a la pantalla de Ajustes. Sin el puente nativo no aplica.
+   ------------------------------------------------------------ */
+function hayNativoPausa() {
+    return !!(window.AndroidUbicacion && window.AndroidUbicacion.estaExentaDePausa);
+}
+
+function mostrarBloqueoPausa() {
+    const caja = document.getElementById('bloqueo-pausa');
+    if (caja) caja.style.display = 'block';
+}
+
+function ocultarBloqueoPausa() {
+    const caja = document.getElementById('bloqueo-pausa');
+    if (caja) caja.style.display = 'none';
+}
+
+function abrirAjustesPausa() {
+    if (window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustesPausa) {
+        try {
+            window.AndroidUbicacion.abrirAjustesPausa();
+            setTimeout(revisarPausa, 1500);
+            return;
+        } catch (e) {}
+    }
+    mostrarAviso('Abre Ajustes → Apps → Seguridad y salud en el trabajo y desactiva "Pausar actividad si no se usa".');
+}
+
+function revisarPausa() {
+    if (!hayNativoPausa()) {
+        pausaOk = true;
+        ocultarBloqueoPausa();
+        validar();
+        return true;
+    }
+    try {
+        pausaOk = !!window.AndroidUbicacion.estaExentaDePausa();
+    } catch (e) {
+        pausaOk = true;
+    }
+    if (pausaOk) ocultarBloqueoPausa();
+    else mostrarBloqueoPausa();
+    validar();
+    return pausaOk;
+}
 
 /* ------------------------------------------------------------
    Permiso de ubicacion
@@ -487,6 +545,17 @@ async function iniciarTurno() {
             caja.style.display = 'block';
             caja.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+        return;
+    }
+
+    /* Pausa por desuso: sin esto Android puede cortar el envío a media jornada */
+    if (!revisarPausa()) {
+        const caja = document.getElementById('bloqueo-pausa');
+        if (caja) {
+            caja.style.display = 'block';
+            caja.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        mostrarAviso('Desactiva la pausa de la app para poder iniciar turno.');
         return;
     }
 

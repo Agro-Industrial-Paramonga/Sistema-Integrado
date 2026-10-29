@@ -101,6 +101,14 @@
             </button>
         </div>
 
+        <div class="bloqueo" id="bloqueo-pausa" style="display:none">
+            <div class="bloqueo-titulo"><i class="fas fa-pause-circle"></i> Pausa de la app activada</div>
+            <p>Android puede pausar esta app por desuso. Si lo hace, se corta el envío de ubicación y las alarmas. Desactívalo para poder iniciar turno.</p>
+            <button type="button" id="btn-desactivar-pausa" onclick="abrirAjustesPausa()">
+                <i class="fas fa-toggle-off"></i> Desactivar pausa
+            </button>
+        </div>
+
         <div id="gate-dni">
             <span class="paso">PASO 1</span>
             <label for="inp-dni">DNI del conductor</label>
@@ -161,7 +169,7 @@
     </a>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
-    <script src="conductor.js?v=21"></script>
+    <script src="conductor.js?v=22"></script>
     <script src="evac_auto.js?v=3"></script>
 </body>
 </html>
