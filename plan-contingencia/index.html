@@ -613,11 +613,18 @@
                     <input type="text" id="agregar-costo" placeholder="S/ 0.00">
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-cancel" onclick="cerrarModalAgregar()">Cancelar</button>
-                <button class="btn-primary" onclick="guardarNuevaMedida()">Guardar</button>
+                        <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <!-- Botón de eliminar a la izquierda (oculto por defecto) -->
+                <button type="button" class="btn-cancel" id="btn-eliminar-medida" onclick="eliminarMedidaDesdeModal()" style="display: none; background: #fef2f2; color: #b91c1c; border-color: #fecaca;">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+                
+                <!-- Botones de Cancelar y Guardar a la derecha -->
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-cancel" onclick="cerrarModalAgregar()">Cancelar</button>
+                    <button class="btn-primary" onclick="guardarNuevaMedida()">Guardar</button>
+                </div>
             </div>
-        </div>
     </div>
 
     <!-- ============ MODAL: HISTORIAL ============ -->
@@ -687,7 +694,7 @@
      <script src="./capacitor-alarma.js"></script>
      <script src="turnos.js?v=1"></script>
      <script src="script.js?v=62"></script>
-     <script src="semaforo.js?v=9"></script>
+     <script src="semaforo.js?v=8"></script>
 
 <!-- MODAL: CAMBIAR CONTRASEÑA -->
 <div id="modal-password" class="modal-overlay" style="display:none;">
