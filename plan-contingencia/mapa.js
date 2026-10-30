@@ -1649,7 +1649,7 @@ async function cargarVectores() {
             cargarVectores();
         });
 
-        marcador.on('click', async () => {
+            marcador.on('click', async () => {
             if (editorActivo && modoEditor === 'borrar') {
                 if (!confirm('¿Borrar el punto ' + (numero || 'sin número') + '?')) return;
                 await db.from('mapa_puntos').delete().eq('id', p.id);
@@ -1657,17 +1657,12 @@ async function cargarVectores() {
                 return;
             }
             if (esMaquina) return;
-            if (editorActivo) {
-                abrirFichaPunto(p);
-                return;
-            }
-            abrirGaleriaFotos({
-                tipo: 'punto',
-                id: p.id,
-                titulo: 'Punto ' + (numero > 0 ? numero : 'sin número') +
-                        (p.nombre ? ' · ' + p.nombre : '') +
-                        (p.responsable ? ' — ' + p.responsable : '')
-            });
+            
+            // --- ESTA ES LA LÍNEA QUE "BORRA" LA ACCIÓN ---
+            if (editorActivo) return; 
+            // ---------------------------------------------
+
+            abrirFichaPunto(p, false); 
         });
     });
 
@@ -2117,16 +2112,10 @@ async function cargarCompuertasMapa() {
             { direction: 'top', className: 'tip-compuerta', opacity: 1 }
         );
 
-        marca.on('click', () => {
-            if (editorActivo) {
-                abrirFichaCompuerta(c);
-                return;
-            }
-            abrirGaleriaFotos({
-                tipo: 'compuerta',
-                id: c.id,
-                titulo: (c.nombre || 'Compuerta') + ' · ' + (abierta ? 'abierta' : 'cerrada')
-            });
+                marca.on('click', () => {
+                if (editorActivo) return;
+            // Si el editor global está activo abre directo en modo edición. Si no, en modo lectura con botón "Editar".
+            abrirFichaCompuerta(c, editorActivo);
         });
     });
 }
@@ -2176,6 +2165,7 @@ function panelMapa(titulo, cuerpoHtml, botones) {
 }
 
 function cerrarPanelMapa() {
+    panelFichaEnEdicion = false;
     const p = document.getElementById('panel-mapa');
     if (p) p.remove();
 }
@@ -2216,6 +2206,7 @@ function htmlGaleria(fotos, editable, destino) {
         (editable ? bloqueSubirFoto(destino) : '');
 }
 let lightboxIdx = 0;
+let panelFichaEnEdicion = false;
 
 function abrirLightbox(idx) {
     if (!fotosGaleriaActual.length) return;
@@ -2307,64 +2298,119 @@ async function abrirGaleriaFotos(destino) {
     cuerpo.innerHTML = htmlGaleria(fotos, false, destino);
 }
 
-function abrirFichaPunto(p) {
+function abrirFichaPunto(p, esEdicion = false) {
+    panelFichaEnEdicion = esEdicion;
     const numero = Number(p.orden) > 0 ? String(p.orden) : '';
+    
+    // Si NO es edición, bloqueamos los inputs
+    const dis = esEdicion ? '' : 'readonly';
+    const disStyle = esEdicion ? '' : 'style="background:#f8fafc; color:#64748b; cursor:default;"';
+
     const cuerpo =
         '<div class="panel-campo"><label>Número del punto</label>' +
-        '<input id="ficha-numero" type="number" min="0" step="1" value="' + escaparHtml(numero) + '" placeholder="Ej. 12"></div>' +
+        '<input id="ficha-numero" type="number" min="0" step="1" value="' + escaparHtml(numero) + '" placeholder="Ej. 12" ' + dis + ' ' + disStyle + '></div>' +
         '<div class="panel-campo"><label>Responsable</label>' +
         '<input id="ficha-responsable" type="text" value="' + escaparHtml(p.responsable || '') +
-        '" placeholder="Quién responde por este punto"></div>' +
+        '" placeholder="Quién responde por este punto" ' + dis + ' ' + disStyle + '></div>' +
         '<div class="panel-campo"><label>Equipo y máquinas necesarias</label>' +
-        '<textarea id="ficha-equipos" rows="3" placeholder="Ej. retroexcavadora, volquete, cuadrilla de 4">' +
+        '<textarea id="ficha-equipos" rows="3" placeholder="Ej. retroexcavadora, volquete, cuadrilla de 4" ' + dis + ' ' + disStyle + '>' +
         escaparHtml(p.equipos || '') + '</textarea></div>' +
         '<div class="panel-campo"><label>Fotos de este punto</label>' +
         '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div></div>';
 
-    const capa = panelMapa('Punto ' + (numero || 'sin número'), cuerpo,
-        '<button type="button" class="panel-btn principal" id="ficha-guardar">Guardar</button>' +
-        '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>');
+    let titulo = 'Punto ' + (numero || 'sin número');
+    if (p.nombre) titulo += ' · ' + p.nombre;
+    if (p.responsable) titulo += ' — ' + p.responsable;
+
+    let botones = '';
+    if (esEdicion) {
+        botones = '<button type="button" class="panel-btn principal" id="ficha-guardar">Guardar</button>' +
+                  '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
+    } else {
+        botones = (puedeEditarMapa() ? '<button type="button" class="panel-btn principal" id="ficha-editar"><i class="fas fa-pen"></i> Editar</button>' : '') +
+                  '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
+    }
+
+    const capa = panelMapa(titulo, cuerpo, botones);
 
     capa.querySelector('#ficha-cerrar').addEventListener('click', cerrarPanelMapa);
-    capa.querySelector('#ficha-guardar').addEventListener('click', async () => {
-        const num = parseInt(capa.querySelector('#ficha-numero').value, 10);
-        const responsable = capa.querySelector('#ficha-responsable').value.trim();
-        const equipos = capa.querySelector('#ficha-equipos').value.trim();
-        const { error } = await db.from('mapa_puntos').update({
-            orden: isFinite(num) && num > 0 ? num : 0,
-            responsable: responsable || null,
-            equipos: equipos || null
-        }).eq('id', p.id);
-        if (error) {
-            avisar('No se pudo guardar: ' + error.message, 'warn');
-            return;
-        }
-        avisar('Punto guardado', 'ok');
-        cerrarPanelMapa();
-        cargarVectores();
-    });
+
+    // Botón Editar: cierra y vuelve a abrir la misma ficha pero en modo edición
+    const btnEditar = capa.querySelector('#ficha-editar');
+    if (btnEditar) {
+        btnEditar.addEventListener('click', () => {
+            cerrarPanelMapa();
+            abrirFichaPunto(p, true);
+        });
+    }
+
+    // Botón Guardar: solo se crea si estamos en modo edición
+    const btnGuardar = capa.querySelector('#ficha-guardar');
+    if (btnGuardar) {
+        btnGuardar.addEventListener('click', async () => {
+            const num = parseInt(capa.querySelector('#ficha-numero').value, 10);
+            const responsable = capa.querySelector('#ficha-responsable').value.trim();
+            const equipos = capa.querySelector('#ficha-equipos').value.trim();
+            const { error } = await db.from('mapa_puntos').update({
+                orden: isFinite(num) && num > 0 ? num : 0,
+                responsable: responsable || null,
+                equipos: equipos || null
+            }).eq('id', p.id);
+            
+            if (error) {
+                avisar('No se pudo guardar: ' + error.message, 'warn');
+                return;
+            }
+            
+            // Actualizamos la caché local para que no quede desactualizado
+            p.orden = isFinite(num) && num > 0 ? num : 0;
+            p.responsable = responsable || null;
+            p.equipos = equipos || null;
+
+            avisar('Punto guardado', 'ok');
+            cerrarPanelMapa();
+            cargarVectores();
+        });
+    }
 
     Promise.all([fotosDe({ tipo: 'punto', id: p.id })]).then(([fotos]) => {
         const caja = capa.querySelector('#ficha-fotos');
         if (!caja) return;
-        caja.innerHTML = htmlGaleria(fotos, true, { tipo: 'punto', id: p.id });
+        caja.innerHTML = htmlGaleria(fotos, esEdicion, { tipo: 'punto', id: p.id });
     });
 }
 
-async function abrirFichaCompuerta(c) {
+async function abrirFichaCompuerta(c, esEdicion = false) {
+    panelFichaEnEdicion = esEdicion;
     const abierta = esCompuertaAbierta(c);
     const cuerpo = '<p class="panel-mapa-nota">Estado actual: <b>' + (abierta ? 'abierta' : 'cerrada') +
         '</b> · ' + escaparHtml(c.administracion || '') + '</p>' +
         '<p class="panel-mapa-nota">El estado se declara en el panel de Compuertas. Aquí solo se agregan las fotos.</p>' +
         '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div>';
 
-    const capa = panelMapa(c.nombre || 'Compuerta', cuerpo,
-        '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>');
+    let botones = '';
+    if (esEdicion) {
+        botones = '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
+    } else {
+        botones = (puedeEditarMapa() ? '<button type="button" class="panel-btn principal" id="ficha-editar"><i class="fas fa-pen"></i> Editar</button>' : '') +
+                  '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
+    }
+
+    const capa = panelMapa(c.nombre || 'Compuerta', cuerpo, botones);
     capa.querySelector('#ficha-cerrar').addEventListener('click', cerrarPanelMapa);
+
+    // Botón Editar local
+    const btnEditar = capa.querySelector('#ficha-editar');
+    if (btnEditar) {
+        btnEditar.addEventListener('click', () => {
+            cerrarPanelMapa();
+            abrirFichaCompuerta(c, true);
+        });
+    }
 
     const fotos = await fotosDe({ tipo: 'compuerta', id: c.id });
     const caja = capa.querySelector('#ficha-fotos');
-    if (caja) caja.innerHTML = htmlGaleria(fotos, true, { tipo: 'compuerta', id: c.id });
+    if (caja) caja.innerHTML = htmlGaleria(fotos, esEdicion, { tipo: 'compuerta', id: c.id });
 }
 
 /* Subir y borrar fotos (una sola ruta para puntos y compuertas) */
@@ -2417,15 +2463,18 @@ async function refrescarFotosDe(destino) {
     const caja = document.querySelector('#panel-mapa #ficha-fotos');
     if (!caja) return;
     const fotos = await fotosDe(destino);
-    caja.innerHTML = htmlGaleria(fotos, editorActivo, destino);
+    // Usa la variable local para saber si estamos editando
+    caja.innerHTML = htmlGaleria(fotos, panelFichaEnEdicion, destino);
 }
 
 document.addEventListener('click', async (ev) => {
     const boton = ev.target && ev.target.closest ? ev.target.closest('.panel-foto-x') : null;
     if (!boton) return;
     ev.preventDefault();
-    if (!editorActivo) return;
+    // Quitamos la validación de editorActivo, porque el botón solo existe si estamos en la ficha en modo edición
     if (!confirm('¿Quitar esta foto?')) return;
+    
+    // ... el resto del código de borrado se queda igual ...
     const id = boton.dataset.id;
     const path = boton.dataset.path;
     try {

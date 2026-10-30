@@ -74,23 +74,18 @@
                   area: 'Ingeniería Agrícola', tel: '986645803' },
                 { texto: 'Paralizar actividades y las maquinarias agrícolas y equipos que estén en los campos mencionados anteriormente se trasladarán a una zona segura.',
                   areas: [
-                      { area: 'Administración 1', tel: '913016919' },
-                      { area: 'Administración 2', tel: '989201463' },
-                      { area: 'Administración 3', tel: '994640342' },
+                      { area: 'Todos los administradores'},
                   ] },
                 { texto: 'Contención con tierra desde la puerta 1 hasta la puerta 3, cuando el huayco llegue a Churlin Alto.',
                   areas: [
                       { area: 'Operaciones Agrícolas', tel: '987803991' },
-                      { area: 'Infraestructura', tel: '962372947' },
                   ] },
                 { texto: 'Detener el despacho de azúcar y sellar el almacén de producto terminado.',
                   areas: [
                       { area: 'APT', tel: '940387152' },
-                      { area: 'Infraestructura', tel: '962372947' },
-                      { area: 'Operaciones Agrícolas', tel: '987803991' },
                   ] },
                 { texto: 'Corte de energía en zonas administrativas y sectores afectados, bajo condiciones seguras.',
-                  area: 'Taller eléctrico · Omar Castro', tel: '994640344' },
+                  area: 'Energía y Control', tel: '994640344' },
                 { texto: 'Comunicar a entidades externas.',
                   area: 'Gerente de Desarrollo Organizacional' },
             ],
@@ -678,9 +673,40 @@
             width: 16px !important;
             height: 16px !important;
         }
+                    /* Estilos para los botones de área y el modal de responsables */
+        .sem-area-btn {
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            font-family: inherit;
+        }
+        .sem-area-btn:hover {
+            background: #e2e8f0;
+        }
+        .sem-area-btn:active {
+            transform: scale(0.96);
+        }
+        .sem-lista-responsables {
+            display: flex; flex-direction: column; gap: 8px; 
+            max-height: 50vh; overflow-y: auto; padding-right: 4px;
+        }
+        .sem-contacto {
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px;
+        }
+        .sem-contacto-info { display: flex; flex-direction: column; min-width: 0; }
+        .sem-contacto-nombre { font-size: .84rem; font-weight: 700; color: #0f172a; }
+        .sem-contacto-cargo { font-size: .7rem; color: #64748b; }
+        .sem-contacto-tel {
+            display: inline-flex; align-items: center; gap: 5px; text-decoration: none;
+            background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; border-radius: 8px;
+            padding: 6px 10px; font-size: .75rem; font-weight: 700; white-space: nowrap;
+        }
+        .sem-contacto-tel:hover { background: #cffafe; }
+        .sem-vacio { text-align: center; color: #64748b; font-size: .8rem; padding: 20px; }
         `;
         document.head.appendChild(css);
     }
+    
        
     /* ------------------------------------------------------------
        Banda superior (siempre visible)
@@ -949,40 +975,45 @@
         if (panel) panel.classList.remove('abierto');
     }
 
-    function semPintarPanel() {
+        function semPintarPanel() {
         if (!panel) return;
+        
         if (vista === 'declarar') panel.innerHTML = semHtmlDeclarar();
         else if (vista === 'normalizar') panel.innerHTML = semHtmlNormalizar();
-        else panel.innerHTML = semHtmlDetalle();
+        else if (vista === 'detalle') panel.innerHTML = semHtmlDetalle();
+        // Si la vista es 'responsables', no hace nada, dejando la lista de contactos intacta.
 
         if (vista === 'declarar') semEngancharDeclarar();
         else if (vista === 'normalizar') semEngancharNormalizar();
-        else semEngancharDetalle();
+        else if (vista === 'detalle') semEngancharDetalle();
 
         semAjustarAlto();
     }
 
     /* Cada paso puede traer el área responsable y su teléfono: al tocarlo se
        ve el número y abre el marcador con el número ya puesto. */
-    function semPasoHtml(p) {
+            function semPasoHtml(p) {
         const texto = (typeof p === 'string') ? p : (p.texto || '');
         let chips = [];
         if (p && typeof p === 'object') {
             if (Array.isArray(p.areas)) chips = p.areas;
-            else if (p.area) chips = [{ area: p.area, tel: p.tel }];
+            else if (p.area) chips = [{ area: p.area }];
         }
 
         const chipsHtml = chips
             .filter((c) => c && c.area)
             .map(function (c) {
                 const area = semEscape(c.area);
-                if (!c.tel) return '<span class="sem-area sin-tel"><b>' + area + '</b></span>';
-                const num = String(c.tel).replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
-                return (
-                    '<a class="sem-area" href="tel:+51' + String(c.tel).replace(/\D/g, '') + '" ' +
-                    'title="Llamar al área de ' + area + '">' +
-                    '<b>' + area + '</b><span>' + num + '</span></a>'
-                );
+                // Verificamos si el área es exactamente una de las administraciones
+                const esAdmin = ['Administración 1', 'Administración 2', 'Administración 3'].includes(area);
+                
+                if (esAdmin) {
+                    // Si es Administración, lo hacemos botón clickeable
+                    return '<button type="button" class="sem-area sem-area-btn sin-tel" data-area="' + area + '" title="Ver contactos de ' + area + '"><b>' + area + '</b></button>';
+                } else {
+                    // Si es cualquier otra área, se queda como etiqueta normal
+                    return '<span class="sem-area sin-tel"><b>' + area + '</b></span>';
+                }
             })
             .join('');
 
@@ -1072,13 +1103,10 @@
                 ? '<button type="button" class="sem-btn principal" id="sem-declarar"><i class="fas fa-triangle-exclamation"></i> Declarar alerta</button>'
                 : '') +
             (semPuedeNormalizar()
-                ? '<button type="button" class="sem-btn" id="sem-normalizar"><i class="fas fa-circle-check"></i> Cerrar alerta</button>'
+                ? '<button type="button" class="sem-btn" id="sem-normalizar"><i class="fas fa-circle-check"></i> Reiniciar alerta</button>'
                 : '') +
             '<button type="button" class="sem-btn" id="sem-volver-cerrar"><i class="fas fa-xmark"></i> Cerrar</button>' +
             '</div>' +
-            (origen === 'local'
-                ? '<p class="sem-nota"><i class="fas fa-wifi"></i> Sin conexión con la base: este nivel se guarda en el equipo. Ejecuta sql/semaforo.sql para compartirlo con todos.</p>'
-                : '<p class="sem-nota">Actualizado desde la base compartida · COS 994640405 / 987961673 / 987514910 · Jefe SST 994640311</p>') +
             '</div>' +
             '</div>'
         );
@@ -1157,7 +1185,7 @@
             NIVELES.verde.color2 +
             ')">' +
             '<span class="sem-luz"></span>' +
-            '<div><h2>Cerrar alerta</h2><p>Volver a vigilancia normal (verde)</p></div>' +
+            '<div><h2>Reiniciar alerta</h2><p>Volver a vigilancia normal (verde)</p></div>' +
             '<button type="button" class="sem-x" id="sem-volver" aria-label="Volver"><i class="fas fa-arrow-left"></i></button>' +
             '</div>' +
             '<div class="sem-cuerpo">' +
@@ -1165,18 +1193,17 @@
             NIVELES[estado.nivel].nombre +
             '</p>' +
             '<p class="sem-motivo">El semáforo vuelve a VERDE, que es el estado base. Queda registrado quién cierra la alerta y a qué hora.</p>' +
-            '<label class="sem-check"><input type="checkbox" id="sem-verifico"> Verifiqué en campo que el riesgo cesó</label>' +
             '<p class="sem-error" id="sem-error"></p>' +
             '<div class="sem-acciones">' +
             '<button type="button" class="sem-btn" id="sem-cancelar">Cancelar</button>' +
-            '<button type="button" class="sem-btn principal" id="sem-guardar"><i class="fas fa-circle-check"></i> Cerrar alerta</button>' +
+            '<button type="button" class="sem-btn principal" id="sem-guardar"><i class="fas fa-circle-check"></i> Reiniciar alerta</button>' +
             '</div>' +
             '</div>' +
             '</div>'
         );
     }
 
-    function semEngancharDetalle() {
+        function semEngancharDetalle() {
         const cerrar = panel.querySelector('#sem-cerrar');
         if (cerrar) cerrar.addEventListener('click', semCerrarPanel);
         const volver = panel.querySelector('#sem-volver-cerrar');
@@ -1193,6 +1220,15 @@
                 vista = 'normalizar';
                 semPintarPanel();
             });
+            
+        // NUEVO: Escuchar clics en las etiquetas de las áreas
+        panel.querySelectorAll('.sem-area-btn').forEach(btn => {
+            btn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                const area = btn.dataset.area;
+                semMostrarResponsables(area);
+            });
+        });
     }
 
     function semEngancharNormalizar() {
@@ -1211,8 +1247,7 @@
 
         const guardar = panel.querySelector('#sem-guardar');
         if (guardar) {
-            guardar.addEventListener('click', async () => {
-                const verifico = !!panel.querySelector('#sem-verifico').checked;
+                        guardar.addEventListener('click', async () => {
                 const err = panel.querySelector('#sem-error');
                 const fallo = (texto) => {
                     if (!err) return;
@@ -1221,10 +1256,9 @@
                 };
 
                 if (!semPuedeNormalizar()) return fallo('No tienes autoridad para cerrar esta alerta.');
-                if (!verifico) return fallo('Marca que verificaste en campo.');
 
                 guardar.disabled = true;
-                guardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cerrando…';
+                guardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reiniciando…';
                 await semGuardar('verde', true);
                 vista = 'detalle';
                 semPintarPanel();
@@ -1292,7 +1326,155 @@
             });
         }
     }
+            async function semMostrarResponsables(area) {
+        if (!panel) return;
+        vista = 'responsables'; 
+        
+        panel.innerHTML = `
+            <div class="sem-caja sem-form">
+                <div class="sem-cab" style="background:#0f172a">
+                    <span class="sem-luz"></span>
+                    <div><h2>Responsables</h2><p>${semEscape(area)}</p></div>
+                    <button type="button" class="sem-x" id="sem-cerrar-responsables" aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="sem-cuerpo" style="text-align:center; padding: 24px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #0ea5e9; margin-bottom: 10px;"></i>
+                    <p style="color:#64748b; font-size:0.85rem;">Buscando contactos...</p>
+                </div>
+            </div>
+        `;
+        panel.classList.add('abierto');
+        panel.querySelector('#sem-cerrar-responsables').addEventListener('click', semCerrarPanel);
 
+        let contactos = [];
+        let errorMsg = '';
+        let debugInfo = '';
+
+        if (cliente) {
+            try {
+                // PASO 1: Traer TODAS las compuertas
+                const { data: compuertas, error: errComp } = await cliente
+                    .from('compuertas')
+                    .select('id, administracion');
+
+                if (errComp) {
+                    errorMsg = 'Error al leer tabla compuertas: ' + errComp.message;
+                } else if (compuertas) {
+                    const normalizar = (txt) => String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+                    const buscarArea = normalizar(area);
+                    
+                    // Filtramos
+                    const filtradas = compuertas.filter(c => normalizar(c.administracion) === buscarArea);
+
+                    if (filtradas.length > 0) {
+                        const ids = filtradas.map(c => c.id);
+                        
+                        // PASO 2: Traer los contactos
+                        const { data: dataContactos, error: errCont } = await cliente
+                            .from('compuertas_contactos')
+                            .select('nombre, cargo, telefono')
+                            .in('compuerta_id', ids);
+
+                        if (errCont) {
+                            errorMsg = 'Error al leer contactos: ' + errCont.message;
+                        } else if (dataContactos) {
+                            contactos = dataContactos;
+                        }
+                    } else {
+                        // DIAGNÓSTICO: Si no encuentra la administración, guardamos qué encontró
+                        const nombresEncontrados = compuertas.map(c => c.administracion).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+                        debugInfo = `No se encontró "${area}" en la base de datos. Las administraciones registradas son: ${nombresEncontrados || 'NINGUNA'}`;
+                    }
+                }
+            } catch (e) {
+                errorMsg = 'Excepción en la consulta: ' + (e.message || String(e));
+            }
+        } else {
+            errorMsg = 'No hay conexión a la base de datos.';
+        }
+
+        // Si hubo un error, lo mostramos en el panel
+        if (errorMsg || debugInfo) {
+            panel.innerHTML = `
+                <div class="sem-caja sem-form">
+                    <div class="sem-cab" style="background:#dc2626">
+                        <span class="sem-luz"></span>
+                        <div><h2>Atención</h2><p>No se pudieron cargar los contactos</p></div>
+                        <button type="button" class="sem-x" id="sem-cerrar-responsables" aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <div class="sem-cuerpo">
+                        <p class="sem-vacio" style="color:#b91c1c; font-weight:bold;">${semEscape(errorMsg)}</p>
+                        <p class="sem-vacio" style="color:#ca8a04;">${semEscape(debugInfo)}</p>
+                        <div class="sem-acciones">
+                            <button type="button" class="sem-btn" id="sem-volver-responsables">Volver</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Pintar los resultados
+            panel.innerHTML = semHtmlResponsables(area, contactos);
+        }
+        
+        semAjustarAlto();
+
+        panel.querySelector('#sem-cerrar-responsables').addEventListener('click', semCerrarPanel);
+        const btnVolver = panel.querySelector('#sem-volver-responsables');
+        if (btnVolver) {
+            btnVolver.addEventListener('click', () => {
+                vista = 'detalle';
+                semPintarPanel();
+            });
+        }
+    }
+
+    function semHtmlResponsables(area, contactos) {
+        let listaHtml = '';
+        if (!contactos || contactos.length === 0) {
+            listaHtml = '<p class="sem-vacio">No hay contactos registrados para esta área en el sistema de compuertas.</p>';
+        } else {
+            // Evitar duplicados si la misma persona está a cargo de varias compuertas
+            const unicos = [];
+            const vistos = new Set();
+            contactos.forEach(c => {
+                const key = String(c.telefono).trim() + '|' + String(c.nombre).trim();
+                if (!vistos.has(key)) {
+                    vistos.add(key);
+                    unicos.push(c);
+                }
+            });
+
+            listaHtml = unicos.map(c => `
+                <div class="sem-contacto">
+                    <div class="sem-contacto-info">
+                        <span class="sem-contacto-nombre">${semEscape(c.nombre)}</span>
+                        <span class="sem-contacto-cargo">${semEscape(c.cargo || '')}</span>
+                    </div>
+                    <a href="tel:+51${semEscape(c.telefono)}" class="sem-contacto-tel">
+                        <i class="fas fa-phone"></i> ${semEscape(c.telefono)}
+                    </a>
+                </div>
+            `).join('');
+        }
+
+        return `
+            <div class="sem-caja sem-form">
+                <div class="sem-cab" style="background:#0f172a">
+                    <span class="sem-luz"></span>
+                    <div><h2>Responsables</h2><p>${semEscape(area)}</p></div>
+                    <button type="button" class="sem-x" id="sem-cerrar-responsables" aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="sem-cuerpo">
+                    <div class="sem-lista-responsables">
+                        ${listaHtml}
+                    </div>
+                    <div class="sem-acciones" style="margin-top:16px">
+                        <button type="button" class="sem-btn" id="sem-volver-responsables">Volver</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
     /* ------------------------------------------------------------
        Ciclo de vida
     ------------------------------------------------------------ */

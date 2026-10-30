@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <link rel="manifest" href="./manifest.json">
@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=21">
+    <link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
 
@@ -24,7 +24,7 @@
             </div>
         </div>
         <div class="header-right">
-                        <a id="btn-mapa-plan" href="mapa.html" title="Mapa de canales y unidades"
+            <a id="btn-mapa-plan" href="mapa.html" title="Mapa de canales y unidades"
                style="display:none;border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:38px;height:38px;align-items:center;justify-content:center;color:#475569;text-decoration:none;margin-right:8px;">
                 <i class="fas fa-map-location-dot"></i>
             </a>
@@ -202,7 +202,7 @@
                     </div>
                 </div>
 
-                       <!-- ===== SECCIÓN: FLUJO ===== -->
+                <!-- ===== SECCIÓN: FLUJO ===== -->
                 <div id="section-flujo" class="section-view">
                     <a class="section-back" onclick="volverAlMenuPlan()">
                         <i class="fas fa-arrow-left"></i> Atrás
@@ -222,21 +222,14 @@
 
                         <svg class="connectors" width="1650" height="850">
                             <defs>
-                                <!-- markerWidth 18 para tamaño normal. refX 9 oculta la línea dentro del triángulo -->
                                 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="18" markerHeight="18" orient="auto" markerUnits="userSpaceOnUse">
                                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#0B6B44" />
                                 </marker>
                             </defs>
                             
-                            <!-- Flecha Jefe Seguridad -> Rombo (Toca la punta superior en Y=166) -->
                             <path d="M 170 140 L 170 166" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-                            
-                            <!-- Flecha Rombo -> Monitoreo diario (Toca la punta inferior en Y=364) -->
                             <path d="M 170 364 L 170 390" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-                            
-                            <!-- Flecha Rombo -> Condición agua (Toca la punta derecha en X=269) -->
                             <path d="M 269 265 L 320 265 L 320 100 L 360 100" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-                            
                             <path d="M 580 100 L 720 100" stroke="#0B6B44" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
                             <path d="M 880 140 L 880 180" stroke="#0B6B44" stroke-width="3" fill="none"/>
                             <path d="M 460 180 L 1300 180" stroke="#0B6B44" stroke-width="3" fill="none"/>
@@ -405,7 +398,7 @@
                                 <button class="btn-agregar btn-solo-area" onclick="abrirModalAgregar('antes')">
                                     <i class="fas fa-plus"></i> Agregar medida
                                 </button>
-<button type="button" class="btn-agregar" style="margin-left:8px;background:#fff;color:#166534;border:1px solid #bbf7d0;" onclick="nuevoSegmento('antes')">+ Nuevo segmento</button>
+                                <button type="button" class="btn-agregar" style="margin-left:8px;background:#fff;color:#166534;border:1px solid #bbf7d0;" onclick="nuevoSegmento('antes')">+ Nuevo segmento</button>
                             </div>
                         </div>
                     </div>
@@ -420,7 +413,11 @@
                                     <th style="width:10%">Costos</th>
                                     <th style="width:10%">Estado</th>
                                     <th style="width:8%">Fotos</th>
-                                    <th style="width:6%"></th>
+                                    <th style="width:6%; text-align:right;">
+                                        <button type="button" class="btn-expandir" onclick="toggleModoPresentacion()" title="Modo presentación">
+                                            <i class="fas fa-expand"></i>
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-antes-body">
@@ -430,22 +427,22 @@
                     </div>
 
                    <div class="total-panel">
-    <div class="total-panel-left">
-        <div class="total-panel-icon">
-            <i class="fas fa-money-bill"></i>
-        </div>
-        <div class="total-panel-text">
-            <span class="total-panel-label">TOTAL DE COSTOS</span>
-            <span class="total-panel-sub">Importe acumulado del plan</span>
-        </div>
-    </div>
-    <div class="total-panel-right">
-        <span class="total-panel-value" id="total-antes">S/ 0.00</span>
-        <span class="total-panel-currency">Soles peruanos</span>
-    </div>
-</div>
+                        <div class="total-panel-left">
+                            <div class="total-panel-icon">
+                                <i class="fas fa-money-bill"></i>
+                            </div>
+                            <div class="total-panel-text">
+                                <span class="total-panel-label">TOTAL DE COSTOS</span>
+                                <span class="total-panel-sub">Importe acumulado del plan</span>
+                            </div>
+                        </div>
+                        <div class="total-panel-right">
+                            <span class="total-panel-value" id="total-antes">S/ 0.00</span>
+                            <span class="total-panel-currency">Soles peruanos</span>
+                        </div>
+                    </div>
+                </div>
 
-</div>
                 <!-- ===== SECCIÓN: MEDIDAS DURANTE ===== -->
                 <div id="section-durante" class="section-view">
                     <div class="sticky-header-block">
@@ -487,7 +484,7 @@
                                 <button class="btn-agregar btn-solo-area" onclick="abrirModalAgregar('durante')">
                                     <i class="fas fa-plus"></i> Agregar medida
                                 </button>
-<button type="button" class="btn-agregar" style="margin-left:8px;background:#fff;color:#166534;border:1px solid #bbf7d0;" onclick="nuevoSegmento('durante')">+ Nuevo segmento</button>
+                                <button type="button" class="btn-agregar" style="margin-left:8px;background:#fff;color:#166534;border:1px solid #bbf7d0;" onclick="nuevoSegmento('durante')">+ Nuevo segmento</button>
                             </div>
                         </div>
                     </div>
@@ -501,7 +498,11 @@
                                     <th style="width:18%">Área Responsable</th>
                                     <th style="width:10%">Estado</th>
                                     <th style="width:8%">Fotos</th>
-                                    <th style="width:6%"></th>
+                                    <th style="width:6%; text-align:right;">
+                                        <button type="button" class="btn-expandir" onclick="toggleModoPresentacion()" title="Modo presentación">
+                                            <i class="fas fa-expand"></i>
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-durante-body">
@@ -548,7 +549,7 @@
                                 <button class="btn-agregar btn-solo-area" onclick="abrirModalAgregar('despues')">
                                     <i class="fas fa-plus"></i> Agregar medida
                                 </button>
-<button type="button" class="btn-agregar" style="margin-left:8px;background:#fff;color:#166534;border:1px solid #bbf7d0;" onclick="nuevoSegmento('despues')">+ Nuevo segmento</button>
+                                <button type="button" class="btn-agregar" style="margin-left:8px;background:#fff;color:#166534;border:1px solid #bbf7d0;" onclick="nuevoSegmento('despues')">+ Nuevo segmento</button>
                             </div>
                         </div>
                     </div>
@@ -562,7 +563,11 @@
                                     <th style="width:18%">Área Responsable</th>
                                     <th style="width:10%">Estado</th>
                                     <th style="width:8%">Fotos</th>
-                                    <th style="width:6%"></th>
+                                    <th style="width:6%; text-align:right;">
+                                        <button type="button" class="btn-expandir" onclick="toggleModoPresentacion()" title="Modo presentación">
+                                            <i class="fas fa-expand"></i>
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-despues-body">
@@ -677,13 +682,12 @@
      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
      <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js" integrity="sha384-+65NgAKqXr1Nb7sBmV6O09pL8ASqZsi29OE718meKinGAWaa70VE5V6LNjXVBjIA" crossorigin="anonymous"></script>
      <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js" integrity="sha384-Iv5znu+21SG2ktBprmcGOeoksfKgvB9dhJWQo1sJkVNcUpBkq8Sm0XnB39IxhLI0" crossorigin="anonymous"></script>
-     <!-- Capacitor: puente nativo. Necesario para las notificaciones DENTRO de la APP -->
      <script src="./capacitor-core.js"></script>
      <script src="./capacitor-push-notifications.js"></script>
      <script src="./capacitor-alarma.js"></script>
      <script src="turnos.js?v=1"></script>
-     <script src="script.js?v=61"></script>
-    <script src="semaforo.js?v=8"></script>
+     <script src="script.js?v=62"></script>
+     <script src="semaforo.js?v=8"></script>
 
 <!-- MODAL: CAMBIAR CONTRASEÑA -->
 <div id="modal-password" class="modal-overlay" style="display:none;">

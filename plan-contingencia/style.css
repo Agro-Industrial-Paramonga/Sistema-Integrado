@@ -2509,14 +2509,62 @@ body {
 #modal-password button:disabled { opacity: .6; cursor: not-allowed; }
 #pass-error { margin-top: 14px !important; color: #dc2626 !important; font-size: .8rem !important; }
 
-/* ===== SEGMENTOS ===== */
-.fila-segmento td { background: #f0fdf4; border-top: 2px solid #bbf7d0; padding: 6px 10px !important; }
-.seg-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.seg-nombre { font-weight: 700; font-size: .78rem; letter-spacing: .05em; text-transform: uppercase; color: #166534; }
-.seg-acciones { display: flex; gap: 4px; }
-.seg-flecha { border: 1px solid #bbf7d0; background: #fff; color: #166534; border-radius: 6px; width: 24px; height: 24px; font-size: .72rem; cursor: pointer; }
-.seg-flecha:hover { background: #dcfce7; }
-.seg-flecha:disabled { opacity: .35; cursor: not-allowed; }
+/* ===== SEGMENTOS (Diseño Mejorado) ===== */
+.fila-segmento td { 
+    background: linear-gradient(90deg, #059669 0%, #10b981 100%); /* Verde esmeralda con degradado */
+    padding: 12px 16px !important; 
+    border: none !important;
+    border-radius: 8px 8px 0 0; /* Bordes superiores redondeados */
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2); /* Sombra sutil */
+}
+
+.seg-cabecera { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    gap: 8px; 
+}
+
+.seg-nombre { 
+    font-weight: 800; 
+    font-size: 0.85rem; 
+    letter-spacing: 0.08em; 
+    text-transform: uppercase; 
+    color: #ffffff; /* Texto blanco para contrastar con el fondo */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.seg-acciones { 
+    display: flex; 
+    gap: 6px; 
+}
+
+/* Botones de las flechas adaptados al fondo oscuro */
+.seg-flecha { 
+    border: 1px solid rgba(255, 255, 255, 0.4); 
+    background: rgba(255, 255, 255, 0.15); 
+    color: #ffffff; 
+    border-radius: 6px; 
+    width: 26px; 
+    height: 26px; 
+    font-size: 0.7rem; 
+    cursor: pointer; 
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.seg-flecha:hover { 
+    background: rgba(255, 255, 255, 0.35); 
+    border-color: rgba(255, 255, 255, 0.8);
+}
+
+.seg-flecha:disabled { 
+    opacity: .35; 
+    cursor: not-allowed; 
+}
 
 /* ===== ORDEN MANUAL DE LAS MEDIDAS ===== */
 .actividad-celda { display: flex; align-items: flex-start; gap: 8px; }
@@ -2630,16 +2678,17 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
 /* ===== MOVIL: ENCABEZADO DE SEGMENTO ===== */
 @media (max-width: 768px) {
     .data-table tr.fila-segmento {
-        background: #ecfdf5 !important;
-        border: 1px solid #bbf7d0 !important;
-        border-radius: 12px !important;
+        background: linear-gradient(90deg, #059669 0%, #10b981 100%) !important;
+        border: none !important;
+        border-radius: 10px !important;
         padding: 0 !important;
-        margin: 6px 0 8px !important;
+        margin: 6px 0 10px !important;
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.25) !important;
     }
     .data-table tr.fila-segmento td {
         display: block !important;
         text-align: left !important;
-        padding: 8px 10px !important;
+        padding: 10px 14px !important;
         margin: 0 !important;
         border: none !important;
         background: transparent !important;
@@ -2655,16 +2704,20 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
     .fila-segmento .seg-nombre {
         flex: 1 1 auto !important;
         text-align: left !important;
-        font-size: .7rem !important;
+        font-size: .8rem !important;
+        color: #ffffff !important;
         line-height: 1.25 !important;
-        letter-spacing: .03em !important;
         white-space: normal !important;
         margin: 0 !important;
     }
-    .fila-segmento .seg-acciones { flex: 0 0 auto !important; display: flex; gap: 4px; }
-    .fila-segmento .seg-flecha { width: 26px !important; height: 26px !important; font-size: .68rem !important; }
-
-    .actividad-celda .seg-flecha { width: 26px !important; height: 24px !important; font-size: .6rem !important; }
+    .fila-segmento .seg-acciones { flex: 0 0 auto !important; display: flex; gap: 6px; }
+    .fila-segmento .seg-flecha { 
+        width: 28px !important; height: 28px !important; 
+        font-size: .7rem !important; 
+        background: rgba(255, 255, 255, 0.2) !important;
+        color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.4) !important;
+    }
 }
 
 
@@ -2720,3 +2773,112 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
 #modal-agregar .areas-responsable-container select { margin-bottom: 8px; }
 #modal-agregar .btn-add-area { margin-bottom: 4px; }
 #modal-agregar .btn-add-area + label { margin-top: 18px; }
+/* ============================================================
+   BOTÓN DE MODO PRESENTACIÓN Y ESTILOS
+   ============================================================ */
+.btn-expandir {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-expandir:hover {
+    background: var(--green-50);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* --- MODO PRESENTACIÓN --- */
+body.modo-presentacion .top-bar,
+body.modo-presentacion #sem-banda, 
+body.modo-presentacion .breadcrumb,
+body.modo-presentacion .section-back,
+body.modo-presentacion .sticky-header-block {
+    display: none !important;
+}
+
+body.modo-presentacion .main-content {
+    padding: 15px !important;
+    background: #fff;
+}
+
+body.modo-presentacion .table-wrapper {
+    margin-top: 0 !important;
+    border: none;
+    box-shadow: none;
+}
+
+body.modo-presentacion .data-table thead th {
+    background: #fff;
+    border-bottom: 2px solid var(--border);
+}
+/* ===== PUNTOS VERDES A LADO DE LAS ACTIVIDADES ===== */
+.data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
+    position: relative;
+    padding-left: 24px !important;
+}
+
+.data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: #10b981; /* Verde esmeralda */
+    border-radius: 50%;
+}
+
+/* En celular, el punto se alinea un poco más arriba para que no se vea raro */
+@media (max-width: 768px) {
+    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
+        padding-left: 20px !important;
+    }
+    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::before {
+        top: 12px;
+        transform: none;
+    }
+}
+
+/* ===== BOTÓN DE CONTRAER/EXPANDIR (Flecha) ===== */
+.btn-contraer {
+    background: rgba(255, 255, 255, 0.15); /* Fondo semitransparente para que resalte */
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn-contraer:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.btn-contraer i {
+    transition: transform 0.3s ease;
+}
+
+/* Cuando la flecha está contraída, gira hacia abajo */
+.btn-contraer.contraido i {
+    transform: rotate(-180deg);
+}
+/* ============================================================
+   OCULTAR BOTÓN DE ALARMA EN MODO PRESENTACIÓN
+   ============================================================ */
+body.modo-presentacion .btn-alarma-fila {
+    display: none !important;
+}

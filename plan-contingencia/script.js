@@ -2550,13 +2550,29 @@ function filaSegmentoHTML(segId, tabla) {
     const lista = segmentosDe(tabla);
     const idx = lista.findIndex(s => s.id === segId);
     const nombre = segId ? nombreSegmento(segId) : 'Sin segmento';
-    const acc = segId ? `<span class="seg-acciones">
+    
+    // Generamos los botones de edición (flechas y tachito) solo si es un segmento real
+    const accionesEdicion = segId ? `
         <button type="button" class="seg-flecha" onclick="moverSegmento('${segId}',-1)" ${idx <= 0 ? 'disabled' : ''}>&#8593;</button>
         <button type="button" class="seg-flecha" onclick="moverSegmento('${segId}',1)" ${idx >= lista.length - 1 ? 'disabled' : ''}>&#8595;</button>
         <button type="button" class="seg-flecha" onclick="renombrarSegmento('${segId}')">&#9998;</button>
         <button type="button" class="seg-flecha" onclick="eliminarSegmento('${segId}')">&#10005;</button>
-    </span>` : '';
-    return `<tr class="fila-segmento"><td colspan="7"><div class="seg-cabecera"><span class="seg-nombre">${nombre}</span>${acc}</div></td></tr>`;
+    ` : '';
+
+    // El botón de contraer ahora está FUERA de .seg-acciones para que no se oculte en modo lectura
+    return `<tr class="fila-segmento"><td colspan="7">
+        <div class="seg-cabecera">
+            <span class="seg-nombre">${nombre}</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="seg-acciones">
+                    ${accionesEdicion}
+                </span>
+                <button type="button" class="btn-contraer" onclick="toggleSegmento(this)" title="Contraer/Expandir">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+        </div>
+    </td></tr>`;
 }
 
 let pedirTextoResolver = null;
@@ -2822,3 +2838,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!history.state) { try { history.replaceState({ v: 'home' }, ''); } catch (e) {} }
 });
+function toggleModoPresentacion() {
+    // Activa o desactiva la clase en el body
+    document.body.classList.toggle('modo-presentacion');
+    
+    // Detecta si está activo
+    const isPresentacion = document.body.classList.contains('modo-presentacion');
+    
+    // Cambia el ícono en todos los botones de las tablas
+    document.querySelectorAll('.btn-expandir').forEach(btn => {
+        if (isPresentacion) {
+            btn.innerHTML = '<i class="fas fa-compress"></i>';
+            btn.title = 'Salir de presentación';
+        } else {
+            btn.innerHTML = '<i class="fas fa-expand"></i>';
+            btn.title = 'Modo presentación';
+        }
+    });
+}
+/* Función para contraer y expandir las actividades de un segmento */
+function toggleSegmento(btn) {
+    const tr = btn.closest('tr');
+    btn.classList.toggle('contraido');
+    
+    // Obtiene todos los hermanos hasta el próximo segmento
+    let next = tr.nextElementSibling;
+    let isCollapsed = btn.classList.contains('contraido');
+
+    while (next && !next.classList.contains('fila-segmento')) {
+        if (isCollapsed) {
+            next.style.display = 'none';
+        } else {
+            next.style.display = ''; // Restaura el display original
+        }
+        next = next.nextElementSibling;
+    }
+}
