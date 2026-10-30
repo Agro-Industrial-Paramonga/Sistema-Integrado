@@ -846,8 +846,15 @@ async function entrarApp() {
     aplicarVisibilidadGerente();
     mostrarBotonMapa();
 
-    mostrarPantalla('screen-home');
-    mostrarModoBotones(false);
+       // Restaurar la vista en la que estaba el usuario (si recargó la página)
+    const st = history.state || { v: 'home' };
+    if (st.v === 'seccion' && st.s) {
+        _verSeccion(st.s);
+    } else if (st.v === 'plan') {
+        _verPlan();
+    } else {
+        _verInicio();
+    }
     aplicarModoGuardado();
 
     if (areasCargadas.length === 0) {
@@ -2886,7 +2893,7 @@ function aplicarModoGuardado() {
 /* ============================================================
    INICIO
    ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => { 
     inicializarFiltros();
     inicializarFiltrosDurante();
     inicializarFiltrosDespues();
@@ -2936,4 +2943,3 @@ function toggleSegmento(btn) {
         next = next.nextElementSibling;
     }
 }
-
