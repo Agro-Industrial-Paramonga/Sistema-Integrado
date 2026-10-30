@@ -1872,6 +1872,12 @@ function abrirModalAgregar(tabla) {
     document.getElementById('modal-agregar-title').textContent = `Agregar medida (${tabla})`;
     actualizarBotonAgregarArea();
     document.getElementById('modal-agregar').classList.add('active');
+     // Ocultar el botón de eliminar cuando estamos creando
+    const btnEliminar = document.getElementById('btn-eliminar-medida');
+    if (btnEliminar) {
+        btnEliminar.style.display = 'none';
+        btnEliminar.innerHTML = '<i class="fas fa-trash"></i> Eliminar'; // Restaurar texto por si acaso
+    }
 }
 
 function abrirModalEditar(tabla, id) {
@@ -1905,6 +1911,11 @@ function abrirModalEditar(tabla, id) {
     document.getElementById('modal-agregar-title').textContent = `Editar medida (${tabla})`;
     actualizarBotonAgregarArea();
     document.getElementById('modal-agregar').classList.add('active');
+     const btnEliminar = document.getElementById('btn-eliminar-medida');
+    if (btnEliminar) {
+        btnEliminar.style.display = 'inline-flex';
+        btnEliminar.innerHTML = '<i class="fas fa-trash"></i> Eliminar'; // Restaurar texto por si acaso
+    }
 }
 
 function cerrarModalAgregar() {
@@ -2026,6 +2037,57 @@ async function guardarNuevaMedida() {
     }
 
     cerrarModalAgregar();
+    if (tablaModalActual === 'antes')   cargarMedidasAntes();
+    if (tablaModalActual === 'durante') cargarMedidasDurante();
+    if (tablaModalActual === 'despues') cargarMedidasDespues();
+}
+/* ============================================================
+   ELIMINAR UNA MEDIDA DESDE EL MODAL DE EDICIÓN
+   ============================================================ */
+async function eliminarMedidaDesdeModal() {
+    if (!medidaEditando || !tablaModalActual) return;
+
+    // Usamos el modal de confirmación que ya tienes en el sistema
+    const ok = await mostrarConfirm(
+        '¿Estás seguro de eliminar esta medida? Esta acción no se puede deshacer.',
+        'Eliminar medida',
+        'error' 
+    );
+    if (!ok) return;
+
+    const nombreTabla = 'medidas_' + tablaModalActual;
+    const boton = document.getElementById('btn-eliminar-medida');
+    
+    // Deshabilitar el botón mientras borra
+    if (boton) {
+        boton.disabled = true;
+        boton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Borrando...';
+    }
+
+    // Eliminar de la base de datos
+    const { error } = await db.from(nombreTabla).delete().eq('id', medidaEditando.id);
+
+    if (error) {
+        console.error('Error al eliminar:', error);
+        await mostrarAlerta('No se pudo eliminar la medida. Revisa tu conexión.', 'Error', 'error');
+        
+        // Restaurar el botón si falla
+        if (boton) {
+            boton.disabled = false;
+            boton.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
+        }
+        return;
+    }
+
+    // Restaurar botón y cerrar modal
+    if (boton) {
+        boton.disabled = false;
+        boton.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
+    }
+    
+    cerrarModalAgregar();
+    
+    // Refrescar la tabla correspondiente para que desaparezca de la lista
     if (tablaModalActual === 'antes')   cargarMedidasAntes();
     if (tablaModalActual === 'durante') cargarMedidasDurante();
     if (tablaModalActual === 'despues') cargarMedidasDespues();
@@ -2874,3 +2936,4 @@ function toggleSegmento(btn) {
         next = next.nextElementSibling;
     }
 }
+
