@@ -89,17 +89,17 @@ public class AlarmaActivity extends Activity {
 
         if (titulo != null && titulo.contains("VERDE")) {
             titulo = "MONITOREO DIARIO"; 
-            cuerpo = "Estado de emergencia declarado a verde por MELGAR BELMONT JOSE MARIANO, realizar un monitoreo diario.";
+            cuerpo = "José Mariano Melgar Belmont ha declarado el estado de emergencia en nivel VERDE.";
             colorFondo = "#16A34A"; // 🟢 Verde
             
         } else if (titulo != null && titulo.contains("AMARILLO")) {
             titulo = "Semáforo: AMARILLO";
-            cuerpo = "José Mariano Melgar Belmont ha declarado el estado de emergencia en nivel AMARILLO. Se dispone el monitoreo constante de quebradas y la preparación inmediata de maquinaria y equipos.";
+            cuerpo = "José Mariano Melgar Belmont ha declarado el estado de emergencia en nivel AMARILLO. Se solicita ejecutar inmediatamente las actividades que comprenden el plan de contingencia.";
             colorFondo = "#EAB308"; // 🟡 Ámbar / Amarillo
             
         } else if (titulo != null && titulo.contains("ROJO")) {
             titulo = "Semáforo: ROJO";
-            cuerpo = "José Mariano Melgar Belmont ha declarado el Estado de Emergencia en Nivel ROJO. Se solicita ejecutar inmediatamente las siguientes acciones: cierre de bocatomas, apertura de compuertas, paralización total de actividades, movilización de maquinarias, cierre del APT y contención en las accesos y puertas.";
+            cuerpo = "José Mariano Melgar Belmont ha declarado el Estado de Emergencia en Nivel ROJO. Se solicita ejecutar inmediatamente las actividades que comprenden el plan de contingencia.";
             colorFondo = "#B91C1C"; // 🔴 Rojo
         } else {
             // Texto de respaldo

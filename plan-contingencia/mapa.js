@@ -2320,7 +2320,7 @@ document.addEventListener('keydown', (ev) => {
 function bloqueSubirFoto(destino) {
     return '<label class="panel-subir">' +
         '<i class="fas fa-camera"></i> Tomar o elegir una foto' +
-        '<input type="file" accept="image/*" capture="environment" data-destino="' +
+        '<input type="file" accept="image/*" data-destino="' +
         destino.tipo + ':' + destino.id + '">' +
         '</label>';
 }
