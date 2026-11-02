@@ -81,12 +81,30 @@ public class AlarmaActivity extends Activity {
                 | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                 | WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
 
-        String titulo = getIntent().getStringExtra("titulo");
+                String titulo = getIntent().getStringExtra("titulo");
         String cuerpo = getIntent().getStringExtra("cuerpo");
-        if (titulo == null || titulo.trim().isEmpty()) titulo = "ALERTA DE HUAYCO";
-        if (cuerpo == null || cuerpo.trim().isEmpty()) {
-            cuerpo = "Se ha autorizado el inicio de los planes de accion.";
+
+        // 👇 CONFIGURACIÓN DE TEXTOS PARA CADA NIVEL 👇
+        if (titulo != null && titulo.contains("VERDE")) {
+            titulo = "MONITOREO DIARIO"; 
+            cuerpo = "Estado de emergencia declarado a verde por MELGAR BELMONT JOSE MARIANO, realizar un monitoreo diario.";
+            
+        } else if (titulo != null && titulo.contains("AMARILLO")) {
+            titulo = "Semáforo: AMARILLO";
+            cuerpo = "José Mariano Melgar Belmont ha declarado el estado de emergencia en nivel AMARILLO. Se dispone el monitoreo constante de quebradas y la preparación inmediata de maquinaria y equipos.";
+            
+        } else if (titulo != null && titulo.contains("ROJO")) {
+            titulo = "Semáforo: ROJO";
+            cuerpo = "José Mariano Melgar Belmont ha declarado el Estado de Emergencia en Nivel ROJO. Se solicita ejecutar inmediatamente las siguientes acciones: cierre de bocatomas, apertura de compuertas, paralización total de actividades, movilización de maquinarias, cierre del APT y contención en las accesos y puertas.";
+            
+        } else {
+            // Texto de respaldo por si llega una alerta sin nivel
+            if (titulo == null || titulo.trim().isEmpty()) titulo = "ALERTA DE HUAYCO";
+            if (cuerpo == null || cuerpo.trim().isEmpty()) {
+                cuerpo = "Se ha autorizado el inicio de los planes de accion.";
+            }
         }
+        // 👆 FIN DE LA CONFIGURACIÓN 👆
 
         setContentView(construirVista(titulo, cuerpo));
 
