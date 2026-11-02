@@ -807,13 +807,16 @@
         else cabecera.appendChild(grupo);
     }
 
-    function semPintarEncabezado() {
+        function semPintarEncabezado() {
         const n = NIVELES[estado.nivel] || NIVELES.verde;
 
         if (encabezado) {
-            encabezado.style.borderBottom = '3px solid ' + n.color;
-            encabezado.style.background =
-                'linear-gradient(180deg, #ffffff 52%, ' + semRgba(n.color, 0.14) + ' 100%)';
+            // Línea arriba en lugar de abajo
+            encabezado.style.borderTop = '4px solid ' + n.color;
+            encabezado.style.borderBottom = '1px solid #e2e8f0'; // Borde gris sutil abajo
+            
+            // Quitamos el sombreado y dejamos el fondo blanco limpio
+            encabezado.style.background = '#ffffff';
         }
         semPintarLuces();
     }
@@ -852,40 +855,9 @@
     /* Centra el semáforo en la barra solo si no pisa ningún control.
        Si choca (pantallas angostas o muchos botones), queda en el hueco
        libre como antes. */
-    function semCentrarEnBarra() {
-        if (!barraMapa) return;
-        const caja = barraMapa.querySelector('.sem-centro-mapa');
-        if (!caja) return;
-        caja.classList.remove('centrado');
-
-        const br = barraMapa.getBoundingClientRect();
-        if (br.width < 900) return;
-
-        const ancho = caja.offsetWidth || 0;
-        const alto = caja.offsetHeight || 0;
-        if (!ancho || !alto) return;
-
-        const centro = br.left + br.width / 2;
-        const izq = centro - ancho / 2 - 10;
-        const der = centro + ancho / 2 + 10;
-        const arriba = br.top + br.height / 2 - alto / 2 - 4;
-        const abajo = br.top + br.height / 2 + alto / 2 + 4;
-
-        /* Solo se miran los controles con contenido: la fila de pestañas
-           ocupa todo el ancho y siempre daría falso choque. */
-        const piezas = barraMapa.querySelectorAll(
-            'button, a, label, select, input, h1, .estado, .tab-capa'
-        );
-        const choca = Array.prototype.some.call(piezas, function (pieza) {
-            if (caja.contains(pieza) || pieza.contains(caja)) return false;
-            const r = pieza.getBoundingClientRect();
-            if (!r.width || !r.height) return false;
-            const cruzaX = r.left < der && r.right > izq;
-            const cruzaY = r.top < abajo && r.bottom > arriba;
-            return cruzaX && cruzaY;
-        });
-        if (choca) return;
-        caja.classList.add('centrado');
+        function semCentrarEnBarra() {
+        // Desactivado: dejamos que el semáforo se quede en su lugar (a la derecha)
+        return; 
     }
 
     function semPintarMapa() {

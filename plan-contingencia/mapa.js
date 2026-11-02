@@ -547,7 +547,7 @@ async function cargarUnidades() {
 
         const est = document.getElementById('estado');
         if (est && Date.now() > estadoBloqueadoHasta) {
-            est.textContent = (data || []).length + ' unidad(es) en el mapa';
+            est.textContent = (data || []).length + ' unidad(es)';
         }
     } catch (e) {
         console.warn('Unidades:', e);
@@ -2513,7 +2513,26 @@ function comprimirArchivo(archivo, maxLado, calidad) {
         img.src = url;
     });
 }
+function volverAlOrigen(e) {
+    if (e) e.preventDefault();
 
+    // Si venimos de la página principal, volvemos ahí
+    const origen = sessionStorage.getItem('plan_estado_mapa') ? 'index.html' : null;
+    
+    if (origen) {
+        window.location.href = origen;
+        return;
+    }
+
+    // Si no hay memoria, usamos la página de donde vino
+    if (document.referrer && document.referrer.includes(window.location.host)) {
+        window.location.href = document.referrer;
+        return;
+    }
+
+    // Si todo falla, volvemos al inicio
+    window.location.href = 'index.html';
+}
 /* La sesion del conductor se resuelve en la base antes de arrancar */
 (async () => {
     await cargarSesionConductor();

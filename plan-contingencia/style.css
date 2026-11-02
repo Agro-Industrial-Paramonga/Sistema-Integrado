@@ -2511,11 +2511,11 @@ body {
 
 /* ===== SEGMENTOS (Diseño Mejorado) ===== */
 .fila-segmento td { 
-    background: linear-gradient(90deg, #059669 0%, #10b981 100%); /* Verde esmeralda con degradado */
-    padding: 12px 16px !important; 
+    background: #047857 !important; /* Verde oscuro y sólido */
+    padding: 6px 16px !important;   /* Reducimos el alto para que sea compacto */
     border: none !important;
-    border-radius: 8px 8px 0 0; /* Bordes superiores redondeados */
-    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2); /* Sombra sutil */
+    border-radius: 6px 6px 0 0;     /* Borde superior sutil */
+    box-shadow: none !important;    /* Quitamos la sombra brillante */
 }
 
 .seg-cabecera { 
@@ -2526,11 +2526,11 @@ body {
 }
 
 .seg-nombre { 
-    font-weight: 800; 
-    font-size: 0.85rem; 
-    letter-spacing: 0.08em; 
+    font-weight: 700; 
+    font-size: 0.8rem;              /* Letra un poco más pequeña */
+    letter-spacing: 0.05em; 
     text-transform: uppercase; 
-    color: #ffffff; /* Texto blanco para contrastar con el fondo */
+    color: #ffffff; 
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2678,21 +2678,22 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
 /* ===== MOVIL: ENCABEZADO DE SEGMENTO ===== */
 @media (max-width: 768px) {
     .data-table tr.fila-segmento {
-        background: linear-gradient(90deg, #059669 0%, #10b981 100%) !important;
+        background: #047857 !important; /* Verde oscuro sólido también en móvil */
         border: none !important;
-        border-radius: 10px !important;
+        border-radius: 8px !important;
         padding: 0 !important;
-        margin: 6px 0 10px !important;
-        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.25) !important;
+        margin: 6px 0 8px !important;
+        box-shadow: none !important;
     }
     .data-table tr.fila-segmento td {
         display: block !important;
         text-align: left !important;
-        padding: 10px 14px !important;
+        padding: 6px 14px !important; /* Más compacto */
         margin: 0 !important;
         border: none !important;
         background: transparent !important;
     }
+    /* ... (deja el resto igual) ... */
     .fila-segmento td::before { display: none !important; }
     .fila-segmento .seg-cabecera {
         display: flex !important;
@@ -2820,7 +2821,7 @@ body.modo-presentacion .data-table thead th {
     background: #fff;
     border-bottom: 2px solid var(--border);
 }
-/* ===== PUNTOS VERDES A LADO DE LAS ACTIVIDADES ===== */
+/* ===== PUNTOS DE COLORES SEGÚN EL ESTADO ===== */
 .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
     position: relative;
     padding-left: 24px !important;
@@ -2834,11 +2835,11 @@ body.modo-presentacion .data-table thead th {
     transform: translateY(-50%);
     width: 8px;
     height: 8px;
-    background-color: #10b981; /* Verde esmeralda */
+    /* Usamos una variable. Si no tiene color, se pone gris por defecto */
+    background-color: var(--dot-color, #cbd5e1); 
     border-radius: 50%;
 }
 
-/* En celular, el punto se alinea un poco más arriba para que no se vea raro */
 @media (max-width: 768px) {
     .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
         padding-left: 20px !important;
@@ -2881,4 +2882,53 @@ body.modo-presentacion .data-table thead th {
    ============================================================ */
 body.modo-presentacion .btn-alarma-fila {
     display: none !important;
+}
+/* Estilos para los botones de filtro */
+.filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9; /* Fondo gris claro */
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+    background: #e2e8f0;
+}
+
+/* Cuando el botón está seleccionado (Activo) */
+.filter-btn.active {
+    background: #0f172a; /* Fondo oscuro */
+    color: #ffffff;
+}
+
+/* Puntos de colores */
+.filter-btn .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Burbuja con el número */
+.filter-btn .badge {
+    background: #ffffff;
+    color: #334155;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+/* Ajuste de la burbuja cuando el botón está activo */
+.filter-btn.active .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
 }
