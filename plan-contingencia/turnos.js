@@ -33,6 +33,22 @@
         } catch (e) { return false; }
     }
 
+    function switchAlarma(userId, tipo, apagada) {
+        return '<button type="button" class="turnos-switch' + (apagada ? ' apagada' : '') + '"' +
+            ' role="switch" aria-checked="' + (apagada ? 'false' : 'true') + '"' +
+            ' data-user="' + esc(userId) + '" data-tipo="' + esc(tipo) + '"' +
+            ' title="' + (apagada ? 'Alarmas apagadas · pulsa para activarlas'
+                                 : 'Alarmas activas · pulsa para apagarlas') + '"></button>';
+    }
+
+    function enlazarSwitches(contenedor) {
+        contenedor.querySelectorAll('.turnos-switch').forEach(function (b) {
+            b.addEventListener('click', function () {
+                alternarAlarma(b.dataset.user, b.dataset.tipo, !b.classList.contains('apagada'), b);
+            });
+        });
+    }
+
     function fechaHora(iso) {
         if (!iso) return '—';
         var d = new Date(iso);
@@ -63,6 +79,13 @@
             '.turnos-meta{font-size:.7rem;color:#64748b;margin-top:2px}',
             '.turnos-lib{border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:9px;padding:7px 11px;',
             'font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap}',
+            '.turnos-acciones{display:flex;align-items:center;gap:8px;flex:0 0 auto}',
+            '.turnos-switch{position:relative;flex:0 0 auto;width:38px;height:21px;border-radius:999px;border:none;',
+            'padding:0;cursor:pointer;background:#16a34a;transition:background .15s;vertical-align:middle}',
+            '.turnos-switch::after{content:"";position:absolute;top:3px;left:20px;width:15px;height:15px;border-radius:50%;',
+            'background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.35);transition:left .15s}',
+            '.turnos-switch.apagada{background:#dc2626}',
+            '.turnos-switch.apagada::after{left:3px}',
             '.turnos-aviso{margin-top:10px;font-size:.74rem;color:#b91c1c}'
         ].join('');
         document.head.appendChild(s);
@@ -110,15 +133,18 @@
             var filas = (!r.error && r.data) ? r.data : [];
             unidades.innerHTML = '<h3 class="turnos-tit"><i class="fas fa-truck-moving"></i> Unidades en turno</h3>' +
                 '<p class="turnos-sub">Cada turno lo cierra su conductor. Si el celular se perdió o no cierra, ' +
-                'libéralo acá: deja de enviar ubicación y el cierre queda en el historial.</p>' +
+                'libéralo acá: deja de enviar ubicación y el cierre queda en el historial. ' +
+                'El interruptor verde recibe alarmas; en rojo, ese celular no recibe ninguna.</p>' +
                 (filas.length ? filas.map(function (u) {
                     var equipo = u.dispositivo ? 'equipo ' + esc(String(u.dispositivo).slice(0, 8)) : 'sin equipo registrado';
                     return '<div class="turnos-fila"><div><div class="turnos-nombre">' + esc(u.unidad) + ' · ' + esc(u.user_id) + '</div>' +
                         '<div class="turnos-meta">' + (u.dni ? 'DNI ' + esc(u.dni) + ' · ' : '') +
                         'desde ' + esc(fechaHora(u.inicio)) + ' · ' + equipo + '</div></div>' +
+                        '<div class="turnos-acciones">' + switchAlarma(u.user_id, 'conductor', u.alarma_off) +
                         '<button type="button" class="turnos-lib" data-unidad="' + esc(u.unidad) + '">' +
-                        '<i class="fas fa-unlink"></i> Liberar</button></div>';
+                        '<i class="fas fa-unlink"></i> Liberar</button></div></div>';
                 }).join('') : '<p class="turnos-sub">Ninguna unidad tiene turno abierto ahora mismo.</p>');
+            enlazarSwitches(unidades);
             unidades.querySelectorAll('.turnos-lib').forEach(function (b) {
                 b.addEventListener('click', function () { liberarUnidad(b.dataset.unidad); });
             });
@@ -132,15 +158,18 @@
             var lista = (!s2.error && s2.data) ? s2.data : [];
             sesiones.innerHTML = '<h3 class="turnos-tit"><i class="fas fa-user-clock"></i> Sesiones abiertas</h3>' +
                 '<p class="turnos-sub">Mientras la sesión exista, ese equipo recibe las alarmas. Al liberarla deja de ' +
-                'recibirlas en el acto y el cierre queda en el historial.</p>' +
+                'recibirlas en el acto y el cierre queda en el historial. ' +
+                'El interruptor verde recibe alarmas; en rojo, ese equipo no recibe ninguna.</p>' +
                 (lista.length ? lista.map(function (s) {
                     var equipo = s.dispositivo ? 'equipo ' + esc(String(s.dispositivo).slice(0, 8)) : 'sin equipo registrado';
                     return '<div class="turnos-fila"><div><div class="turnos-nombre">' + esc(s.user_id) + '</div>' +
                         '<div class="turnos-meta">' + esc(s.seccion || 'sin sección') + ' · desde ' + esc(fechaHora(s.inicio)) +
                         ' · ' + equipo + '</div></div>' +
+                        '<div class="turnos-acciones">' + switchAlarma(s.user_id, 'jefe', s.alarma_off) +
                         '<button type="button" class="turnos-lib" data-user="' + esc(s.user_id) +
-                        '" data-disp="' + esc(s.dispositivo || '') + '"><i class="fas fa-unlink"></i> Liberar</button></div>';
+                        '" data-disp="' + esc(s.dispositivo || '') + '"><i class="fas fa-unlink"></i> Liberar</button></div></div>';
                 }).join('') : '<p class="turnos-sub">Ningún equipo tiene sesión abierta ahora mismo.</p>');
+            enlazarSwitches(sesiones);
             sesiones.querySelectorAll('.turnos-lib').forEach(function (b) {
                 b.addEventListener('click', function () { liberarSesion(b.dataset.user, b.dataset.disp || null); });
             });
@@ -149,6 +178,33 @@
                 '<p class="turnos-sub">No se pudo consultar.</p>';
         }
         aviso('');
+    }
+
+    /* El switch es la unica senal: verde recibe alarmas, rojo no le llega nada.
+       El estado queda guardado en la base hasta que se vuelva a poner verde. */
+    async function alternarAlarma(userId, tipo, apagar, boton) {
+        if (boton) boton.disabled = true;
+        try {
+            var r = await db.rpc('alternar_alarma', {
+                p_clave_quien: clavePortal(),
+                p_user_id: userId,
+                p_apagar: apagar,
+                p_tipo: tipo || null
+            });
+            var ok = !r.error && r.data && r.data.ok;
+            await pintar();
+            if (!ok) {
+                aviso('No se pudo ' + (apagar ? 'silenciar' : 'activar') + ': ' +
+                    ((r.error && r.error.message) || (r.data && r.data.motivo) || 'sin permiso'));
+                return;
+            }
+            aviso(String(userId).trim() + (apagar
+                ? ': alarmas apagadas, no le llega nada'
+                : ': alarmas activas'));
+        } catch (e) {
+            await pintar();
+            aviso('No se pudo cambiar: ' + e.message);
+        }
     }
 
     async function liberarUnidad(unidad) {

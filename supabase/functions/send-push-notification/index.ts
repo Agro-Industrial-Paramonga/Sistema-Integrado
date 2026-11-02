@@ -1,4 +1,13 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+/* ============================================================
+   send-push-notification
+   Manda la alarma a los celulares: FCM (Android/web) y los
+   webhooks de NotiAlarm (iPhone).
+
+   Sin imports a proposito: se despliega con la Management API
+   enviando el codigo como body, y esa via no resuelve imports
+   remotos (falla con BOOT_ERROR). Todo va por fetch contra
+   PostgREST y FCM, que son HTTP puro.
+   ============================================================ */
 
 const FCM_PROJECT_ID    = Deno.env.get('FCM_PROJECT_ID')!;
 const FCM_CLIENT_EMAIL  = Deno.env.get('FCM_CLIENT_EMAIL')!;
@@ -6,11 +15,35 @@ const FCM_PRIVATE_KEY   = Deno.env.get('FCM_PRIVATE_KEY')!.replace(/\\n/g, '\n')
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+const REST = SUPABASE_URL + '/rest/v1';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
+
+const headersRest: Record<string, string> = {
+  apikey: SUPABASE_SERVICE_ROLE_KEY,
+  Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+  'Content-Type': 'application/json'
+};
+
+async function rpc(nombre: string, args: unknown): Promise<any> {
+  const res = await fetch(REST + '/rpc/' + nombre, {
+    method: 'POST',
+    headers: headersRest,
+    body: JSON.stringify(args)
+  });
+  if (!res.ok) throw new Error(nombre + ': ' + res.status + ' ' + (await res.text()));
+  return await res.json();
+}
+
+async function tabla(ruta: string): Promise<any[]> {
+  const res = await fetch(REST + '/' + ruta, { headers: headersRest });
+  if (!res.ok) throw new Error(ruta + ': ' + res.status + ' ' + (await res.text()));
+  return await res.json();
+}
 
 function base64url(data: Uint8Array | string): string {
   let str = typeof data === 'string' ? data : String.fromCharCode(...data);
@@ -76,13 +109,12 @@ Deno.serve(async (req) => {
   try {
     const { title, body, userId, token, excluir, tipo } = await req.json();
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     // ============================================================
     // 1. Obtener tokens del destinatario + webhooks globales de iPhone
     //
     // Quien recibe lo decide la base, no este archivo: la funcion
-    // destinatarios_push() solo devuelve jefes con sesion abierta.
+    // destinatarios_push() solo devuelve jefes con sesion abierta y
+    // deja fuera a quien tenga las alarmas apagadas en el panel.
     //  - con "tipo" explicito  -> solo ese canal
     //  - sin "tipo" ni userId  -> jefes (alarma general)
     //  - con userId            -> ese usuario, del canal que sea
@@ -91,20 +123,23 @@ Deno.serve(async (req) => {
       ? tipo
       : (userId ? null : 'jefe');
 
-    const { data: todos, error } = await supabase
-      .rpc('destinatarios_push', { p_tipo: canal });
-
-    if (error) throw new Error('Error al leer tokens: ' + error.message);
+    const todos = await rpc('destinatarios_push', { p_tipo: canal });
 
     // Comparacion sin importar mayusculas, tildes ni espacios sobrantes
     const norm = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 
-    // Un usuario puede cubrir varias areas: "Operaciones Agrícolas / Cosecha"
+    // Un usuario puede cubrir varias areas: "Operaciones Agricolas / Cosecha"
     const partes = (v: unknown) => String(v ?? '').split('/').map(norm).filter(Boolean);
 
     // Si el celular quedo registrado con el NOMBRE de la persona,
     // se traduce a su seccion usando la tabla usuarios.
-    const { data: usuarios } = await supabase.from('usuarios').select('area, seccion');
+    let usuarios: any[] = [];
+    try {
+      usuarios = await tabla('usuarios?select=area,seccion');
+    } catch (e) {
+      console.error('usuarios:', (e as Error).message);
+    }
+
     const mapaSeccion = new Map<string, string[]>();
     for (const u of usuarios || []) {
       const clave = norm(u.area);
@@ -127,7 +162,24 @@ Deno.serve(async (req) => {
         });
       }
 
-      const soloEse = (todos || []).filter((s) => s.token === token);
+      // Celular silenciado desde el panel (switch rojo): no recibe nada.
+      // La lista de destinatarios ya lo excluye, pero este envio directo
+      // por token no pasa por ahi, asi que se pregunta a la base.
+      let silenciado = false;
+      try {
+        silenciado = (await rpc('token_silenciado', { p_token: token })) === true;
+      } catch (e) {
+        console.error('silencio:', (e as Error).message);
+      }
+
+      if (silenciado) {
+        return new Response(JSON.stringify({ ok: true, fcm_enviados: 0, notialarm_disparados: 0,
+          total_subs: 0, nota: 'celular silenciado desde el panel' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const soloEse = (todos || []).filter((s: any) => s.token === token);
       const lista = soloEse.length ? soloEse : [{ token, notialarm_webhook: null }];
 
       const accessTokenDirecto = await getAccessToken();
@@ -154,10 +206,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const subsFiltrados = (todos || []).filter((s) => !excluir || s.token !== excluir);
+    const subsFiltrados = (todos || []).filter((s: any) => !excluir || s.token !== excluir);
 
     const subs = userId
-      ? subsFiltrados.filter((s) => {
+      ? subsFiltrados.filter((s: any) => {
           const buscado = norm(userId);
           const claves = clavesDe(s);
           return claves.includes(buscado) || claves.includes('__global__');
@@ -165,8 +217,8 @@ Deno.serve(async (req) => {
       : subsFiltrados;
 
     let enviados = 0;
-    const tituloFinal = title || 'ðŸš¨ ALERTA DE HUAYCO';
-    const cuerpoFinal = body  || 'Gerencia General ha autorizado el inicio de los planes de acciÃ³n.';
+    const tituloFinal = title || '🚨 ALERTA DE HUAYCO';
+    const cuerpoFinal = body  || 'Gerencia General ha autorizado el inicio de los planes de acción.';
 
     // ============================================================
     // 2. Enviar notificaciones FCM (Android)
@@ -215,15 +267,15 @@ Deno.serve(async (req) => {
     // ============================================================
     const webhooksUnicos = [...new Set(
       (subs || [])
-        .map(s => s.notialarm_webhook)
-        .filter(w => w && w.trim() !== '')
+        .map((s: any) => s.notialarm_webhook)
+        .filter((w: string) => w && w.trim() !== '')
     )];
 
     let notialarmCount = 0;
 
     for (const webhook of webhooksUnicos) {
       try {
-        const respNotiAlarm = await fetch(webhook, {
+        const respNotiAlarm = await fetch(webhook as string, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -238,7 +290,7 @@ Deno.serve(async (req) => {
           console.error('NotiAlarm error:', await respNotiAlarm.text());
         }
       } catch (err) {
-        console.error('Error de conexiÃ³n con NotiAlarm:', err);
+        console.error('Error de conexion con NotiAlarm:', err);
       }
     }
 
@@ -261,8 +313,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-
-
-
-

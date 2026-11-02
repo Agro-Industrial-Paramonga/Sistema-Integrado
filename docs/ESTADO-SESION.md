@@ -174,3 +174,36 @@ SHA256 informado por el usuario para el PAT de Supabase: `uoBJNUHaXUyTA7Jr+EgBXN
 ## 10. Mensaje sugerido para el chat nuevo
 
 > Lee `docs/ESTADO-SESION.md` del repo Sistema-Integrado y continúa desde ahí. Hay cambios sin commitear y la base ya está actualizada.
+
+---
+
+## 11. Switch de alarmas por persona (2-nov)
+
+En **Turnos y sesiones** (portal, `turnos.js`) cada fila de *Unidades en turno* y de
+*Sesiones abiertas* tiene un interruptor: **verde** recibe alarmas, **rojo** no le
+llega ninguna. El silencio es **permanente** hasta que se vuelva a poner en verde;
+no se borra al cerrar sesión, al liberar ni al reiniciar el celular. Vale para
+jefes y conductores. La sesión no se toca: la persona sigue en el portal.
+
+Dónde se corta (dos puertas, no hace falta nada en el celular):
+
+| Puerta | Qué cubre |
+|---|---|
+| `destinatarios_push()` | alarmas generales (medidas, semáforo) y evacuación a conductores |
+| `token_silenciado()` | envíos directos a un celular (alerta a unidad, punto crítico), que la función edge manda con `token:` |
+
+- Tabla `alarmas_silenciadas` (`clave` normalizada, `user_id`, `apagada_en`, `apagada_por`).
+- `alternar_alarma(p_clave_quien, p_user_id, p_apagar, p_tipo)` — misma guarda que
+  liberar (`puede_liberar`); deja rastro en `app_log` con origen `alarma_mute`.
+- `sesiones_panel_lista()` y `unidades_en_turno()` ahora devuelven `alarma_off`.
+- `norm_persona()` aplana tildes no, pero sí saltos de línea y espacio duro:
+  ojo que `HIDALGO JAMANCA EVA` está guardada con `" \n"` al final.
+
+**Función edge:** quedó reescrita **sin imports** (`fetch` a PostgREST y FCM).
+Motivo: la Management API (`PATCH /v1/projects/{ref}/functions/{slug}` con `body`)
+no resuelve imports remotos y la función se cae con `BOOT_ERROR`; con imports solo
+se puede desplegar por multipart/eszip. Versión desplegada: **19**. El archivo del
+repo es el mismo que está publicado; si se sube desde la CLI, la versión sube igual.
+
+**SQL aplicado:** `plan-contingencia/sql/alarmas_silenciadas.sql` (idempotente).
+Para dejar a todos recibiendo: `delete from alarmas_silenciadas;`.
