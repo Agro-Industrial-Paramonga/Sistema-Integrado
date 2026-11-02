@@ -355,12 +355,16 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
     const errores = [];
     for (const area of areas) {
         try {
-            const response = await fetch(`${SUPABASE_URL_FUNCTIONS}/send-push-notification`, {
+                       const response = await fetch(`${SUPABASE_URL_FUNCTIONS}/send-push-notification`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                                        title: `⚠️ ${medida.actividad} · ${area}`.slice(0, 95),
-                    body: `${quienEnvia()} solicita atención para esta medida:\n${medida.actividad}\nÁrea: ${area}\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
+                    // 1. Título corto para que no se corte en el celular
+                    title: `⚠️ Solicitud de Atención`,
+                    
+                    // 2. Cuerpo con el nombre del Gerente fijo, sin el área y sin repetir la actividad
+                    body: `MELGAR BELMONT JOSE MARIANO solicita atención para esta medida:\n\n${medida.actividad}\n\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
+                    
                     userId: area,
                     tipo: 'jefe'
                 })
