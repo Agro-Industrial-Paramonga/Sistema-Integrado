@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <link rel="manifest" href="./manifest.json">
@@ -11,6 +11,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=22">
+     <script>
+        // Si venimos del mapa, ocultamos la pantalla de inmediato para evitar el parpadeo
+        if (sessionStorage.getItem('plan_estado_mapa')) {
+            document.documentElement.style.opacity = '0';
+        }
+    </script>
 </head>
 <body>
 
@@ -24,7 +30,7 @@
             </div>
         </div>
         <div class="header-right">
-            <a id="btn-mapa-plan" href="mapa.html" title="Mapa de canales y unidades"
+            <a id="btn-mapa-plan" href="mapa.html" onclick="guardarEstadoYIrAlMapa(event)" title="Mapa de canales y unidades"
                style="display:none;border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:38px;height:38px;align-items:center;justify-content:center;color:#475569;text-decoration:none;margin-right:8px;">
                 <i class="fas fa-map-location-dot"></i>
             </a>
@@ -382,11 +388,19 @@
                         </div>
 
                         <div class="filters-bar">
-                            <div class="filters-left">
-                                <button class="filter-btn active" data-filter="all" data-tooltip="Ver todas las medidas sin filtrar">Todas</button>
-                                <button class="filter-btn" data-filter="no-iniciado" data-tooltip="Aún no se ha comenzado a trabajar en esta medida.">No iniciado</button>
-                                <button class="filter-btn" data-filter="en-ejecucion" data-tooltip="El área responsable está trabajando en ella.">En ejecución</button>
-                                <button class="filter-btn" data-filter="finalizado" data-tooltip="La medida fue completada.">Finalizado</button>
+                                                        <div class="filters-left">
+                                <button class="filter-btn active" data-filter="all">
+                                    Todas <span class="badge">87</span>
+                                </button>
+                                <button class="filter-btn" data-filter="no-iniciado">
+                                    <span class="dot" style="background:#f59e0b;"></span> No iniciado <span class="badge">65</span>
+                                </button>
+                                <button class="filter-btn" data-filter="en-ejecucion">
+                                    <span class="dot" style="background:#3b82f6;"></span> En ejecución <span class="badge">12</span>
+                                </button>
+                                <button class="filter-btn" data-filter="finalizado">
+                                    <span class="dot" style="background:#10b981;"></span> Finalizado <span class="badge">10</span>
+                                </button>
                             </div>
                             <div class="filters-right">
                                 <select class="filter-area-select btn-solo-gerente" id="filtro-area-antes">
@@ -464,12 +478,19 @@
                         </div>
 
                         <div class="filters-bar">
-                            <div class="filters-left">
-                                <button class="filter-btn active" data-filter="all" data-tabla="durante" data-tooltip="Ver todas las medidas sin filtrar">Todas</button>
-                                <button class="filter-btn" data-filter="bloqueado" data-tabla="durante" data-tooltip="Aún no ha sido activada por Gerencia General.">Bloqueado</button>
-                                <button class="filter-btn" data-filter="iniciado" data-tabla="durante" data-tooltip="Gerencia General la activó. El área puede comenzar a ejecutarla.">Autorizado</button>
-                                <button class="filter-btn" data-filter="en-ejecucion" data-tabla="durante" data-tooltip="El área responsable está ejecutando la medida.">En ejecución</button>
-                                <button class="filter-btn" data-filter="finalizado" data-tabla="durante" data-tooltip="La medida fue completada.">Finalizado</button>
+                                                        <div class="filters-left">
+                                <button class="filter-btn active" data-filter="all">
+                                    Todas <span class="badge">87</span>
+                                </button>
+                                <button class="filter-btn" data-filter="no-iniciado">
+                                    <span class="dot" style="background:#f59e0b;"></span> No iniciado <span class="badge">65</span>
+                                </button>
+                                <button class="filter-btn" data-filter="en-ejecucion">
+                                    <span class="dot" style="background:#3b82f6;"></span> En ejecución <span class="badge">12</span>
+                                </button>
+                                <button class="filter-btn" data-filter="finalizado">
+                                    <span class="dot" style="background:#10b981;"></span> Finalizado <span class="badge">10</span>
+                                </button>
                             </div>
                             <div class="filters-right">
                                 <select class="filter-area-select btn-solo-gerente" id="filtro-area-durante">
@@ -533,11 +554,19 @@
                         </div>
 
                         <div class="filters-bar">
-                            <div class="filters-left">
-                                <button class="filter-btn active" data-filter="all" data-tabla="despues" data-tooltip="Ver todas las medidas sin filtrar">Todas</button>
-                                <button class="filter-btn" data-filter="no-iniciado" data-tabla="despues" data-tooltip="Aún no se ha comenzado a trabajar en esta medida.">No iniciado</button>
-                                <button class="filter-btn" data-filter="en-ejecucion" data-tabla="despues" data-tooltip="El área responsable está trabajando en ella.">En ejecución</button>
-                                <button class="filter-btn" data-filter="finalizado" data-tabla="despues" data-tooltip="La medida fue completada.">Finalizado</button>
+                                                        <div class="filters-left">
+                                <button class="filter-btn active" data-filter="all">
+                                    Todas <span class="badge">87</span>
+                                </button>
+                                <button class="filter-btn" data-filter="no-iniciado">
+                                    <span class="dot" style="background:#f59e0b;"></span> No iniciado <span class="badge">65</span>
+                                </button>
+                                <button class="filter-btn" data-filter="en-ejecucion">
+                                    <span class="dot" style="background:#3b82f6;"></span> En ejecución <span class="badge">12</span>
+                                </button>
+                                <button class="filter-btn" data-filter="finalizado">
+                                    <span class="dot" style="background:#10b981;"></span> Finalizado <span class="badge">10</span>
+                                </button>
                             </div>
                             <div class="filters-right">
                                 <select class="filter-area-select btn-solo-gerente" id="filtro-area-despues">
@@ -788,5 +817,127 @@
         if (m && l && !m.contains(ev.target)) l.style.display = 'none';
     });
     </script>
+    <script>
+    // 1. Se ejecuta antes de ir al mapa: guarda qué pantalla y sección están activas
+    function guardarEstadoYIrAlMapa(e) {
+        const pantallaActiva = document.querySelector('.screen.active');
+        const seccionActiva = document.querySelector('.section-view.active');
+        
+        const estado = {
+            pantalla: pantallaActiva ? pantallaActiva.id : null,
+            seccion: seccionActiva ? seccionActiva.id : null
+        };
+        
+        sessionStorage.setItem('plan_estado_mapa', JSON.stringify(estado));
+    }
+
+    // 2. Se ejecuta al cargar la página: restaura la vista y vuelve a mostrar la pantalla
+    window.addEventListener('load', () => {
+        const estadoGuardado = sessionStorage.getItem('plan_estado_mapa');
+        
+        // Función para mostrar la pantalla de nuevo suavemente
+        const mostrarPantalla = () => {
+            document.documentElement.style.transition = 'opacity 0.15s ease-in';
+            document.documentElement.style.opacity = '1';
+        };
+
+        if (estadoGuardado) {
+            const estado = JSON.parse(estadoGuardado);
+            sessionStorage.removeItem('plan_estado_mapa');
+
+            if (estado.pantalla === 'screen-plan') {
+                // Simulamos el clic en el plan
+                if (typeof abrirPlan === 'function') {
+                    abrirPlan();
+                } else {
+                    document.querySelector('.plan-card')?.click();
+                }
+
+                if (estado.seccion) {
+                    const seccionNombre = estado.seccion.replace('section-', '');
+                    
+                    // Esperamos un poquito para que la app se asiente y simulamos el clic en la sección
+                    setTimeout(() => {
+                        if (typeof irASeccion === 'function') {
+                            irASeccion(seccionNombre);
+                        } else {
+                            document.querySelectorAll('.menu-card').forEach(btn => {
+                                if (btn.getAttribute('onclick')?.includes(`'${seccionNombre}'`)) {
+                                    btn.click();
+                                }
+                            });
+                        }
+                        
+                        // Una vez que la sección está abierta, mostramos la página
+                        setTimeout(mostrarPantalla, 50);
+                    }, 200); 
+                } else {
+                    mostrarPantalla();
+                }
+            } else {
+                mostrarPantalla();
+            }
+        } else {
+            mostrarPantalla();
+        }
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Función que lee la columna Estado y pinta el puntito
+        const colorearPuntos = () => {
+            const celdasActividad = document.querySelectorAll('.data-table tbody td[data-label="Actividad"]');
+
+            celdasActividad.forEach(tdActividad => {
+                const fila = tdActividad.closest('tr');
+                if (!fila) return;
+                
+                const tdEstado = fila.querySelector('td[data-label="Estado"]');
+                if (!tdEstado) return;
+                
+                // Obtenemos el texto del estado (por si tiene el badge con el color)
+                let estadoTexto = '';
+                const badge = tdEstado.querySelector('.badge-estado');
+                if (badge) {
+                    estadoTexto = badge.textContent.trim().toLowerCase();
+                } else {
+                    estadoTexto = tdEstado.textContent.trim().toLowerCase();
+                }
+                
+                let color = '#cbd5e1'; // Gris por defecto
+                
+                if (estadoTexto.includes('no iniciado')) {
+                    color = '#f59e0b'; // Naranja
+                } else if (estadoTexto.includes('ejecucion') || estadoTexto.includes('ejecución')) {
+                    color = '#3b82f6'; // Azul
+                } else if (estadoTexto.includes('finalizado')) {
+                    color = '#10b981'; // Verde
+                } else if (estadoTexto.includes('bloqueado')) {
+                    color = '#ef4444'; // Rojo
+                } else if (estadoTexto.includes('iniciado') || estadoTexto.includes('autorizado')) {
+                    color = '#8b5cf6'; // Morado
+                }
+                
+                tdActividad.style.setProperty('--dot-color', color);
+            });
+        };
+
+        // Ejecutar al cargar
+        colorearPuntos();
+
+        // Observar los cambios en las tablas (cuando carga la info de la base de datos)
+        const tablas = ['tabla-antes-body', 'tabla-durante-body', 'tabla-despues-body'];
+        const observer = new MutationObserver(() => {
+            colorearPuntos();
+        });
+
+        tablas.forEach(id => {
+            const tbody = document.getElementById(id);
+            if (tbody) {
+                observer.observe(tbody, { childList: true, subtree: true });
+            }
+        });
+    });
+</script>
 </body>
 </html>

@@ -70,8 +70,13 @@
                       { area: 'Administración 2', tel: '989201463' },
                       { area: 'Administración 3', tel: '994640342' },
                   ] },
+                  { texto: 'La Administración 1 debe dirigirse a los puntos 2, 3 y 4; la Administración 2, al punto 5; y la Administración 3, a los puntos 6, 7 y 8.',
+                  areas: [
+                      { area: 'Todos los administradores' },
+                  ] },
+
                 { texto: 'Movilizar excavadoras y retroexcavadoras de ruedas desde Sanjón hasta Menacho.',
-                  area: 'Ingeniería Agrícola', tel: '986645803' },
+                  area: 'Ingeniería Agrícola', sinContacto: true },
                 { texto: 'Paralizar actividades y las maquinarias agrícolas y equipos que estén en los campos mencionados anteriormente se trasladarán a una zona segura.',
                   areas: [
                       { area: 'Todos los administradores'},
@@ -620,9 +625,9 @@
 
         /* Áreas responsables dentro de un paso del plan: al costado del texto */
         .sem-pasos li .sem-paso {
-            display: flex; flex-direction: row; align-items: flex-start;
-            gap: 10px; min-width: 0; flex: 1 1 auto;
-        }
+    display: flex; flex-direction: row; align-items: center; /* <-- CAMBIAMOS A 'center' */
+    gap: 10px; min-width: 0; flex: 1 1 auto;
+}
         .sem-paso-txt { flex: 1 1 auto; min-width: 0; }
         .sem-chips {
             display: flex; flex-direction: column; align-items: flex-end;
@@ -807,13 +812,16 @@
         else cabecera.appendChild(grupo);
     }
 
-    function semPintarEncabezado() {
+        function semPintarEncabezado() {
         const n = NIVELES[estado.nivel] || NIVELES.verde;
 
         if (encabezado) {
-            encabezado.style.borderBottom = '3px solid ' + n.color;
-            encabezado.style.background =
-                'linear-gradient(180deg, #ffffff 52%, ' + semRgba(n.color, 0.14) + ' 100%)';
+            // Línea arriba en lugar de abajo
+            encabezado.style.borderTop = '4px solid ' + n.color;
+            encabezado.style.borderBottom = '1px solid #e2e8f0'; // Borde gris sutil abajo
+            
+            // Quitamos el sombreado y dejamos el fondo blanco limpio
+            encabezado.style.background = '#ffffff';
         }
         semPintarLuces();
     }
@@ -852,40 +860,9 @@
     /* Centra el semáforo en la barra solo si no pisa ningún control.
        Si choca (pantallas angostas o muchos botones), queda en el hueco
        libre como antes. */
-    function semCentrarEnBarra() {
-        if (!barraMapa) return;
-        const caja = barraMapa.querySelector('.sem-centro-mapa');
-        if (!caja) return;
-        caja.classList.remove('centrado');
-
-        const br = barraMapa.getBoundingClientRect();
-        if (br.width < 900) return;
-
-        const ancho = caja.offsetWidth || 0;
-        const alto = caja.offsetHeight || 0;
-        if (!ancho || !alto) return;
-
-        const centro = br.left + br.width / 2;
-        const izq = centro - ancho / 2 - 10;
-        const der = centro + ancho / 2 + 10;
-        const arriba = br.top + br.height / 2 - alto / 2 - 4;
-        const abajo = br.top + br.height / 2 + alto / 2 + 4;
-
-        /* Solo se miran los controles con contenido: la fila de pestañas
-           ocupa todo el ancho y siempre daría falso choque. */
-        const piezas = barraMapa.querySelectorAll(
-            'button, a, label, select, input, h1, .estado, .tab-capa'
-        );
-        const choca = Array.prototype.some.call(piezas, function (pieza) {
-            if (caja.contains(pieza) || pieza.contains(caja)) return false;
-            const r = pieza.getBoundingClientRect();
-            if (!r.width || !r.height) return false;
-            const cruzaX = r.left < der && r.right > izq;
-            const cruzaY = r.top < abajo && r.bottom > arriba;
-            return cruzaX && cruzaY;
-        });
-        if (choca) return;
-        caja.classList.add('centrado');
+        function semCentrarEnBarra() {
+        // Desactivado: dejamos que el semáforo se quede en su lugar (a la derecha)
+        return; 
     }
 
     function semPintarMapa() {
@@ -992,26 +969,32 @@
 
     /* Cada paso puede traer el área responsable y su teléfono: al tocarlo se
        ve el número y abre el marcador con el número ya puesto. */
-            function semPasoHtml(p) {
+                     function semPasoHtml(p) {
         const texto = (typeof p === 'string') ? p : (p.texto || '');
         let chips = [];
         if (p && typeof p === 'object') {
             if (Array.isArray(p.areas)) chips = p.areas;
-            else if (p.area) chips = [{ area: p.area }];
+            else if (p.area) chips = [{ area: p.area, sinContacto: p.sinContacto }]; // <-- Pasamos la instrucción
         }
 
         const chipsHtml = chips
             .filter((c) => c && c.area)
             .map(function (c) {
                 const area = semEscape(c.area);
-                // Verificamos si el área es exactamente una de las administraciones
-                const esAdmin = ['Administración 1', 'Administración 2', 'Administración 3'].includes(area);
                 
-                if (esAdmin) {
-                    // Si es Administración, lo hacemos botón clickeable
+                const areasClickeables = [
+                    'Administración 1', 
+                    'Administración 2', 
+                    'Administración 3', 
+                    'Ingeniería Agrícola',
+                    'Gerente de Desarrollo Organizacional'
+                ];
+                
+                // Si es un área clickeable Y NO tiene la instrucción de "sinContacto", hacemos el botón
+                if (areasClickeables.includes(area) && !c.sinContacto) {
                     return '<button type="button" class="sem-area sem-area-btn sin-tel" data-area="' + area + '" title="Ver contactos de ' + area + '"><b>' + area + '</b></button>';
                 } else {
-                    // Si es cualquier otra área, se queda como etiqueta normal
+                    // Si tiene "sinContacto" o no es clickeable, lo dejamos como texto normal
                     return '<span class="sem-area sin-tel"><b>' + area + '</b></span>';
                 }
             })
@@ -1348,7 +1331,6 @@
 
         let contactos = [];
         let errorMsg = '';
-        let debugInfo = '';
 
         if (cliente) {
             try {
@@ -1366,7 +1348,7 @@
                     // Filtramos
                     const filtradas = compuertas.filter(c => normalizar(c.administracion) === buscarArea);
 
-                    if (filtradas.length > 0) {
+                                        if (filtradas.length > 0) {
                         const ids = filtradas.map(c => c.id);
                         
                         // PASO 2: Traer los contactos
@@ -1381,9 +1363,9 @@
                             contactos = dataContactos;
                         }
                     } else {
-                        // DIAGNÓSTICO: Si no encuentra la administración, guardamos qué encontró
-                        const nombresEncontrados = compuertas.map(c => c.administracion).filter((v, i, a) => a.indexOf(v) === i).join(', ');
-                        debugInfo = `No se encontró "${area}" en la base de datos. Las administraciones registradas son: ${nombresEncontrados || 'NINGUNA'}`;
+                        // Si no encuentra el área (ej. no la has creado en Supabase), 
+                        // simplemente dejamos la lista vacía. No muestra error rojo.
+                        contactos = [];
                     }
                 }
             } catch (e) {
@@ -1394,7 +1376,8 @@
         }
 
         // Si hubo un error, lo mostramos en el panel
-        if (errorMsg || debugInfo) {
+                // Si hubo un error, lo mostramos en el panel
+        if (errorMsg) {
             panel.innerHTML = `
                 <div class="sem-caja sem-form">
                     <div class="sem-cab" style="background:#dc2626">
@@ -1404,7 +1387,6 @@
                     </div>
                     <div class="sem-cuerpo">
                         <p class="sem-vacio" style="color:#b91c1c; font-weight:bold;">${semEscape(errorMsg)}</p>
-                        <p class="sem-vacio" style="color:#ca8a04;">${semEscape(debugInfo)}</p>
                         <div class="sem-acciones">
                             <button type="button" class="sem-btn" id="sem-volver-responsables">Volver</button>
                         </div>
@@ -1416,9 +1398,18 @@
             panel.innerHTML = semHtmlResponsables(area, contactos);
         }
         
-        semAjustarAlto();
+                semAjustarAlto();
 
-        panel.querySelector('#sem-cerrar-responsables').addEventListener('click', semCerrarPanel);
+        // 👇 AQUÍ HACEMOS QUE LA "X" REGRESE AL DETALLE 👇
+        const btnX = panel.querySelector('#sem-cerrar-responsables');
+        if (btnX) {
+            btnX.addEventListener('click', () => {
+                vista = 'detalle';
+                semPintarPanel();
+            });
+        }
+        // 👆 FIN DEL CAMBIO 👆
+
         const btnVolver = panel.querySelector('#sem-volver-responsables');
         if (btnVolver) {
             btnVolver.addEventListener('click', () => {

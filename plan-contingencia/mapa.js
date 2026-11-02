@@ -23,14 +23,16 @@ const CAPAS = {
     puntos: {
         id: 2,
         nombre: 'Puntos críticos',
-        archivo: 'assets/mapa-puntos-criticos.png',
-        norte: -10.6400, sur: -10.7800, este: -77.6800, oeste: -77.9000,
-        opacidad: 0.85,
+        // 👇 CAMBIAMOS LA IMAGEN A LA DE CANALES
+        archivo: 'assets/mapa-canales.png', 
+        // 👇 COPIAMOS LAS COORDENADAS DE "canales" PARA QUE LA IMAGEN ENCAJE PERFECTO
+        norte: -10.6248, sur: -10.7800, este: -77.6800, oeste: -77.8859, 
+        opacidad: 0.55, // Le bajé la opacidad para que se vea igual que antes
         overlay: null
     }
 };
 
-let capaActiva = 'canales';
+let capaActiva = 'puntos';
 let mapa;
 let modoAjuste = false;
 let marcNO = null;
@@ -357,9 +359,11 @@ function dibujarTodasLasCapas() {
     });
 }
 
-async function cargarCapas() {
+    async function cargarCapas() {
     try {
-        const { data } = await db.from('mapa_capa').select('*');
+        const { data, error } = await db.from('mapa_capa').select('*');
+        if (error) throw error;
+
         (data || []).forEach(fila => {
             const clave = Object.keys(CAPAS).find(k => CAPAS[k].id === fila.id);
             if (!clave) return;
@@ -367,7 +371,14 @@ async function cargarCapas() {
             c.norte = fila.norte; c.sur = fila.sur; c.este = fila.este; c.oeste = fila.oeste;
             if (fila.opacidad != null) c.opacidad = fila.opacidad;
         });
+        
         dibujarTodasLasCapas();
+    
+        // 👇 AGREGAMOS ESTO: Mueve la barrita a la opacidad real guardada
+        const barra = document.getElementById('opacidad');
+        if (barra) barra.value = Math.round(CAPAS[capaActiva].opacidad * 100);
+        // 👆
+
         mapa.fitBounds(limites(CAPAS[capaActiva]), { padding: [30, 30] });
         actualizarControles();
     } catch (e) {
@@ -494,10 +505,38 @@ async function guardarCapa() {
     if (!error) alternarAjuste();
 }
 
+let temporizadorOpacidad = null;
+
 function cambiarOpacidad(valor) {
     const c = CAPAS[capaActiva];
     c.opacidad = Number(valor) / 100;
     if (c.overlay) c.overlay.setOpacity(c.opacidad);
+
+    // Esperamos un momento a que dejes de mover el slider para guardar
+    clearTimeout(temporizadorOpacidad);
+    temporizadorOpacidad = setTimeout(async () => {
+        try {
+            // Usamos UPDATE en lugar de UPSERT para evitar el error de campos faltantes
+            const { error } = await db.from('mapa_capa')
+                .update({ 
+                    opacidad: c.opacidad, 
+                    actualizado_en: new Date().toISOString() 
+                })
+                .eq('id', c.id); // Solo actualiza la capa actual
+            
+            const est = document.getElementById('estado');
+            if (error) {
+                console.error('Error al guardar opacidad:', error);
+                if (est) est.textContent = 'Error al guardar opacidad';
+            } else {
+                if (est) est.textContent = 'Opacidad guardada ✓';
+            }
+        } catch (e) {
+            console.warn('No se pudo guardar la opacidad', e);
+            const est = document.getElementById('estado');
+            if (est) est.textContent = 'Error de red al guardar';
+        }
+    }, 800);
 }
 
 /* ------------------------------------------------------------
@@ -547,7 +586,7 @@ async function cargarUnidades() {
 
         const est = document.getElementById('estado');
         if (est && Date.now() > estadoBloqueadoHasta) {
-            est.textContent = (data || []).length + ' unidad(es) en el mapa';
+            est.textContent = (data || []).length + ' unidad(es)';
         }
     } catch (e) {
         console.warn('Unidades:', e);
@@ -1531,27 +1570,23 @@ function mostrarGrupo(grupo, visible) {
 function aplicarVisibilidadCapas() {
     if (!mapa || !capaUnidades) return;
 
-    const esSeguimiento = (capaActiva === 'canales');
+    const esSeguimiento = (capaActiva === 'canales'); 
 
-    /* Seguimiento: unidades y campos. Nada de puntos críticos. */
-    /* Puntos críticos: puntos, maquinarias y sus líneas. Nada de campos. */
-    mostrarGrupo(capaUnidades, esSeguimiento);
-    /* En rojo los campos se ven en las dos pestañas: es la zona de evacuación */
-    mostrarGrupo(capaCampos, esSeguimiento || semaforoActual.nivel === 'rojo');
-    mostrarGrupo(capaLineasSeg, esSeguimiento);
-    /* Sectores del KMZ: en Seguimiento y también en Puntos críticos */
+    // 1. Mantenemos las unidades y campos siempre visibles
+    mostrarGrupo(capaUnidades, true); 
+    mostrarGrupo(capaCampos, true); 
+
+    // 2. ¡AQUÍ ESTÁ EL CAMBIO! Ponemos 'true' para que las líneas de seguimiento también se vean
+    mostrarGrupo(capaLineasSeg, true); 
+    
+    // 3. El resto de capas de Puntos Críticos
     mostrarGrupo(capaCamposAipsa, true);
-    /* Huaico y desborde: solo en Puntos críticos */
-    mostrarGrupo(capaZonasCriticas, !esSeguimiento);
-    /* Compuertas: solo en Puntos críticos */
+    mostrarGrupo(capaZonasCriticas, !esSeguimiento); 
     mostrarGrupo(capaCompuertasMapa, !esSeguimiento);
-
     mostrarGrupo(capaPuntos, !esSeguimiento);
-    /* Las máquinas de Puntos Críticos se ven sólo con sesión iniciada */
     mostrarGrupo(capaMaquinas, !esSeguimiento && !!usuarioPlan());
     mostrarGrupo(capaLineas, !esSeguimiento);
 
-    /* Reaplicar el color de evacuación cada vez que cambia la pestaña */
     aplicarSemaforoEnCampos();
 }
 
@@ -2513,7 +2548,26 @@ function comprimirArchivo(archivo, maxLado, calidad) {
         img.src = url;
     });
 }
+function volverAlOrigen(e) {
+    if (e) e.preventDefault();
 
+    // Si venimos de la página principal, volvemos ahí
+    const origen = sessionStorage.getItem('plan_estado_mapa') ? 'index.html' : null;
+    
+    if (origen) {
+        window.location.href = origen;
+        return;
+    }
+
+    // Si no hay memoria, usamos la página de donde vino
+    if (document.referrer && document.referrer.includes(window.location.host)) {
+        window.location.href = document.referrer;
+        return;
+    }
+
+    // Si todo falla, volvemos al inicio
+    window.location.href = 'index.html';
+}
 /* La sesion del conductor se resuelve en la base antes de arrancar */
 (async () => {
     await cargarSesionConductor();

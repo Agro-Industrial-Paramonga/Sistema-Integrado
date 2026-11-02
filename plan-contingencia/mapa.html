@@ -8,7 +8,26 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
+           
     <style>
+        .oculto { display: none !important; }
+         /* Ajustes para que el semáforo quepa perfecto al lado de los botones */
+        .barra #sem-luces {
+            padding: 4px 12px !important;
+            gap: 8px !important;
+        }
+        .barra #sem-luces .foco {
+            width: 22px !important;
+            height: 22px !important;
+        }
+        .barra .sem-wrap {
+            margin: 0 !important;
+            gap: 2px !important;
+        }
+        .barra .sem-wrap .sem-cap {
+            font-size: 0.55rem !important;
+            margin-bottom: 0 !important;
+        }
         /* Miniatura clickeable */
 .panel-foto-img { cursor: zoom-in; }
 
@@ -57,23 +76,43 @@
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; }
         #mapa { position: absolute; inset: 0; }
-        .barra {
-            position: absolute; top: 12px; left: 12px; right: 12px; z-index: 1000;
-            display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-            background: rgba(255,255,255,.96); border-radius: 14px; padding: 10px 12px;
-            box-shadow: 0 6px 24px rgba(15,23,42,.18);
+                .barra {
+    position: absolute; top: 12px; left: 12px; z-index: 1000;
+    background: #ffffff; border-radius: 12px; padding: 12px 16px;
+    box-shadow: 0 6px 24px rgba(15,23,42,.12);
+    border-top: 4px solid #dc2626;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: calc(100% - 24px);
+    width: max-content;
+}
+        .nivel-label {
+            display: block; font-size: 0.65rem; font-weight: 800; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
         }
-        .barra h1 { font-size: .95rem; margin: 0 12px 0 0; font-weight: 700; color: #0f172a; }
-        .barra button, .barra a {
-            border: 1px solid #e2e8f0; background: #fff; color: #334155; border-radius: 10px;
-            padding: 8px 12px; font-size: .82rem; font-weight: 600; cursor: pointer; text-decoration: none;
-            display: inline-flex; align-items: center; gap: 6px;
+        .barra-row {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 12px;
         }
-        .barra button:hover, .barra a:hover { background: #f1f5f9; }
-        .barra button.activo { background: #dcfce7; border-color: #86efac; color: #166534; }
-        .barra .sep { flex: 1; }
-        .barra label { font-size: .72rem; color: #64748b; display: flex; align-items: center; gap: 6px; }
-        .estado { font-size: .75rem; color: #64748b; }
+        .barra h1 {
+            font-size: 1.05rem; margin: 0; font-weight: 700; color: #0f172a;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .barra h1 i { color: #16a34a; font-size: 1.1rem; }
+        .barra-sub { font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0; }
+        
+        .btn-tool {
+            border: 1px solid #e2e8f0; background: #fff; color: #475569;
+            border-radius: 8px; padding: 8px 14px; font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            text-decoration: none; transition: all 0.2s;
+        }
+        .btn-tool:hover { background: #f8fafc; border-color: #cbd5e1; }
+        
+        /* Colores específicos de los botones */
+        #btn-editar-puntos { border-color: #c7d2fe; background: #eef2ff; color: #4338ca; }
+        #btn-compuertas { border-color: #bae6fd; background: #f0f9ff; color: #0284c7; }
+        
+        .estado { font-size: 0.78rem; color: #64748b; font-weight: 600; }
         .leyenda {
             position: absolute; bottom: 14px; left: 12px; z-index: 1000;
             background: rgba(255,255,255,.95); border-radius: 12px; padding: 10px 12px;
@@ -115,9 +154,10 @@
         .pc-color.activo { box-shadow: 0 0 0 2px #0f172a; }
 
         /* En modo edición la barra muestra solo el editor */
-        .barra.editando > *:not(#editor-controles):not(#btn-guardar-editor):not(#btn-guardar):not(#btn-editar-puntos):not(#btn-ajustar) {
-            display: none !important;
-        }
+        /* Ocultar todo lo que no se necesita en modo edición */
+.barra.editando .ocultar-en-edicion {
+    display: none !important;
+}
         .barra.editando #editor-controles { flex: 1 1 auto; }
         .barra.editando #btn-borrar-ed { margin-left: auto; }
 
@@ -447,47 +487,75 @@
     <div id="mapa"></div>
     <div id="sin-acceso" style="display:none;position:absolute;inset:0;background:#f8fafc;z-index:1500;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;"><div><h2 style="color:#0f172a">Acceso restringido</h2><p style="color:#64748b;max-width:420px">Este mapa es solo para la Gerencia de Campo, el gerente de cada gerencia y Seguridad Industrial.</p><a href="index.html" style="color:#16a34a;font-weight:700">Volver</a></div></div>
 
-    <div class="barra">
-                <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
-        <div class="tabs-capas" style="display:flex;gap:8px;width:100%;margin-bottom:4px;">
-            <button type="button" class="tab-capa activo" data-capa="canales" onclick="mostrarCapa('canales')">Seguimiento de maquinarias</button>
-            <button type="button" class="tab-capa" data-capa="puntos" onclick="mostrarCapa('puntos')">Puntos críticos para disponibilidad de maquinarias</button>
+                                   <div class="barra">
+        <!-- ================= FILA SUPERIOR: Título + Semáforo (Izq) y Unidades (Der) ================= -->
+        <div class="ocultar-en-edicion" style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+            
+            <!-- Izquierda: Título y Semáforo -->
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div>
+                    <h1 style="margin: 0; font-size: 0.95rem;"><i class="fas fa-map-location-dot"></i> Mapa de canales y unidades</h1>
+                    <p class="barra-sub" style="margin: 2px 0 0 0; font-size: 0.65rem;">Visualización y control del mapa</p>
+                </div>
+                
+                <!-- EL SEMÁFORO AQUÍ, AL LADO DEL TÍTULO -->
+                <div style="display: flex; align-items: center;">
+                    <span class="sep"></span>
+                </div>
+            </div>
+
+            <!-- Derecha: Cantidad de unidades (alineado arriba a la derecha) -->
+            <span class="estado" id="estado" style="font-size: 0.75rem; white-space: nowrap; margin-left: auto; margin-top: -6px; align-self: flex-start;">Cargando…</span>
         </div>
-                <h1><i class="fas fa-map-location-dot" style="color:#16a34a"></i> Mapa de canales y unidades</h1>
-        <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
-        <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
-                                <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981;"><i class="fas fa-floppy-disk"></i> Guardar</button>
-        <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;border-color:#c7d2fe;background:#eef2ff;color:#3730a3;"><i class="fas fa-pen-ruler"></i> Editar</button>
-        <button id="btn-compuertas" onclick="pcAbrir()" style="display:none;border-color:#bae6fd;background:#f0f9ff;color:#0e7490;"><i class="fas fa-water"></i> Compuertas</button>
-        <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
-            <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed"><i class="fas fa-location-dot"></i> Punto</button>
-            <button data-modo="linea" onclick="setModoEditor('linea')" class="btn-modo-ed"><i class="fas fa-draw-polygon"></i> Línea</button>
-            <span id="paleta-linea" style="display:none;gap:5px;align-items:center;">
-                <button type="button" class="pc-color activo" data-color="#06b6d4" onclick="setColorLinea('#06b6d4')" title="Turquesa" style="background:#06b6d4"></button>
-                <button type="button" class="pc-color" data-color="#dc2626" onclick="setColorLinea('#dc2626')" title="Rojo" style="background:#dc2626"></button>
-                <button type="button" class="pc-color" data-color="#eab308" onclick="setColorLinea('#eab308')" title="Amarillo" style="background:#eab308"></button>
-                <button type="button" class="pc-color" data-color="#16a34a" onclick="setColorLinea('#16a34a')" title="Verde" style="background:#16a34a"></button>
-                <button type="button" class="pc-color" data-color="#2563eb" onclick="setColorLinea('#2563eb')" title="Azul" style="background:#2563eb"></button>
-                <button type="button" class="pc-color" data-color="#0f172a" onclick="setColorLinea('#0f172a')" title="Negro" style="background:#0f172a"></button>
+
+                <!-- ================= FILA INFERIOR: Volver y herramientas ================= -->
+        <div class="ocultar-en-edicion" style="display: flex; gap: 10px; align-items: center; width: 100%; border-top: 1px solid #e2e8f0; padding-top: 10px; flex-wrap: wrap;">
+            
+            <!-- Botón Volver -->
+            <a href="#" onclick="volverAlOrigen(event)" class="btn-tool" style="padding: 6px 12px;">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+
+            <!-- Botón Editar -->
+            <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none; padding: 6px 10px;" class="btn-tool"><i class="fas fa-pen-ruler"></i> Editar</button>
+            
+            <!-- Botón Compuertas -->
+            <button id="btn-compuertas" onclick="pcAbrir()" style="display:none; padding: 6px 10px;" class="btn-tool ocultar-en-edicion"><i class="fas fa-water"></i> Compuertas</button>
+
+            <!-- Botón de Opacidad -->
+            <div class="ocultar-en-edicion" style="display:flex; align-items:center; gap:6px;">
+                <button id="btn-toggle-opacidad" class="btn-tool" style="padding: 6px 10px;">
+                    <i class="fas fa-adjust"></i> Opacidad
+                </button>
+                <div id="contenedor-opacidad" class="oculto" style="display:flex; align-items:center;">
+                    <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)" style="width:70px; accent-color: #3b82f6;">
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= FILA DE HERRAMIENTAS (Se muestra solo al editar) ================= -->
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c; padding: 6px 10px;" class="btn-tool ocultar-en-edicion"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
+            <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none; padding: 6px 10px;" class="btn-tool"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
+            <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;" class="btn-tool"><i class="fas fa-floppy-disk"></i> Guardar</button>
+            <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;" class="btn-tool"><i class="fas fa-floppy-disk"></i> Guardar</button>
+
+            <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
+                <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-location-dot"></i> Punto</button>
+                <button data-modo="linea" onclick="setModoEditor('linea')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-draw-polygon"></i> Línea</button>
+                <span id="paleta-linea" style="display:none;gap:5px;align-items:center;">
+                    <button type="button" class="pc-color activo" data-color="#06b6d4" onclick="setColorLinea('#06b6d4')" title="Turquesa" style="background:#06b6d4"></button>
+                    <button type="button" class="pc-color" data-color="#dc2626" onclick="setColorLinea('#dc2626')" title="Rojo" style="background:#dc2626"></button>
+                    <button type="button" class="pc-color" data-color="#eab308" onclick="setColorLinea('#eab308')" title="Amarillo" style="background:#eab308"></button>
+                    <button type="button" class="pc-color" data-color="#16a34a" onclick="setColorLinea('#16a34a')" title="Verde" style="background:#16a34a"></button>
+                    <button type="button" class="pc-color" data-color="#2563eb" onclick="setColorLinea('#2563eb')" title="Azul" style="background:#2563eb"></button>
+                    <button type="button" class="pc-color" data-color="#0f172a" onclick="setColorLinea('#0f172a')" title="Negro" style="background:#0f172a"></button>
+                </span>
+                <button onclick="cerrarZona()"  id="btn-cerrar-zona" style="display:none;background:#0ea5e9;color:#fff;border-color:#0ea5e9; padding: 6px 10px;">Cerrar zona</button>
+                <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;">Terminar línea</button>
+                <button data-modo="borrar" id="btn-borrar-ed" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c; padding: 6px 10px;"><i class="fas fa-eraser"></i> Borrar</button>
             </span>
-            <button onclick="cerrarZona()"  id="btn-cerrar-zona" style="display:none;background:#0ea5e9;color:#fff;border-color:#0ea5e9;">Cerrar zona</button>
-            <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981;">Terminar línea</button>
-            <button type="button" id="btn-unidad" onclick="alternarUnidad()" class="btn-modo-ed"><i class="fas fa-tractor"></i> Unidad</button>
-            <span id="ctrl-maquina" style="display:none;gap:6px;align-items:center;">
-                <select id="sel-maquina" style="border:1px solid #e2e8f0;border-radius:10px;padding:7px 10px;font-size:.76rem;"></select>
-                <button onclick="setModoEditor('maquina')" data-modo="maquina" class="btn-modo-ed"><i class="fas fa-tractor"></i> Colocar</button>
-                <label style="font-size:.7rem;color:#64748b;display:flex;align-items:center;gap:5px;">Tamaño
-                    <input id="tamano-maquina" type="range" min="20" max="90" value="40" oninput="cambiarTamanoMaquinas(this.value)">
-                </label>
-            </span>
-            <button data-modo="borrar" id="btn-borrar-ed" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c;"><i class="fas fa-eraser"></i> Borrar</button>
-        </span>
-        <button onclick="centrarEnDatos()"><i class="fas fa-location-crosshairs"></i> Ver unidades</button>
-                <label>Opacidad <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)"></label>
-        <span class="sep"></span>
-        <span class="estado" id="estado">Cargando…</span>
-        <a href="index.html"><i class="fas fa-arrow-left"></i> Volver</a>
-    </div>
+        </div>
 
     <div class="leyenda" id="leyenda-sim" style="display:none">
         <strong>Simulación</strong><br>
@@ -557,5 +625,30 @@
     <script src="mapa.js?v=59"></script>
     <script src="compuertas.js?v=7"></script>
     <script src="semaforo.js?v=8"></script>
+        <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnOpacidad = document.getElementById('btn-toggle-opacidad');
+            const contenedorOpacidad = document.getElementById('contenedor-opacidad');
+
+            if (btnOpacidad && contenedorOpacidad) {
+                // 1. Abrir/Cerrar al dar clic en el botón
+                btnOpacidad.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Evita que el clic se confunda con un clic afuera
+                    contenedorOpacidad.classList.toggle('oculto');
+                });
+
+                // 2. Cerrar al dar clic en cualquier parte de la pantalla
+                document.addEventListener('click', (e) => {
+                    // Si el panel está abierto (no tiene la clase 'oculto')
+                    if (!contenedorOpacidad.classList.contains('oculto')) {
+                        // Y si el clic NO fue dentro del panel y NO fue en el botón
+                        if (!contenedorOpacidad.contains(e.target) && !btnOpacidad.contains(e.target)) {
+                            contenedorOpacidad.classList.add('oculto'); // Lo cerramos
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
