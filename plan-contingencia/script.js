@@ -424,9 +424,9 @@ function renderFotosModal() {
     const info  = document.getElementById('fotos-info');
 
     const btnSubir = document.querySelector('#fotos-toolbar .btn-subir-foto');
-    if (btnSubir) {
-        btnSubir.style.display = esVistaCompleta() ? 'none' : 'inline-flex';
-    }
+if (btnSubir) {
+    btnSubir.style.display = esVistaCompleta() ? 'none' : 'inline-flex'; // 👈 Cambiado de nuevo a esVistaCompleta
+}
 
     info.textContent = fotos.length === 0
         ? 'Sin fotos'
@@ -504,10 +504,10 @@ async function subirFotoSeleccionada(event) {
         return;
     }
 
-    if (esVistaCompleta()) {
-        event.target.value = '';
-        return;
-    }
+    if (esVistaCompleta()) { // 👈 Cambiado de nuevo a esVistaCompleta
+    event.target.value = '';
+    return;
+}
 
     const { tabla, medidaId } = fotosContexto;
     if (!tabla || !medidaId) {
