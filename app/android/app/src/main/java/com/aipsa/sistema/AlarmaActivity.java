@@ -47,7 +47,7 @@ public class AlarmaActivity extends Activity {
     public static final int ID_NOTIFICACION = 1001;
 
     /** Cada cuantos milisegundos se repite el aviso hablado. */
-    private static final long REPETIR_VOZ_MS = 12000;
+    private static final long REPETIR_VOZ_MS = 5000;
 
     private MediaPlayer reproductor;
     private AudioTrack pistaSirena;
@@ -57,11 +57,11 @@ public class AlarmaActivity extends Activity {
     private boolean vozLista = false;
     private String textoParaVoz = "";
     private final Handler manejador = new Handler(Looper.getMainLooper());
-    private final Runnable repetirVoz = new Runnable() {
+            private final Runnable repetirVoz = new Runnable() {
         @Override
         public void run() {
             hablar();
-            manejador.postDelayed(this, REPETIR_VOZ_MS);
+            // Ya NO ponemos aquí el postDelayed, se lo dejamos al sistema
         }
     };
 
@@ -81,32 +81,36 @@ public class AlarmaActivity extends Activity {
                 | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                 | WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
 
-                String titulo = getIntent().getStringExtra("titulo");
+                        String titulo = getIntent().getStringExtra("titulo");
         String cuerpo = getIntent().getStringExtra("cuerpo");
+        
+        // 👇 CREAMOS LA VARIABLE DEL COLOR (por defecto rojo) 👇
+        String colorFondo = "#B91C1C"; 
 
-        // 👇 CONFIGURACIÓN DE TEXTOS PARA CADA NIVEL 👇
         if (titulo != null && titulo.contains("VERDE")) {
             titulo = "MONITOREO DIARIO"; 
             cuerpo = "Estado de emergencia declarado a verde por MELGAR BELMONT JOSE MARIANO, realizar un monitoreo diario.";
+            colorFondo = "#16A34A"; // 🟢 Verde
             
         } else if (titulo != null && titulo.contains("AMARILLO")) {
             titulo = "Semáforo: AMARILLO";
             cuerpo = "José Mariano Melgar Belmont ha declarado el estado de emergencia en nivel AMARILLO. Se dispone el monitoreo constante de quebradas y la preparación inmediata de maquinaria y equipos.";
+            colorFondo = "#EAB308"; // 🟡 Ámbar / Amarillo
             
         } else if (titulo != null && titulo.contains("ROJO")) {
             titulo = "Semáforo: ROJO";
             cuerpo = "José Mariano Melgar Belmont ha declarado el Estado de Emergencia en Nivel ROJO. Se solicita ejecutar inmediatamente las siguientes acciones: cierre de bocatomas, apertura de compuertas, paralización total de actividades, movilización de maquinarias, cierre del APT y contención en las accesos y puertas.";
-            
+            colorFondo = "#B91C1C"; // 🔴 Rojo
         } else {
-            // Texto de respaldo por si llega una alerta sin nivel
+            // Texto de respaldo
             if (titulo == null || titulo.trim().isEmpty()) titulo = "ALERTA DE HUAYCO";
             if (cuerpo == null || cuerpo.trim().isEmpty()) {
                 cuerpo = "Se ha autorizado el inicio de los planes de accion.";
             }
         }
-        // 👆 FIN DE LA CONFIGURACIÓN 👆
 
-        setContentView(construirVista(titulo, cuerpo));
+        // 👇 LE PASAMOS EL COLOR A LA VISTA 👇
+        setContentView(construirVista(titulo, cuerpo, colorFondo));
 
         // La pantalla ya esta abierta: se corta el tono de la notificacion
         // para que solo suene la sirena (evita audio duplicado).
@@ -123,13 +127,18 @@ public class AlarmaActivity extends Activity {
         iniciarVoz(titulo, cuerpo);
     }
 
-    private View construirVista(String titulo, String cuerpo) {
+           // 👇 Recibe el parámetro colorFondo 👇
+    private View construirVista(String titulo, String cuerpo, String colorFondo) {
         LinearLayout raiz = new LinearLayout(this);
         raiz.setOrientation(LinearLayout.VERTICAL);
-        raiz.setBackgroundColor(Color.parseColor("#B91C1C"));
+        
+        // 👇 Aplica el color al fondo 👇
+        raiz.setBackgroundColor(Color.parseColor(colorFondo)); 
+        
         raiz.setGravity(Gravity.CENTER);
         raiz.setPadding(56, 56, 56, 56);
 
+        // 1. Ícono de advertencia
         TextView icono = new TextView(this);
         icono.setText("\u26A0");
         icono.setTextSize(80);
@@ -137,6 +146,7 @@ public class AlarmaActivity extends Activity {
         icono.setTextColor(Color.WHITE);
         raiz.addView(icono);
 
+        // 2. Título
         TextView tvTitulo = new TextView(this);
         tvTitulo.setText(titulo);
         tvTitulo.setTextSize(30);
@@ -146,6 +156,7 @@ public class AlarmaActivity extends Activity {
         tvTitulo.setPadding(0, 28, 0, 18);
         raiz.addView(tvTitulo);
 
+        // 3. Mensaje
         TextView tvCuerpo = new TextView(this);
         tvCuerpo.setText(cuerpo);
         tvCuerpo.setTextSize(18);
@@ -153,6 +164,7 @@ public class AlarmaActivity extends Activity {
         tvCuerpo.setGravity(Gravity.CENTER);
         raiz.addView(tvCuerpo);
 
+        // 4. Botón
         Button boton = new Button(this);
         boton.setText("DETENER");
         boton.setTextSize(26);
@@ -162,7 +174,10 @@ public class AlarmaActivity extends Activity {
         params.setMargins(0, 72, 0, 0);
         boton.setLayoutParams(params);
         boton.setBackgroundColor(Color.WHITE);
-        boton.setTextColor(Color.parseColor("#B91C1C"));
+        
+        // 👇 El texto del botón también cambia al color del fondo 👇
+        boton.setTextColor(Color.parseColor(colorFondo)); 
+        
         boton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -300,7 +315,7 @@ public class AlarmaActivity extends Activity {
         textoParaVoz = limpiarParaVoz(titulo + ". " + cuerpo);
         if (textoParaVoz.isEmpty()) return;
 
-        voz = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+                voz = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int estado) {
                 if (estado != TextToSpeech.SUCCESS || voz == null) return;
@@ -320,13 +335,20 @@ public class AlarmaActivity extends Activity {
 
                 voz.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override public void onStart(String id) { }
-                    @Override public void onDone(String id) { restaurarVolumen(); }
-                    @Override public void onError(String id) { restaurarVolumen(); }
+                    @Override public void onDone(String id) { 
+                        restaurarVolumen(); 
+                        // 👇 Se repite solo cuando termina de hablar 👇
+                        manejador.postDelayed(repetirVoz, REPETIR_VOZ_MS);
+                    }
+                    @Override public void onError(String id) { 
+                        restaurarVolumen(); 
+                    }
                 });
 
+                // 👇 ESTAS DOS LÍNEAS TE FALTABAN Y SON VITALES 👇
                 vozLista = true;
-                hablar();
-                manejador.postDelayed(repetirVoz, REPETIR_VOZ_MS);
+                hablar(); 
+                // 👆 SIN ESTO, NO HABLA 👆
             }
         });
     }
