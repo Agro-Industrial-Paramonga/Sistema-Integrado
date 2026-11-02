@@ -851,11 +851,23 @@ async function entrarApp() {
     mostrarBotonMapa();
 
        // Restaurar la vista en la que estaba el usuario (si recargó la página)
-    const st = history.state || { v: 'home' };
+        const st = history.state || { v: 'home' };
+    let nivelSem = 'verde';
+    try {
+        const sem = JSON.parse(localStorage.getItem('sem_estado') || 'null');
+        if (sem && sem.nivel) nivelSem = sem.nivel;
+    } catch(e) {}
+
     if (st.v === 'seccion' && st.s) {
         _verSeccion(st.s);
     } else if (st.v === 'plan') {
-        _verPlan();
+        // Si iba al plan pero el semáforo está en ROJO, lo manda a durante
+        if (nivelSem === 'rojo') {
+            _verSeccion('durante');
+            try { history.pushState({ v: 'seccion', s: 'durante' }, ''); } catch (e) {}
+        } else {
+            _verPlan();
+        }
     } else {
         _verInicio();
     }
@@ -1096,8 +1108,22 @@ window.addEventListener('popstate', (e) => {
 });
 
 function abrirPlan() {
-    _verPlan();
-    try { history.pushState({ v: 'plan' }, ''); } catch (e) {}
+    // Revisar el estado actual del semáforo
+    let nivel = 'verde';
+    try {
+        const sem = JSON.parse(localStorage.getItem('sem_estado') || 'null');
+        if (sem && sem.nivel) nivel = sem.nivel;
+    } catch(e) {}
+
+    if (nivel === 'rojo') {
+        // Si está en ROJO, salta directo a Medidas Durante
+        _verSeccion('durante');
+        try { history.pushState({ v: 'seccion', s: 'durante' }, ''); } catch (e) {}
+    } else {
+        // Si está en verde o amarillo, va al menú normal
+        _verPlan();
+        try { history.pushState({ v: 'plan' }, ''); } catch (e) {}
+    }
 }
 
 function volverInicio() {
@@ -1595,28 +1621,6 @@ async function togglePlanesAccion() {
                 .update({ estado: 'iniciado', updated_at: new Date().toISOString() })
                 .eq('id', m.id);
         }
-
-        // ⬇️ NUEVO: enviar notificación push a todos los encargados
-        try {
-            const resp = await fetch(`${SUPABASE_URL_FUNCTIONS}/send-push-notification`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: '🚨 ALERTA DE HUAYCO',
-                    body: 'Gerencia General ha autorizado el inicio de los planes de acción.',
-                    tipo: 'jefe'
-                })
-            });
-            if (resp.ok) {
-                console.log('[FCM] Alertas push enviadas.');
-            } else {
-                console.error('[FCM] Error al enviar alertas:', await resp.text());
-            }
-        } catch (err) {
-            console.error('[FCM] Error de conexión:', err);
-        }
-        // ⬆️ FIN NUEVO
-
     } else {
         const ok = await mostrarConfirm(
             `Las ${todos.length} medidas volverán a estado "Bloqueado". ¿Confirmas?`,
@@ -2947,3 +2951,39 @@ function toggleSegmento(btn) {
         next = next.nextElementSibling;
     }
 }
+/* ============================================================
+   REGLA: DESBLOQUEAR MEDIDAS DURANTE SI EL SEMÁFORO ESTÁ EN ROJO
+   ============================================================ */
+window.addEventListener('sem:nivel', async function (ev) {
+    const data = (ev && ev.detail) || {};
+    const nivel = data.nivel || 'verde';
+
+    // Si no estamos en la pantalla de medidas, no hace nada
+    if (!medidasDuranteCache || medidasDuranteCache.length === 0) return;
+
+    try {
+        if (nivel === 'rojo') {
+            // Si está en ROJO, quitamos el candado
+            const hayBloqueados = medidasDuranteCache.some(m => m.estado === 'bloqueado');
+            if (hayBloqueados) {
+                await db.from('medidas_durante')
+                    .update({ estado: 'iniciado', updated_at: new Date().toISOString() })
+                    .eq('estado', 'bloqueado');
+                
+                cargarMedidasDurante(); // Refresca la pantalla
+            }
+        } else {
+            // Si el semáforo cambia a verde o amarillo, les ponemos el candado otra vez
+            const hayDesbloqueados = medidasDuranteCache.some(m => m.estado !== 'bloqueado');
+            if (hayDesbloqueados) {
+                await db.from('medidas_durante')
+                    .update({ estado: 'bloqueado', updated_at: new Date().toISOString() })
+                    .neq('estado', 'bloqueado');
+                
+                cargarMedidasDurante(); // Refresca la pantalla
+            }
+        }
+    } catch (e) {
+        console.error('Error al cambiar el estado de las medidas:', e);
+    }
+});
