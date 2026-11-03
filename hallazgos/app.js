@@ -310,11 +310,10 @@ async function cargarPersonasDeGerencia(gerenciaKey) {
 
     if (error) { console.error(error); return; }
 
-    selPersona.disabled = false;
+        selPersona.disabled = false;
     data.forEach(p => {
-        // Solo le pone "(Gerente)" si es Edwin Borja, o si el nombre no es Helmer.
-const label = (p.es_gerente && !p.nombre.toUpperCase().includes('HELMER')) ? `${p.nombre} (Gerente)` : p.nombre;
-        selPersona.innerHTML += `<option value="${p.nombre}">${label}</option>`;
+        // Eliminamos la distinción visual de "(Gerente)"
+        selPersona.innerHTML += `<option value="${p.nombre}">${p.nombre}</option>`;
     });
 }
 
