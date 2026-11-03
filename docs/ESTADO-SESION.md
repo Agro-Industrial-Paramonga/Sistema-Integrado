@@ -207,3 +207,19 @@ repo es el mismo que está publicado; si se sube desde la CLI, la versión sube 
 
 **SQL aplicado:** `plan-contingencia/sql/alarmas_silenciadas.sql` (idempotente).
 Para dejar a todos recibiendo: `delete from alarmas_silenciadas;`.
+
+---
+
+## 12. Fotos y ficha de puntos para Gerencia de Campo (3-nov)
+
+- `puedeEditarPunto()` (mapa.js): Gerencia de Campo (`gerencia_key` que empieza
+  con "GERENCIA DE CAMPO", rol `gerente_campo` o sección/área con ese texto) y
+  Seguridad Industrial. La ficha del punto abre **ya editable**, sin encender el
+  modo edición del mapa: mover puntos, dibujar y las máquinas siguen siendo solo
+  de Seguridad Industrial (`puedeEditarMapa()`).
+- La galería acepta un cuarto argumento `puedeSubir`; **subir** foto depende del
+  contexto y **borrar** (la ×) sigue siendo solo de Seguridad Industrial.
+- Las compuertas no cambian: su ficha sigue pidiendo *Editar*.
+- RLS: `mapa_puntos` y `mapa_fotos` tienen política `using(true)`, así que el
+  permiso es de interfaz, no de base.
+

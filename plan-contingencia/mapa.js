@@ -164,6 +164,23 @@ function esMovil() {
     return window.innerWidth < 900 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+/* Editar la ficha del punto (responsable, equipos) y subir sus fotos.
+   Se abre a Gerencia de Campo y a Seguridad Industrial, sin pasar por el
+   modo edición del mapa: mover puntos, dibujar y las máquinas siguen
+   siendo solo de Seguridad Industrial. */
+function puedeEditarPunto() {
+    if (sesionConductor()) return false;
+    if (puedeEditarMapa()) return true;
+    const u = usuarioPlan();
+    if (!u) return false;
+    const clave = normalizar(u.gerencia_key || '');
+    const rol = normalizar(u.rol || '');
+    const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
+    return clave.indexOf('gerencia de campo') === 0
+        || rol === 'gerente_campo'
+        || texto.indexOf('gerencia de campo') !== -1;
+}
+
 /* ------------------------------------------------------------
    Fondo del mapa
    Sentinel-2 cloudless (EOX, CC BY 4.0) es el fondo normal: libre, 10 m por
@@ -2223,22 +2240,27 @@ async function fotosDe(destino) {
 /* Guardamos las fotos de la galería abierta para el lightbox */
 let fotosGaleriaActual = [];
 
-function htmlGaleria(fotos, editable, destino) {
+function htmlGaleria(fotos, editable, destino, puedeSubir) {
     fotosGaleriaActual = fotos || [];
+    // Subir fotos: lo que diga el contexto (o el modo edición).
+    // Borrar fotos: solo Seguridad Industrial.
+    const subir = (puedeSubir === undefined) ? !!editable : !!puedeSubir;
+    const borrar = !!editable && puedeEditarMapa();
+
     if (!fotos.length) {
         return '<p class="panel-mapa-vacio">Todavía no hay fotos aquí.</p>' +
-            (editable ? bloqueSubirFoto(destino) : '');
+            (subir ? bloqueSubirFoto(destino) : '');
     }
     const celdas = fotos.map((f, i) =>
         '<figure class="panel-foto">' +
         '<img src="' + f.url + '" alt="' + escaparHtml(f.nombre || 'Foto') +
             '" loading="lazy" class="panel-foto-img" data-idx="' + i + '">' +
-        (editable ? '<button type="button" class="panel-foto-x" data-id="' + f.id +
+        (borrar ? '<button type="button" class="panel-foto-x" data-id="' + f.id +
             '" data-path="' + escaparHtml(f.storage_path) + '" aria-label="Quitar foto">&times;</button>' : '') +
         '</figure>'
     ).join('');
     return '<div class="panel-fotos">' + celdas + '</div>' +
-        (editable ? bloqueSubirFoto(destino) : '');
+        (subir ? bloqueSubirFoto(destino) : '');
 }
 let lightboxIdx = 0;
 let panelFichaEnEdicion = false;
@@ -2397,12 +2419,15 @@ async function abrirGaleriaFotos(destino) {
 }
 
 function abrirFichaPunto(p, esEdicion = false) {
-    panelFichaEnEdicion = esEdicion;
+    // Gerencia de Campo y Seguridad Industrial editan la ficha sin pasar por
+    // el modo edición del mapa.
+    const editar = esEdicion || puedeEditarPunto();
+    panelFichaEnEdicion = editar;
     const numero = Number(p.orden) > 0 ? String(p.orden) : '';
     
-    // Si NO es edición, bloqueamos los inputs
-    const dis = esEdicion ? '' : 'readonly';
-    const disStyle = esEdicion ? '' : 'style="background:#f8fafc; color:#64748b; cursor:default;"';
+    // Si NO hay permiso, bloqueamos los inputs
+    const dis = editar ? '' : 'readonly';
+    const disStyle = editar ? '' : 'style="background:#f8fafc; color:#64748b; cursor:default;"';
 
     const cuerpo =
         '<div class="panel-campo"><label>Número del punto</label>' +
@@ -2421,7 +2446,7 @@ function abrirFichaPunto(p, esEdicion = false) {
     if (p.responsable) titulo += ' — ' + p.responsable;
 
     let botones = '';
-    if (esEdicion) {
+    if (editar) {
         botones = '<button type="button" class="panel-btn principal" id="ficha-guardar">Guardar</button>' +
                   '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
     } else {
@@ -2442,10 +2467,11 @@ function abrirFichaPunto(p, esEdicion = false) {
         });
     }
 
-    // Botón Guardar: solo se crea si estamos en modo edición
+    // Botón Guardar: solo se crea si la ficha se abrió editable
     const btnGuardar = capa.querySelector('#ficha-guardar');
     if (btnGuardar) {
         btnGuardar.addEventListener('click', async () => {
+            if (!puedeEditarPunto()) { avisar('No tienes permiso para editar este punto', 'warn'); return; }
             const num = parseInt(capa.querySelector('#ficha-numero').value, 10);
             const responsable = capa.querySelector('#ficha-responsable').value.trim();
             const equipos = capa.querySelector('#ficha-equipos').value.trim();
@@ -2474,7 +2500,8 @@ function abrirFichaPunto(p, esEdicion = false) {
     Promise.all([fotosDe({ tipo: 'punto', id: p.id })]).then(([fotos]) => {
         const caja = capa.querySelector('#ficha-fotos');
         if (!caja) return;
-        caja.innerHTML = htmlGaleria(fotos, esEdicion, { tipo: 'punto', id: p.id });
+        caja.innerHTML = htmlGaleria(fotos, editar, { tipo: 'punto', id: p.id },
+            editar || puedeEditarPunto());
     });
 }
 
@@ -2592,7 +2619,9 @@ async function refrescarFotosDe(destino) {
     if (!caja) return;
     const fotos = await fotosDe(destino);
     // Usa la variable local para saber si estamos editando
-    caja.innerHTML = htmlGaleria(fotos, panelFichaEnEdicion, destino);
+    const subir = panelFichaEnEdicion
+        || (destino && destino.tipo === 'punto' && puedeEditarPunto());
+    caja.innerHTML = htmlGaleria(fotos, panelFichaEnEdicion, destino, subir);
 }
 
 document.addEventListener('click', async (ev) => {
