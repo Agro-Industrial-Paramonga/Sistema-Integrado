@@ -608,6 +608,17 @@ public class MainActivity extends BridgeActivity {
             callbackUbicacion = null;
             origenUbicacion = null;
         }
+
+        // Resultado del permiso de camara para la foto nativa.
+        if (requestCode == CODIGO_CAMARA) {
+            boolean concedido = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (concedido) {
+                abrirCamara();
+            } else {
+                respuestaCamara("permiso");
+            }
+        }
     }
 
     @Override
@@ -985,21 +996,6 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "abrirCamara", e);
             respuestaCamara("error:" + e.getMessage());
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == CODIGO_CAMARA) {
-            boolean concedido = grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-            if (concedido) {
-                abrirCamara();
-            } else {
-                respuestaCamara("permiso");
-            }
         }
     }
 }
