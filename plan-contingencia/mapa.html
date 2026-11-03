@@ -481,6 +481,9 @@
             border: 1px dashed #94a3b8; color: #475569; font-size: .8rem; font-weight: 700;
         }
         .panel-subir input { display: none; }
+        /* Tres formas de elegir la foto: cámara, galería o archivos */
+        .foto-opciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+        .foto-opciones .panel-subir { flex: 1 1 30%; min-width: 92px; }
     </style>
 </head>
 <body>
@@ -622,7 +625,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
-    <script src="mapa.js?v=59"></script>
+    <script src="mapa.js?v=60"></script>
     <script src="compuertas.js?v=7"></script>
     <script src="semaforo.js?v=8"></script>
         <script>

@@ -2317,13 +2317,58 @@ document.addEventListener('keydown', (ev) => {
     else if (ev.key === 'ArrowRight') moverLightbox(1);
 });
 
+/* Tres formas de elegir la foto. Android ya no ofrece cámara cuando el
+   campo pide solo imágenes, así que cada opción tiene su propio input:
+   - capture  -> app de cámara (pide permiso la primera vez)
+   - image/*  -> selector de fotos del sistema
+   - * / *    -> administrador de archivos del teléfono */
+let camaraPendienteMapa = false;
+
 function bloqueSubirFoto(destino) {
-    return '<label class="panel-subir">' +
-        '<i class="fas fa-camera"></i> Tomar o elegir una foto' +
-        '<input type="file" accept="image/*" data-destino="' +
-        destino.tipo + ':' + destino.id + '">' +
-        '</label>';
+    const d = destino.tipo + ':' + destino.id;
+    return '<div class="foto-opciones">' +
+        '<label class="panel-subir" data-camara="1">' +
+        '<i class="fas fa-camera"></i> Cámara' +
+        '<input type="file" accept="image/*" capture="environment" data-destino="' + d + '">' +
+        '</label>' +
+        '<label class="panel-subir">' +
+        '<i class="fas fa-images"></i> Galería' +
+        '<input type="file" accept="image/*" data-destino="' + d + '">' +
+        '</label>' +
+        '<label class="panel-subir">' +
+        '<i class="fas fa-folder-open"></i> Archivos' +
+        '<input type="file" accept="*/*" data-destino="' + d + '">' +
+        '</label>' +
+        '</div>';
 }
+
+/* Si vuelve a la página sin haber elegido nada después de "Cámara",
+   el permiso está bloqueado: se ofrece abrir los ajustes. */
+document.addEventListener('click', (ev) => {
+    const lbl = ev.target && ev.target.closest ? ev.target.closest('label[data-camara]') : null;
+    if (!lbl) return;
+    camaraPendienteMapa = true;
+    setTimeout(() => { camaraPendienteMapa = false; }, 120000);
+});
+
+window.addEventListener('focus', () => {
+    if (!camaraPendienteMapa) return;
+    setTimeout(async () => {
+        if (!camaraPendienteMapa) return;
+        camaraPendienteMapa = false;
+        const nativo = !!(window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes);
+        if (!nativo) {
+            let estado = null;
+            try { estado = (await navigator.permissions.query({ name: 'camera' })).state; } catch (e) {}
+            if (estado !== 'denied') return;
+            avisar('El navegador no abrió la cámara. Revisa los permisos del sitio.', 'warn');
+            return;
+        }
+        if (confirm('Falta el permiso de cámara.\n\n¿Abrir los ajustes de la app para activarlo?')) {
+            try { window.AndroidUbicacion.abrirAjustes(); } catch (e) {}
+        }
+    }, 1200);
+});
 
 async function abrirGaleriaFotos(destino) {
     const capa = panelMapa(destino.titulo, '<p class="panel-mapa-vacio">Cargando fotos…</p>');
@@ -2452,6 +2497,7 @@ async function abrirFichaCompuerta(c, esEdicion = false) {
 document.addEventListener('change', async (ev) => {
     const input = ev.target;
     if (!input || !input.matches || !input.matches('input[data-destino]')) return;
+    camaraPendienteMapa = false;
     const archivo = input.files && input.files[0];
     if (!archivo) return;
     if (!archivo.type.startsWith('image/')) {

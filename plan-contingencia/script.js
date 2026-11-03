@@ -398,9 +398,60 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
     );
 }
 
+/* Elegir foto: cámara, galería o archivos.
+   Android ya no ofrece cámara cuando el campo pide solo imágenes,
+   así que cada opción tiene su propio input:
+   - camara   -> capture, abre la app de cámara (pide permiso la 1a vez)
+   - galeria  -> selector de fotos del sistema
+   - archivos -> administrador de archivos del teléfono */
+let fotoCamaraPendiente = false;
+
+function elegirFoto(modo) {
+    const id = modo === 'camara' ? 'foto-input-camara'
+        : modo === 'archivos' ? 'foto-input-archivos'
+            : 'foto-input-galeria';
+    const input = document.getElementById(id);
+    if (!input) return;
+    fotoCamaraPendiente = (modo === 'camara');
+    input.value = '';
+    input.click();
+}
+
+function avisarCamaraSinPermiso() {
+    const nativo = !!(window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes);
+    if (nativo) {
+        if (confirm('Falta el permiso de cámara.\n\n¿Abrir los ajustes de la app para activarlo?')) {
+            try { window.AndroidUbicacion.abrirAjustes(); } catch (e) {}
+        }
+        return;
+    }
+    mostrarAlerta('El navegador no abrió la cámara. Revisa los permisos del sitio.',
+        'Permiso de cámara', 'warn');
+}
+
+/* Si vuelve a la página sin haber elegido nada después de "Cámara",
+   el permiso está bloqueado: se ofrece abrir los ajustes. */
+window.addEventListener('focus', () => {
+    if (!fotoCamaraPendiente) return;
+    setTimeout(async () => {
+        if (!fotoCamaraPendiente) return;
+        fotoCamaraPendiente = false;
+        const nativo = !!(window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes);
+        if (!nativo) {
+            let estado = null;
+            try { estado = (await navigator.permissions.query({ name: 'camera' })).state; } catch (e) {}
+            if (estado !== 'denied') return;
+        }
+        avisarCamaraSinPermiso();
+    }, 1200);
+});
+
 function abrirModalFotos(tabla, medidaId) {
     fotosContexto = { tabla, medidaId };
-    document.getElementById('foto-input').value = '';
+    ['foto-input-camara', 'foto-input-galeria', 'foto-input-archivos'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+    });
 
     const tituloMap = { antes: 'Antes', durante: 'Durante', despues: 'Después' };
     document.getElementById('modal-fotos-title').textContent =
@@ -423,9 +474,9 @@ function renderFotosModal() {
     const grid  = document.getElementById('fotos-grid');
     const info  = document.getElementById('fotos-info');
 
-    const btnSubir = document.querySelector('#fotos-toolbar .btn-subir-foto');
-if (btnSubir) {
-    btnSubir.style.display = esVistaCompleta() ? 'none' : 'inline-flex'; // 👈 Cambiado de nuevo a esVistaCompleta
+    const opciones = document.getElementById('fotos-opciones');
+if (opciones) {
+    opciones.style.display = esVistaCompleta() ? 'none' : 'flex';
 }
 
     info.textContent = fotos.length === 0
@@ -495,6 +546,7 @@ async function comprimirImagen(file, maxWidth = 1600, calidad = 0.8) {
     });
 }
 async function subirFotoSeleccionada(event) {
+    fotoCamaraPendiente = false;
     const file = event.target.files[0];
     if (!file) return;
 

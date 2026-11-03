@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <link rel="manifest" href="./manifest.json">
@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=22">
+    <link rel="stylesheet" href="style.css?v=23">
      <script>
         // Si venimos del mapa, ocultamos la pantalla de inmediato para evitar el parpadeo
         if (sessionStorage.getItem('plan_estado_mapa')) {
@@ -682,10 +682,20 @@
             </div>
             <div class="modal-body">
                 <div class="fotos-toolbar" id="fotos-toolbar">
-                    <button type="button" class="btn-subir-foto btn-solo-area" onclick="document.getElementById('foto-input').click()">
-    <i class="fas fa-cloud-upload-alt"></i> Subir foto
-</button>
-                    <input type="file" id="foto-input" accept="image/*" style="display:none" onchange="subirFotoSeleccionada(event)">
+                    <div class="foto-opciones" id="fotos-opciones">
+                        <button type="button" class="btn-subir-foto btn-solo-area" onclick="elegirFoto('camara')">
+                            <i class="fas fa-camera"></i> Cámara
+                        </button>
+                        <button type="button" class="btn-subir-foto btn-solo-area" onclick="elegirFoto('galeria')">
+                            <i class="fas fa-images"></i> Galería
+                        </button>
+                        <button type="button" class="btn-subir-foto btn-solo-area" onclick="elegirFoto('archivos')">
+                            <i class="fas fa-folder-open"></i> Archivos
+                        </button>
+                        <input type="file" id="foto-input-camara" accept="image/*" capture="environment" style="display:none" onchange="subirFotoSeleccionada(event)">
+                        <input type="file" id="foto-input-galeria" accept="image/*" style="display:none" onchange="subirFotoSeleccionada(event)">
+                        <input type="file" id="foto-input-archivos" accept="*/*" style="display:none" onchange="subirFotoSeleccionada(event)">
+                    </div>
                     <span class="fotos-info" id="fotos-info"></span>
                 </div>
                 <div id="fotos-grid" class="fotos-grid"></div>
@@ -723,7 +733,7 @@
      <script src="./capacitor-push-notifications.js"></script>
      <script src="./capacitor-alarma.js"></script>
      <script src="turnos.js?v=2"></script>
-     <script src="script.js?v=63"></script>
+     <script src="script.js?v=64"></script>
      <script src="semaforo.js?v=8"></script>
 
 <!-- MODAL: CAMBIAR CONTRASEÑA -->

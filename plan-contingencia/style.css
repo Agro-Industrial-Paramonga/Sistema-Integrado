@@ -2090,6 +2090,18 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+/* Tres formas de elegir la foto: cámara, galería o archivos */
+.foto-opciones {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.foto-opciones .btn-subir-foto {
+    padding: 8px 14px;
+    font-size: 12.5px;
+}
+
 .fotos-info {
     font-size: 12.5px;
     color: var(--text-muted);
