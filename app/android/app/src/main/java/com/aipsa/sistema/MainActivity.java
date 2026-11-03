@@ -6,6 +6,8 @@ import com.getcapacitor.BridgeWebViewClient;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.GeolocationPermissions;
@@ -14,8 +16,15 @@ import android.webkit.JavascriptInterface;
 import android.provider.Settings;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 
 import androidx.activity.OnBackPressedCallback;
 
@@ -25,6 +34,13 @@ public class MainActivity extends BridgeActivity {
     private String origenUbicacion;
     private static final int CODIGO_UBICACION = 4711;
     private static final int CODIGO_NOTIFICACIONES = 4712;
+    private static final int CODIGO_CAMARA = 4713;
+
+    /* Camara nativa: el WebView ignora el atributo capture de los
+       <input type="file">, asi que la foto se toma aqui y se devuelve
+       a la pagina como data URL. */
+    private ActivityResultLauncher<Intent> camaraLauncher;
+    private File camaraArchivo;
 
     private boolean tienePermisoUbicacion() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -601,6 +617,28 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AlarmaPlugin.class);
         super.onCreate(savedInstanceState);
 
+        // Resultado de la foto tomada con la camara nativa.
+        camaraLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                resultado -> {
+                    String fin = "cancelado";
+                    if (resultado.getResultCode() == android.app.Activity.RESULT_OK
+                            && camaraArchivo != null && camaraArchivo.exists()) {
+                        try {
+                            byte[] bytes = leerArchivo(camaraArchivo);
+                            fin = "data:image/jpeg;base64,"
+                                    + Base64.encodeToString(bytes, Base64.NO_WRAP);
+                        } catch (Exception e) {
+                            fin = "error:" + e.getMessage();
+                        }
+                    }
+                    if (camaraArchivo != null) {
+                        try { camaraArchivo.delete(); } catch (Exception ignored) { }
+                        camaraArchivo = null;
+                    }
+                    respuestaCamara(fin);
+                });
+
         // Exigir ubicacion si hay un turno activo
         try { exigirUbicacionObligatoria(); } catch (Exception e) { e.printStackTrace(); }
 
@@ -665,6 +703,26 @@ public class MainActivity extends BridgeActivity {
                             Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                             i.setData(Uri.parse("package:" + getPackageName()));
                             startActivity(i);
+                        });
+                    }
+
+                    /* Foto con la camara del telefono. Devuelve el resultado
+                       a la pagina por window.__fotoCamara(...). */
+                    @JavascriptInterface
+                    public void tomarFoto() {
+                        runOnUiThread(() -> {
+                            try {
+                                if (ContextCompat.checkSelfPermission(MainActivity.this,
+                                        Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                                    ActivityCompat.requestPermissions(MainActivity.this,
+                                            new String[]{Manifest.permission.CAMERA}, CODIGO_CAMARA);
+                                    return;
+                                }
+                                abrirCamara();
+                            } catch (Exception e) {
+                                android.util.Log.e("MainActivity", "tomarFoto", e);
+                                respuestaCamara("error:" + e.getMessage());
+                            }
                         });
                     }
 
@@ -881,4 +939,68 @@ public class MainActivity extends BridgeActivity {
             e.printStackTrace();
         }
     }
+
+    /* ---------------- Camara nativa ---------------- */
+
+    private byte[] leerArchivo(File archivo) throws Exception {
+        FileInputStream entrada = new FileInputStream(archivo);
+        ByteArrayOutputStream salida = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int leidos;
+        while ((leidos = entrada.read(buffer)) > 0) {
+            salida.write(buffer, 0, leidos);
+        }
+        entrada.close();
+        return salida.toByteArray();
+    }
+
+    /** Devuelve el resultado a la pagina: data URL, "cancelado", "permiso"... */
+    private void respuestaCamara(String payload) {
+        final String dato = (payload == null) ? "cancelado" : payload;
+        runOnUiThread(() -> {
+            try {
+                if (getBridge() == null || getBridge().getWebView() == null) return;
+                String js = "window.__fotoCamara && window.__fotoCamara("
+                        + org.json.JSONObject.quote(dato) + ")";
+                getBridge().getWebView().evaluateJavascript(js, null);
+            } catch (Exception e) {
+                android.util.Log.e("MainActivity", "respuestaCamara", e);
+            }
+        });
+    }
+
+    private void abrirCamara() {
+        try {
+            camaraArchivo = File.createTempFile("foto", ".jpg", getCacheDir());
+            Uri destino = FileProvider.getUriForFile(this,
+                    getPackageName() + ".fileprovider", camaraArchivo);
+
+            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, destino);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            camaraLauncher.launch(intent);
+        } catch (android.content.ActivityNotFoundException e) {
+            respuestaCamara("sincamara");
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "abrirCamara", e);
+            respuestaCamara("error:" + e.getMessage());
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == CODIGO_CAMARA) {
+            boolean concedido = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (concedido) {
+                abrirCamara();
+            } else {
+                respuestaCamara("permiso");
+            }
+        }
+    }
 }
+

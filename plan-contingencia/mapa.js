@@ -2323,6 +2323,11 @@ document.addEventListener('keydown', (ev) => {
    - image/*  -> selector de fotos del sistema
    - * / *    -> administrador de archivos del teléfono */
 let camaraPendienteMapa = false;
+let destinoCamaraMapa = null;
+
+function camaraNativaMapa() {
+    return !!(window.AndroidUbicacion && window.AndroidUbicacion.tomarFoto);
+}
 
 function bloqueSubirFoto(destino) {
     const d = destino.tipo + ':' + destino.id;
@@ -2347,9 +2352,22 @@ function bloqueSubirFoto(destino) {
 document.addEventListener('click', (ev) => {
     const lbl = ev.target && ev.target.closest ? ev.target.closest('label[data-camara]') : null;
     if (!lbl) return;
+
+    // En la app se usa la camara nativa: el WebView ignora el atributo
+    // capture y terminaba abriendo la galeria. Se corta el label para
+    // que no abra tambien el selector.
+    if (camaraNativaMapa()) {
+        ev.preventDefault();
+        const input = lbl.querySelector('input[data-destino]');
+        const [tipo, id] = String(input ? input.dataset.destino : '').split(':');
+        destinoCamaraMapa = tipo ? { tipo: tipo, id: tipo === 'punto' ? id : Number(id) } : null;
+        try { window.AndroidUbicacion.tomarFoto(); } catch (e) { avisar('No se pudo abrir la cámara', 'warn'); }
+        return;
+    }
+
     camaraPendienteMapa = true;
     setTimeout(() => { camaraPendienteMapa = false; }, 120000);
-});
+}, true);
 
 window.addEventListener('focus', () => {
     if (!camaraPendienteMapa) return;
@@ -2500,25 +2518,54 @@ document.addEventListener('change', async (ev) => {
     camaraPendienteMapa = false;
     const archivo = input.files && input.files[0];
     if (!archivo) return;
-    if (!archivo.type.startsWith('image/')) {
-        avisar('Solo se permiten imágenes', 'warn');
-        input.value = '';
-        return;
-    }
     const [tipo, id] = String(input.dataset.destino).split(':');
     const destino = { tipo: tipo, id: tipo === 'punto' ? id : Number(id) };
-
     input.value = '';
+    await subirFotoArchivo(archivo, destino);
+});
+
+/* La app devuelve la foto tomada con la camara nativa (o el motivo). */
+window.__fotoCamara = function (payload) {
+    camaraPendienteMapa = false;
+    if (!payload || payload === 'cancelado') return;
+    if (payload === 'permiso') {
+        if (confirm('Falta el permiso de cámara.\n\n¿Abrir los ajustes de la app para activarlo?')) {
+            try { window.AndroidUbicacion.abrirAjustes(); } catch (e) {}
+        }
+        return;
+    }
+    if (payload === 'sincamara') { avisar('Este teléfono no tiene app de cámara', 'warn'); return; }
+    if (payload.indexOf('data:') !== 0) { avisar('No se pudo leer la foto', 'warn'); return; }
+    const destino = destinoCamaraMapa;
+    destinoCamaraMapa = null;
+    if (!destino || !destino.tipo) { avisar('Se perdió el destino de la foto', 'warn'); return; }
+    try {
+        const binario = atob(payload.split(',')[1]);
+        const bytes = new Uint8Array(binario.length);
+        for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+        const archivo = new File([bytes], 'camara_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+        subirFotoArchivo(archivo, destino);
+    } catch (e) {
+        console.error('camara', e);
+        avisar('No se pudo preparar la foto', 'warn');
+    }
+};
+
+async function subirFotoArchivo(archivo, destino) {
+    if (!archivo || !archivo.type.startsWith('image/')) {
+        avisar('Solo se permiten imágenes', 'warn');
+        return;
+    }
     avisar('Subiendo foto…', 'info');
     try {
         const comprimida = await comprimirArchivo(archivo);
-        const path = 'mapa/' + tipo + '/' + destino.id + '/' + Date.now() + '.jpg';
+        const path = 'mapa/' + destino.tipo + '/' + destino.id + '/' + Date.now() + '.jpg';
         const { error: errSubida } = await db.storage.from(BUCKET_FOTOS)
             .upload(path, comprimida, { cacheControl: '31536000', upsert: false });
         if (errSubida) throw errSubida;
 
         const fila = { nombre: archivo.name, storage_path: path, subido_por: nombreDeQuien() };
-        if (tipo === 'punto') fila.punto_id = destino.id; else fila.compuerta_id = destino.id;
+        if (destino.tipo === 'punto') fila.punto_id = destino.id; else fila.compuerta_id = destino.id;
         const { error: errInsert } = await db.from('mapa_fotos').insert(fila);
         if (errInsert) {
             await db.storage.from(BUCKET_FOTOS).remove([path]);
@@ -2530,7 +2577,7 @@ document.addEventListener('change', async (ev) => {
         console.error(e);
         avisar('No se pudo subir la foto: ' + (e.message || e), 'warn');
     }
-});
+}
 
 function nombreDeQuien() {
     const u = usuarioPlan();

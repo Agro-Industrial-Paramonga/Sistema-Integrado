@@ -406,16 +406,54 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
    - archivos -> administrador de archivos del teléfono */
 let fotoCamaraPendiente = false;
 
+function camaraNativaDisponible() {
+    return !!(window.AndroidUbicacion && window.AndroidUbicacion.tomarFoto);
+}
+
 function elegirFoto(modo) {
     const id = modo === 'camara' ? 'foto-input-camara'
         : modo === 'archivos' ? 'foto-input-archivos'
             : 'foto-input-galeria';
     const input = document.getElementById(id);
     if (!input) return;
+
+    // En la app se usa la camara nativa: el WebView ignora el atributo
+    // capture y terminaba abriendo la galeria.
+    if (modo === 'camara' && camaraNativaDisponible()) {
+        fotoCamaraPendiente = true;
+        try { window.AndroidUbicacion.tomarFoto(); } catch (e) { avisarCamaraSinPermiso(); }
+        return;
+    }
+
     fotoCamaraPendiente = (modo === 'camara');
     input.value = '';
     input.click();
 }
+
+/* La app devuelve la foto tomada (o el motivo por el que no hubo foto). */
+window.__fotoCamara = function (payload) {
+    fotoCamaraPendiente = false;
+    if (!payload || payload === 'cancelado') return;
+    if (payload === 'permiso') { avisarCamaraSinPermiso(); return; }
+    if (payload === 'sincamara') {
+        mostrarAlerta('Este teléfono no tiene una app de cámara disponible.', 'Cámara', 'warn');
+        return;
+    }
+    if (payload.indexOf('data:') !== 0) {
+        mostrarAlerta('No se pudo leer la foto tomada.', 'Cámara', 'error');
+        return;
+    }
+    try {
+        const binario = atob(payload.split(',')[1]);
+        const bytes = new Uint8Array(binario.length);
+        for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+        const archivo = new File([bytes], 'camara_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+        subirArchivoFoto(archivo);
+    } catch (e) {
+        console.error('camara', e);
+        mostrarAlerta('No se pudo preparar la foto.', 'Cámara', 'error');
+    }
+};
 
 function avisarCamaraSinPermiso() {
     const nativo = !!(window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes);
@@ -549,23 +587,20 @@ async function subirFotoSeleccionada(event) {
     fotoCamaraPendiente = false;
     const file = event.target.files[0];
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-        await mostrarAlerta('Solo se permiten imágenes.', 'Tipo inválido', 'warn');
-        event.target.value = '';
-        return;
-    }
-
-    if (esVistaCompleta()) { // 👈 Cambiado de nuevo a esVistaCompleta
     event.target.value = '';
-    return;
+    await subirArchivoFoto(file);
 }
 
-    const { tabla, medidaId } = fotosContexto;
-    if (!tabla || !medidaId) {
-        event.target.value = '';
+async function subirArchivoFoto(file) {
+    if (!file || !file.type.startsWith('image/')) {
+        await mostrarAlerta('Solo se permiten imágenes.', 'Tipo inválido', 'warn');
         return;
     }
+
+    if (esVistaCompleta()) return;
+
+    const { tabla, medidaId } = fotosContexto;
+    if (!tabla || !medidaId) return;
 
     const user = obtenerSesion();
 
@@ -581,7 +616,6 @@ async function subirFotoSeleccionada(event) {
     if (errSubida) {
         console.error(errSubida);
         await mostrarAlerta('No se pudo subir la foto. Revisa la consola.', 'Error', 'error');
-        event.target.value = '';
         return;
     }
 
@@ -597,11 +631,9 @@ async function subirFotoSeleccionada(event) {
         console.error(errInsert);
         await db.storage.from('medidas-fotos').remove([path]);
         await mostrarAlerta('No se pudo guardar la referencia de la foto.', 'Error', 'error');
-        event.target.value = '';
         return;
     }
 
-    event.target.value = '';
     await cargarImagenes();
     renderFotosModal();
 
