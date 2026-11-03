@@ -411,7 +411,12 @@ async function intentarLoginRRLL() {
     await iniciarPanelRRLL();
 }
 
-function cerrarSesion() {
+async function cerrarSesion() {
+    // Le avisamos al sistema que elimine el celular de las notificaciones
+    if (usuarioActual && window.__desregistrarPushJefe) {
+        await window.__desregistrarPushJefe(usuarioActual);
+    }
+
     localStorage.removeItem('usuario');
     localStorage.removeItem('usuarioRRLL');
     sessionStorage.removeItem('usuario');
@@ -1441,19 +1446,47 @@ async function guardarPasswordAIP() {
 // ==========================================
 async function init() {
     await cargarOpcionesLogin();
+    
     const guardado = localStorage.getItem('usuario') || sessionStorage.getItem('usuario');
     const guardadoRRLL = localStorage.getItem('usuarioRRLL') || sessionStorage.getItem('usuarioRRLL');
+
+    let sesionRestaurada = false;
+
     if (guardado) {
-        const parsed = JSON.parse(guardado);
-        if (parsed && parsed.gerencia_key !== undefined) {
-            usuarioActual = parsed;
-            await iniciarDashboard();
-        } else {
+        try {
+            const parsed = JSON.parse(guardado);
+            // Permitir administradores o usuarios normales
+            if (parsed && (parsed.esAdmin === true || parsed.gerencia_key !== undefined)) {
+                usuarioActual = parsed;
+                await iniciarDashboard();
+                sesionRestaurada = true;
+            } else {
+                localStorage.removeItem('usuario');
+                sessionStorage.removeItem('usuario');
+            }
+        } catch (e) {
+            console.error('Error al restaurar sesión AIP:', e);
             localStorage.removeItem('usuario');
+            sessionStorage.removeItem('usuario');
         }
-    } else if (guardadoRRLL) {
-        usuarioRRLL = JSON.parse(guardadoRRLL);
-        await iniciarPanelRRLL();
+    }
+
+    // Si no hay sesión normal, intentar con Relaciones Laborales
+    if (!sesionRestaurada && guardadoRRLL) {
+        try {
+            const parsedRRLL = JSON.parse(guardadoRRLL);
+            if (parsedRRLL && parsedRRLL.nombre) {
+                usuarioRRLL = parsedRRLL;
+                await iniciarPanelRRLL();
+            } else {
+                localStorage.removeItem('usuarioRRLL');
+                sessionStorage.removeItem('usuarioRRLL');
+            }
+        } catch (e) {
+            console.error('Error al restaurar sesión RRLL:', e);
+            localStorage.removeItem('usuarioRRLL');
+            sessionStorage.removeItem('usuarioRRLL');
+        }
     }
 }
 
