@@ -1917,7 +1917,7 @@ function suscribirRealtimeFotosHallazgos() {
 let actosTodosCache = null;
 let actosDelMesCache = [];
 let editarActoCtx = { hallazgoId: null };
-
+const MOSTRAR_MEDIDA_DISCIPLINARIA = false;
 const ANIO_ACTOS = 2026;
 const ANIO_ACTOS_ANTERIOR = 2025;
 
@@ -2137,10 +2137,12 @@ function renderGridActos() {
                 <p class="acto-card-hint-editable text-xs text-slate-700 leading-relaxed"
                    data-action="${admin ? 'editar' : 'nada'}"
                    data-hallazgo-id="${escaparAttr(codigo)}">${escaparHTML(texto)}</p>
+                                ${MOSTRAR_MEDIDA_DISCIPLINARIA ? `
                 <p class="text-[11px] mt-2 pt-2 border-t border-slate-100">
                     <span class="font-semibold text-slate-500">Medida disciplinaria:</span>
                     <span class="font-bold ${medida.clase}">${escaparHTML(medida.texto)}</span>
                 </p>
+                ` : ''}
             </div>
         `;
 
