@@ -109,16 +109,41 @@
     /* Se ejecuta tras el login y también si ya había sesión guardada. */
     function registrarDesdeSesion() {
         try {
-            var raw = sessionStorage.getItem('usuario');
+            // CORRECCIÓN: Buscar en localStorage o en sessionStorage
+            var raw = localStorage.getItem('usuario') || sessionStorage.getItem('usuario');
             if (!raw) return false;
+            
             var u = JSON.parse(raw);
             if (!claveJefe(u)) return false;
             if (registrado) return true;
+            
             registrado = true;
             registrar(u);
             return true;
         } catch (e) { return false; }
     }
+
+    /* Elimina el registro de notificaciones de la base de datos al cerrar sesión */
+    window.__desregistrarPushJefe = async function (usuario) {
+        var clave = claveJefe(usuario);
+        if (!clave) return;
+
+        if (esNativo() && window.Capacitor.Plugins?.PushNotifications) {
+            try { await window.Capacitor.Plugins.PushNotifications.unregister(); } catch(e){}
+        }
+
+        try {
+            var url = PUSH_URL + '/rest/v1/push_subscriptions?user_id=eq.' + encodeURIComponent(clave);
+            var headers = {
+                'apikey': PUSH_KEY,
+                'Authorization': 'Bearer ' + PUSH_KEY
+            };
+            await fetch(url, { method: 'DELETE', headers: headers });
+            console.log('[push-jefe] Dispositivo desvinculado. Ya no llegarán alertas.');
+        } catch (e) {
+            console.error('[push-jefe] Error al desvincular:', e);
+        }
+    };
 
     window.__registrarPushJefe = registrar;
 
