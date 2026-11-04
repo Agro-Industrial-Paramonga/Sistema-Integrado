@@ -970,5 +970,22 @@
         });
     });
 </script>
+    <script>
+    function toggleMenuPerfil(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('menu-perfil');
+        if (menu) menu.classList.toggle('active');
+    }
+
+    // Cerrar el menú automáticamente si tocas fuera de él
+    document.addEventListener('click', (event) => {
+        const menu = document.getElementById('menu-perfil');
+        if (menu && menu.classList.contains('active')) {
+            if (!menu.contains(event.target) && !event.target.closest('.btn-perfil-movil')) {
+                menu.classList.remove('active');
+            }
+        }
+    });
+</script>
 </body>
 </html>
