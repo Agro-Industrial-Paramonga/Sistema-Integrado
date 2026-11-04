@@ -2537,12 +2537,20 @@ function mostrarAvisoPermisoAlarma(Alarma) {
     if (document.getElementById('aviso-permiso-alarma')) return;
     const d = document.createElement('div');
     d.id = 'aviso-permiso-alarma';
-    d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#B45309;color:#fff;padding:12px 16px;font-size:13px;font-family:inherit;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.25);';
+    
+    // 👇 AQUÍ ESTÁ LA MAGIA: Se agregó 'box-sizing:border-box', 'width:100%' y 'text-align:center'
+    d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#B45309;color:#fff;padding:12px 16px;font-size:13px;font-family:inherit;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.25);box-sizing:border-box;width:100%;text-align:center;';
+    
     const txt = document.createElement('span');
+    // Le damos flexibilidad al texto para que se adapte
+    txt.style.cssText = 'flex:1 1 auto; text-align:center; line-height:1.4;';
     txt.innerHTML = '\u26A0\uFE0F Falta activar <b>\u201CPantalla completa\u201D</b> para que la alarma se abra sola.';
+    
     const btn = document.createElement('button');
     btn.textContent = 'Activar ahora';
-    btn.style.cssText = 'background:#fff;color:#B45309;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-family:inherit;';
+    // Evitamos que el botón se aplaste o se salga
+    btn.style.cssText = 'background:#fff;color:#B45309;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-family:inherit;flex:0 0 auto;white-space:nowrap;';
+    
     btn.addEventListener('click', async () => {
         try {
             await Alarma.abrirAjustesPantallaCompleta();
@@ -2550,6 +2558,7 @@ function mostrarAvisoPermisoAlarma(Alarma) {
             console.error('[ALARMA] No se pudieron abrir los ajustes:', e);
         }
     });
+    
     d.appendChild(txt);
     d.appendChild(btn);
     document.body.appendChild(d);
