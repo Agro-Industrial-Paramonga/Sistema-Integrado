@@ -654,7 +654,7 @@
         @media (max-width: 768px) {
             /* Le damos un margen a la tarjeta para que el menú verde no la tape */
             .sem-pasos li {
-                margin-left: 50px !important; 
+                margin-left: 0 !important; 
                 padding: 12px 14px !important;
             }
             
