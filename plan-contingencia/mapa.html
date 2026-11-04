@@ -566,8 +566,14 @@
         <a href="#" onclick="borrarSimulacion();return false;" style="color:#b91c1c">Borrar simulación</a>
     </div>
 
-    <div class="leyenda" id="leyenda-editor" style="display:none">
-        <strong>Editor del mapa</strong><br>
+        <div class="leyenda" id="leyenda-editor" style="display:none">
+        <!-- Botón de cerrar (aspa) -->
+        <button type="button" onclick="document.getElementById('leyenda-editor').style.display='none'" 
+                style="position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: #64748b; font-size: 20px; font-weight: bold; cursor: pointer; line-height: 1; padding: 0;">
+            &times;
+        </button>
+
+        <strong style="display: block; padding-right: 20px;">Editor del mapa</strong><br>
         <span style="color:#64748b">Al dibujar una línea verás los vértices en blanco.
         Si uno quedó mal, <strong>clic derecho</strong> sobre él y se elimina.</span><br>
         1. Elige <strong>Punto</strong> y toca el mapa en cada sitio (se numera solo).<br>
