@@ -650,10 +650,29 @@
             #sem-luces .foco { width: 19px; height: 19px; }
             #sem-luces { gap: 7px; padding: 6px 10px; }
         }
-        /* En pantallas angostas el área vuelve abajo del texto */
-        @media (max-width: 560px) {
-            .sem-pasos li .sem-paso { flex-direction: column; gap: 6px; }
-            .sem-chips { flex-direction: row; flex-wrap: wrap; align-items: flex-start; max-width: 100%; }
+                /* Corrección para celulares y tablets */
+        @media (max-width: 768px) {
+            /* Le damos un margen a la tarjeta para que el menú verde no la tape */
+            .sem-pasos li {
+                margin-left: 50px !important; 
+                padding: 12px 14px !important;
+            }
+            
+            /* Obligamos a que el texto y las etiquetas se apilen hacia abajo */
+            .sem-pasos li .sem-paso { 
+                flex-direction: column !important; 
+                align-items: flex-start !important;
+                gap: 8px !important; 
+            }
+            
+            /* Las etiquetas (Administración 1, etc.) ocupan todo el ancho abajo */
+            .sem-chips { 
+                flex-direction: row !important; 
+                flex-wrap: wrap !important; 
+                align-items: flex-start !important; 
+                max-width: 100% !important; 
+                width: 100% !important;
+            }
         }
 
         /* Aviso flotante propio (cuando mapa.js no está) */
