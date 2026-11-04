@@ -570,13 +570,13 @@ async function cargarUnidades() {
 
         (data || []).forEach(u => {
             const minutos = (Date.now() - new Date(u.actualizado_en).getTime()) / 60000;
-            const color = minutos < 30 ? '#16a34a' : minutos < 120 ? '#f59e0b' : '#dc2626';
+            const color = minutos < 30 ? '#1e3a8a' : minutos < 120 ? '#f59e0b' : '#dc2626';
             const hora = new Date(u.actualizado_en).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
 
             const marcador = L.marker([u.lat, u.lon], {
                 icon: L.divIcon({
                     className: '',
-                    html: `<div style="font-size:20px;color:${color};text-shadow:0 0 5px #fff"><i class="fas fa-truck-pickup"></i></div>`,
+                    html: `<div style="font-size:22px;color:${color};text-shadow: 0 0 2px #fff, 0 0 5px #fff, 0 0 10px #fff;"><i class="fas fa-truck-pickup"></i></div>`,
                     iconSize: [24, 24], iconAnchor: [12, 12]
                 })
             }).addTo(capaUnidades);
@@ -587,7 +587,7 @@ async function cargarUnidades() {
 
             marcador.bindPopup(
                 `<strong>${u.user_id || 'Sin nombre'}</strong><br>` +
-                `<span style="color:#16a34a;font-weight:700">🚚 ${u.unidad || 'sin unidad'}</span><br>` +
+                `<span style="color:#1e3a8a;font-weight:700">🚚 ${u.unidad || 'sin unidad'}</span><br>` +
                 `Actualizado: ${hora}<br>Precisión: ${Math.round(u.precision_m || 0)} m<br><br>` +
                 `<button onclick="alertarUnidad('${uSeguro}','${unSeguro}','${tokSeguro}')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer;">🚨 Alertar evacuación</button>`
             );
