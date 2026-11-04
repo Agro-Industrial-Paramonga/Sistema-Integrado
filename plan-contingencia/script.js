@@ -926,7 +926,8 @@ async function entrarApp() {
     document.getElementById('main-header').style.display = 'flex';
     mostrarMenuLogin(false);
     document.getElementById('user-name').textContent = u.area;
-
+     const nombreMovil = document.querySelector('.menu-perfil-header strong');
+    if (nombreMovil) nombreMovil.textContent = u.area;
     /* La sesión vive en la base: se vigila que siga abierta */
     sesionPanelAnulada = false;
     try { vigilarSesionPanel(); } catch (e) { console.warn('vigilancia sesion', e); }
