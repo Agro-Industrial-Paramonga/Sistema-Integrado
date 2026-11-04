@@ -40,16 +40,37 @@
                 <button type="button" id="btn-modo-editar" onclick="cambiarModo('edicion')" title="Modo edición"
                         style="border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:38px;height:38px;cursor:pointer;color:#475569;">&#9998;</button>
             </div>
-            <div class="user-pill" id="user-pill">
-                <i class="fas fa-user-circle"></i>
-                <span id="user-name">—</span>
-                <button class="logout-btn" onclick="abrirModalPassword()" title="Cambiar contraseña">
-                    <i class="fas fa-key"></i>
-                </button>
-                <button class="logout-btn" onclick="cerrarSesion()" title="Cerrar sesión">
-                    <i class="fas fa-sign-out-alt"></i>
-                </button>
-            </div>
+            <div class="user-profile-container">
+    <!-- VISTA PC (Igual a la que ya tienes) -->
+    <div class="user-pill desktop-only" id="user-pill">
+        <i class="fas fa-user-circle"></i>
+        <span id="user-name">—</span>
+        <button class="logout-btn" onclick="abrirModalPassword()" title="Cambiar contraseña">
+            <i class="fas fa-key"></i>
+        </button>
+        <button class="logout-btn" onclick="cerrarSesion()" title="Cerrar sesión">
+            <i class="fas fa-sign-out-alt"></i>
+        </button>
+    </div>
+
+    <!-- VISTA CELULAR (Botón redondo) -->
+    <button class="btn-perfil-movil mobile-only" onclick="toggleMenuPerfil(event)">
+        <i class="fas fa-user-circle"></i>
+    </button>
+    
+    <!-- MENÚ DESPLEGABLE (Oculto por defecto) -->
+    <div class="menu-perfil-dropdown" id="menu-perfil">
+        <div class="menu-perfil-header">
+            <strong>Mi Cuenta</strong> <!-- Puedes cambiar esto por el nombre si actualizas tu script.js -->
+        </div>
+        <button class="menu-perfil-btn" onclick="abrirModalPassword(); toggleMenuPerfil();">
+            <i class="fas fa-key"></i> Cambiar contraseña
+        </button>
+        <button class="menu-perfil-btn btn-rojo" onclick="cerrarSesion();">
+            <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+        </button>
+    </div>
+</div>
         </div>
     </header>
 
