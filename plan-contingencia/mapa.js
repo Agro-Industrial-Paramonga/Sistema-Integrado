@@ -2391,6 +2391,24 @@ document.addEventListener('click', (ev) => {
     setTimeout(() => { camaraPendienteMapa = false; }, 120000);
 }, true);
 
+/* Galeria y archivos: el permiso de fotos se pide al usar la funcion,
+   no al abrir el mapa. Si lo niega, se vuelve a pedir en el siguiente toque. */
+document.addEventListener('click', (ev) => {
+    const lbl = ev.target && ev.target.closest ? ev.target.closest('label.panel-subir') : null;
+    if (!lbl || lbl.hasAttribute('data-camara')) return;
+    const input = lbl.querySelector('input[type="file"]');
+    if (!input) return;
+    if (!camaraNativaMapa() || !window.AndroidUbicacion.tienePermisoFotos) return;
+
+    let hay = true;
+    try { hay = window.AndroidUbicacion.tienePermisoFotos(); } catch (e) {}
+    if (hay) return;
+
+    ev.preventDefault();
+    try { window.AndroidUbicacion.pedirPermisoFotos(); } catch (e) {}
+    avisar('Concede el permiso de fotos y vuelve a tocar esta opción.', 'warn');
+}, true);
+
 window.addEventListener('focus', () => {
     if (!camaraPendienteMapa) return;
     setTimeout(async () => {

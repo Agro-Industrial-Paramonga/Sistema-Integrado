@@ -223,3 +223,91 @@ Para dejar a todos recibiendo: `delete from alarmas_silenciadas;`.
 - RLS: `mapa_puntos` y `mapa_fotos` tienen política `using(true)`, así que el
   permiso es de interfaz, no de base.
 
+---
+
+## 13. Quién recibe cada alarma (push) — 6-nov
+
+| Alarma | Destinatarios |
+|---|---|
+| Cambio de semáforo (verde/amarillo/rojo) | **todos** los que tengan sesión de portal abierta y token, incluido rol `area` |
+| Alarma de una medida (botón y cron de 8:00) | **solo `jefe_area` / `sup_area` / gerentes del área** destinataria; **nunca** rol `area` |
+
+Antes no se podía distinguir: la alarma de medidas se dirige por **área** (`userId`),
+y `push_subscriptions.user_id` guarda la **sección**, así que le llegaba a cualquiera
+con esa sección. Se agregó la columna `rol`:
+
+- **SQL aplicado:** `plan-contingencia/sql/push_rol_area.sql` (idempotente).
+  Agrega `push_subscriptions.rol` y recrea `destinatarios_push()` para devolverlo.
+- `script.js` (`guardarTokenPush`) guarda el rol del que registra el celular.
+- Edge `send-push-notification` **v20**: si el envío lleva `userId` (medida), descarta
+  las suscripciones con `rol = 'area'`; sin `userId` (semáforo) manda a todos.
+- Tokens viejos con `rol` nulo siguen recibiendo como antes hasta que la persona
+  vuelva a iniciar sesión (ahí se completa el rol).
+
+**Rol `area` de Gerencia de Campo**: entra directo a `mapa.html` (solo compuertas).
+Por eso `entrarApp()` ahora llama a `activarNotificacionesPush()` **antes** de
+redirigir, con una espera corta hasta que el token queda guardado; sin eso no
+recibían ni el aviso de semáforo.
+
+---
+
+## 14. Volumen de la alarma: que suene aunque esté en silencio — 6-nov
+
+`AlarmaActivity.java` (APK):
+
+- La sirena y el TTS usan `USAGE_ALARM`; el canal de alarma no lo apaga el modo
+  silencio/vibrar de Android.
+- Al abrir la alarma se **guarda el volumen**, se pone `STREAM_ALARM` al máximo y un
+  vigilante lo vuelve a subir cada segundo. Al pulsar DETENER se restaura el anterior.
+- Las teclas de volumen/mute se consumen mientras la pantalla de alarma está al frente.
+- **No molestar**: si el filtro bloquea las alarmas, con `ACCESS_NOTIFICATION_POLICY`
+  se abre el filtro mientras dura la alarma y se restaura después; si el permiso no
+  está concedido, se muestra el botón *PERMITIR SONIDO DE ALARMA*, que abre directo
+  `Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS`.
+- La voz (TTS) también va por el canal de alarma, así no la silencia el volumen de
+  multimedia.
+
+Límite conocido: no se puede vencer un apagado, modo avión, ni el "silencio total"
+de un fabricante que ignore el permiso.
+
+---
+
+## 15. Permisos obligatorios, de a uno — 9-nov
+
+`MainActivity.java` (APK). Antes los permisos se pedían de golpe al abrir (notificaciones
+como diálogo del sistema + "Permitir actualizaciones") y todos se podían saltar con
+*Ahora no*.
+
+**Cola única del portal** (`exigirPermisosPortal()`), en este orden:
+
+| # | Paso | Botón | Qué abre |
+|---|---|---|---|
+| 1 | Notificaciones (13+) | Permitir | diálogo del sistema |
+| 2 | Pantalla completa (14+) | Abrir ajustes | pantalla completa |
+| 3 | No molestar | Abrir ajustes | acceso a No molestar |
+| 4 | Instalar apps (8+) | Abrir ajustes | orígenes desconocidos |
+
+- Se piden **uno por vez**, con el título `Permiso N de M` y el texto "Es obligatorio
+  para usar la app". No hay botón negativo: se revalida cada segundo y al volver a la
+  app; si niega, vuelve el mismo paso.
+- Se activa al entrar a **`plan-contingencia/**`** (no en la portada, ni en Hallazgos,
+  ni en `licencias.html`), o sea también para el conductor.
+- **Atrás** no hace nada mientras haya pasos pendientes.
+- Pantalla completa: **una vez concedida no se vuelve a pedir**. Se eliminaron
+  `avisarPantallaCompleta()`, `avisarNotificacionesApagadas()`,
+  `pedirPantallaCompletaAlIniciar()` (código muerto) y
+  `Actualizador.pedirPermisoInstalacion()`.
+- El aviso de "canal de alarma silenciado" sigue suelto, pero ya no se encima a la cola.
+
+**Portón de unidades** (`exigirUbicacionObligatoria()`): sin cambios. Ubicación precisa,
+interruptor, "todo el tiempo", notificaciones, pantalla completa y batería; con su botón
+*Cerrar app*, dentro de "iniciar turno".
+
+**Cámara y fotos**: no bloquean. `tomarFoto()` pide el permiso en cada toque y, si
+Android ya no muestra el diálogo, abre Ajustes (`pedirPermisoCamara()`). Galería y
+archivos llaman a `pedirPermisoFotos()` al tocar la opción; si falta, avisa y pide de
+nuevo en el siguiente toque.
+
+Versiones: `script.js?v=69`, `mapa.js?v=65`.
+
+

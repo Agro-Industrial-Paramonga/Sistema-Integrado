@@ -208,8 +208,14 @@ Deno.serve(async (req) => {
 
     const subsFiltrados = (todos || []).filter((s: any) => !excluir || s.token !== excluir);
 
+    // Rol 'area' (administradores de campo): SOLO recibe el aviso de semaforo.
+    // La alarma de una medida apunta a un area concreta y es para jefes y
+    // supervisores de esa area, nunca para los de rol 'area'.
+    const esRolArea = (s: any) => norm(s.rol) === 'area';
+
     const subs = userId
       ? subsFiltrados.filter((s: any) => {
+          if (esRolArea(s)) return false;
           const buscado = norm(userId);
           const claves = clavesDe(s);
           return claves.includes(buscado) || claves.includes('__global__');

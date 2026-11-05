@@ -3,6 +3,7 @@ package com.aipsa.sistema;
 import android.app.Activity;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.media.AudioAttributes;
@@ -18,9 +19,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -52,6 +55,22 @@ public class AlarmaActivity extends Activity {
     private MediaPlayer reproductor;
     private AudioTrack pistaSirena;
     private Vibrator vibrador;
+
+    /* Volumen: la sirena va por el canal de ALARMA. Mientras la alarma esta
+       en pantalla se fuerza ese canal al maximo y se vigila cada segundo,
+       para que bajar el volumen o silenciar el equipo no la apague. */
+    private AudioManager audio;
+    private final Handler manejadorVolumen = new Handler(Looper.getMainLooper());
+    private int volumenPrevio = -1;
+    private boolean volumenForzado = false;
+
+    /* No Molestar: si el equipo esta en silencio total, la sirena no suena.
+       Con el permiso de acceso a No molestar se cambia el filtro mientras
+       dura la alarma y se restaura al pulsar DETENER. Sin el permiso, se
+       muestra un boton que lleva directo a concederlo. */
+    private NotificationManager notificaciones;
+    private int filtroPrevio = -1;
+    private boolean filtroForzado = false;
 
     private TextToSpeech voz;
     private boolean vozLista = false;
@@ -110,7 +129,8 @@ public class AlarmaActivity extends Activity {
         }
 
         // 👇 LE PASAMOS EL COLOR A LA VISTA 👇
-        setContentView(construirVista(titulo, cuerpo, colorFondo));
+        LinearLayout raiz = construirVista(titulo, cuerpo, colorFondo);
+        setContentView(raiz);
 
         // La pantalla ya esta abierta: se corta el tono de la notificacion
         // para que solo suene la sirena (evita audio duplicado).
@@ -125,10 +145,15 @@ public class AlarmaActivity extends Activity {
         iniciarSonido();
         iniciarVibracion();
         iniciarVoz(titulo, cuerpo);
+
+        // Que suene fuerte aunque el equipo este en silencio o con el
+        // audio del sistema bajo
+        prepararVolumen();
+        revisarNoMolestar(raiz);
     }
 
            // 👇 Recibe el parámetro colorFondo 👇
-    private View construirVista(String titulo, String cuerpo, String colorFondo) {
+    private LinearLayout construirVista(String titulo, String cuerpo, String colorFondo) {
         LinearLayout raiz = new LinearLayout(this);
         raiz.setOrientation(LinearLayout.VERTICAL);
         
@@ -275,6 +300,192 @@ public class AlarmaActivity extends Activity {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
+    /* ============================================================
+       QUE SUENE FUERTE AUNQUE EL EQUIPO ESTE EN SILENCIO
+       ------------------------------------------------------------
+       La sirena va por el canal "Alarma", que Android NO apaga con el
+       modo silencio/vibrar. El problema es otro: ese canal puede estar
+       bajo o en cero, y los botones de volumen lo bajan mientras suena.
+       Por eso se guarda el volumen, se pone al maximo y se vuelve a
+       subir cada segundo hasta que se pulsa DETENER.
+       ============================================================ */
+    private void prepararVolumen() {
+        try {
+            audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) return;
+            if (volumenPrevio < 0) {
+                volumenPrevio = audio.getStreamVolume(AudioManager.STREAM_ALARM);
+            }
+            subirCanalAlarma();
+            manejadorVolumen.removeCallbacksAndMessages(null);
+            manejadorVolumen.postDelayed(vigilarVolumen, 1000);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private final Runnable vigilarVolumen = new Runnable() {
+        @Override
+        public void run() {
+            subirCanalAlarma();
+            manejadorVolumen.postDelayed(this, 1000);
+        }
+    };
+
+    /** Sube el canal de alarma al maximo (flag 0: sin interfaz y sin pitido). */
+    private void subirCanalAlarma() {
+        try {
+            if (audio == null) return;
+            int maximo = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+            int actual = audio.getStreamVolume(AudioManager.STREAM_ALARM);
+            if (actual < maximo) {
+                audio.setStreamVolume(AudioManager.STREAM_ALARM, maximo, 0);
+                volumenForzado = true;
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /** Devuelve el volumen que tenia el equipo antes de la alarma. */
+    private void restaurarCanalAlarma() {
+        try {
+            manejadorVolumen.removeCallbacksAndMessages(null);
+            if (audio != null && volumenForzado && volumenPrevio >= 0) {
+                audio.setStreamVolume(AudioManager.STREAM_ALARM, volumenPrevio, 0);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        volumenForzado = false;
+    }
+
+    /* ============================================================
+       NO MOLESTAR (silencio total)
+       Con el permiso de "acceso a No molestar" se cambia el filtro
+       mientras dura la alarma y se restaura al cerrarla. Sin permiso,
+       se muestra un boton que lleva directo a concederlo.
+       ============================================================ */
+    private void revisarNoMolestar(LinearLayout raiz) {
+        try {
+            notificaciones = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificaciones == null) return;
+            if (alarmaBloqueada()) {
+                if (notificaciones.isNotificationPolicyAccessGranted()) {
+                    abrirFiltro();
+                } else {
+                    mostrarBotonNoMolestar(raiz);
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /** true si No molestar esta activo y las alarmas no pasan. */
+    private boolean alarmaBloqueada() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
+        try {
+            if (notificaciones == null) return false;
+            int filtro = notificaciones.getCurrentInterruptionFilter();
+            if (filtro == NotificationManager.INTERRUPTION_FILTER_ALL
+                    || filtro == NotificationManager.INTERRUPTION_FILTER_UNKNOWN) return false;
+            if (filtro == NotificationManager.INTERRUPTION_FILTER_NONE) return true;
+            NotificationManager.Policy politica = notificaciones.getNotificationPolicy();
+            boolean alarmas = (politica.priorityCategories
+                    & NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS) != 0;
+            return !alarmas;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void abrirFiltro() {
+        try {
+            if (notificaciones == null) return;
+            filtroPrevio = notificaciones.getCurrentInterruptionFilter();
+            notificaciones.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
+            filtroForzado = true;
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void restaurarNoMolestar() {
+        try {
+            if (notificaciones != null && filtroForzado && filtroPrevio >= 0) {
+                notificaciones.setInterruptionFilter(filtroPrevio);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        filtroForzado = false;
+    }
+
+    private void mostrarBotonNoMolestar(LinearLayout raiz) {
+        if (raiz == null) return;
+        try {
+            TextView aviso = new TextView(this);
+            aviso.setText("Tu equipo esta en No molestar y las alarmas estan bloqueadas. "
+                    + "Concede el acceso para que esta alarma suene.");
+            aviso.setTextSize(15);
+            aviso.setTextColor(Color.WHITE);
+            aviso.setGravity(Gravity.CENTER);
+            aviso.setPadding(0, 26, 0, 8);
+            raiz.addView(aviso);
+
+            Button boton = new Button(this);
+            boton.setText("PERMITIR SONIDO DE ALARMA");
+            boton.setTextSize(16);
+            boton.setTypeface(Typeface.DEFAULT_BOLD);
+            boton.setBackgroundColor(Color.WHITE);
+            boton.setTextColor(Color.parseColor("#B91C1C"));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 130);
+            params.setMargins(0, 4, 0, 0);
+            boton.setLayoutParams(params);
+            boton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    abrirAjusteNoMolestar();
+                }
+            });
+            raiz.addView(boton);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /** Lleva directo a la pantalla donde se concede el acceso a No molestar. */
+    private void abrirAjusteNoMolestar() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (Exception e2) { e.printStackTrace(); }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        /* Al volver de los ajustes de No molestar se aplica sin reiniciar
+           la alarma; y se reafirma el volumen por si el sistema lo bajo. */
+        try {
+            if (notificaciones == null) {
+                notificaciones = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            }
+            if (notificaciones != null && !filtroForzado
+                    && notificaciones.isNotificationPolicyAccessGranted()
+                    && alarmaBloqueada()) {
+                abrirFiltro();
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        subirCanalAlarma();
+    }
+
+    /** Las teclas de volumen no bajan ni silencian la alarma. */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent evento) {
+        int codigo = evento.getKeyCode();
+        if (codigo == KeyEvent.KEYCODE_VOLUME_UP
+                || codigo == KeyEvent.KEYCODE_VOLUME_DOWN
+                || codigo == KeyEvent.KEYCODE_VOLUME_MUTE) {
+            return true;
+        }
+        return super.dispatchKeyEvent(evento);
+    }
+
     private void detenerSonido() {
         try {
             if (pistaSirena != null) {
@@ -332,6 +543,15 @@ public class AlarmaActivity extends Activity {
 
                 voz.setSpeechRate(0.95f);
                 voz.setPitch(1.0f);
+
+                /* La voz tambien por el canal de alarma: si el equipo tiene
+                   el volumen de multimedia en cero, igual se escucha. */
+                try {
+                    voz.setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build());
+                } catch (Exception e) { e.printStackTrace(); }
 
                 voz.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override public void onStart(String id) { }
@@ -405,6 +625,8 @@ public class AlarmaActivity extends Activity {
     private void detenerTodo() {
         detenerVoz();
         detenerSonido();
+        restaurarCanalAlarma();
+        restaurarNoMolestar();
         try {
             if (vibrador != null) {
                 vibrador.cancel();
@@ -427,6 +649,8 @@ public class AlarmaActivity extends Activity {
     protected void onDestroy() {
         detenerVoz();
         detenerSonido();
+        restaurarCanalAlarma();
+        restaurarNoMolestar();
         try {
             if (vibrador != null) {
                 vibrador.cancel();

@@ -425,6 +425,20 @@ function elegirFoto(modo) {
         return;
     }
 
+    // Galeria y archivos: el permiso de fotos se pide al usar la funcion,
+    // no antes. Si lo niega, se vuelve a pedir en el siguiente toque.
+    if (modo !== 'camara' && camaraNativaDisponible()
+            && window.AndroidUbicacion.tienePermisoFotos) {
+        let hay = true;
+        try { hay = window.AndroidUbicacion.tienePermisoFotos(); } catch (e) {}
+        if (!hay) {
+            try { window.AndroidUbicacion.pedirPermisoFotos(); } catch (e) {}
+            mostrarAlerta('Concede el permiso de fotos y vuelve a tocar esta opción.',
+                'Permiso de fotos', 'warn');
+            return;
+        }
+    }
+
     fotoCamaraPendiente = (modo === 'camara');
     input.value = '';
     input.click();
@@ -458,7 +472,7 @@ window.__fotoCamara = function (payload) {
 function avisarCamaraSinPermiso() {
     const nativo = !!(window.AndroidUbicacion && window.AndroidUbicacion.abrirAjustes);
     if (nativo) {
-        if (confirm('Falta el permiso de cámara.\n\n¿Abrir los ajustes de la app para activarlo?')) {
+        if (confirm('El permiso de cámara es necesario para la foto.\n\nSe vuelve a pedir cada vez que toques Cámara. ¿Abrir los ajustes de la app ahora?')) {
             try { window.AndroidUbicacion.abrirAjustes(); } catch (e) {}
         }
         return;
@@ -972,10 +986,24 @@ async function entrarApp() {
     } catch (e) {
         console.warn('No se pudo refrescar la sesión:', e);
     }
-         if (esSoloCompuertas()) {
-        // Redirigimos a la página donde está el HTML de compuertas
-        window.location.href = 'mapa.html'; // <--- CAMBIA 'mapa.html' por el nombre real de tu archivo
-        return; 
+    if (esSoloCompuertas()) {
+        /* Antes de irse a compuertas hay que registrar el celular igual que
+           cualquier otro rol: sin token no recibe ni el aviso de semaforo.
+           Se espera a que el token quede guardado para no perderlo al navegar. */
+        try {
+            await activarNotificacionesPush();
+            for (let i = 0; i < 6; i++) {
+                let t = '';
+                try { t = localStorage.getItem('pc_push_token') || localStorage.getItem('pushToken') || ''; } catch (e) {}
+                if (t) break;
+                await new Promise((r) => setTimeout(r, 500));
+            }
+            await new Promise((r) => setTimeout(r, 700));
+        } catch (e) {
+            console.warn('[PUSH] no se pudo registrar antes de compuertas:', e);
+        }
+        window.location.href = 'mapa.html';
+        return;
     }
 
     document.getElementById('main-header').style.display = 'flex';
@@ -2478,7 +2506,7 @@ async function activarNotificacionesPush() {
             return;
         }
 
-        await guardarTokenPush(clave, token);
+        await guardarTokenPush(clave, token, user.rol);
     } catch (err) {
         console.error('[FCM] Error al activar notificaciones:', err);
     }
@@ -2488,22 +2516,25 @@ async function activarNotificacionesPush() {
    Guarda el token FCM en Supabase.
    Lo usan tanto la web como la app nativa (es la misma tabla).
    ------------------------------------------------------------ */
-async function guardarTokenPush(userId, token) {
+async function guardarTokenPush(userId, token, rol) {
     try {
         try { localStorage.setItem('pc_push_token', token); } catch (e) {}
 
         const { data: existente } = await db
             .from('push_subscriptions')
-            .select('id, tipo')
+            .select('id, tipo, rol')
             .eq('user_id', userId)
             .eq('token', token)
             .maybeSingle();
 
         if (existente) {
             console.log('[FCM] Token ya registrado para este usuario.');
-            if (existente.tipo !== 'jefe') {
+            const cambios = {};
+            if (existente.tipo !== 'jefe') cambios.tipo = 'jefe';
+            if (rol && existente.rol !== rol) cambios.rol = rol;
+            if (Object.keys(cambios).length) {
                 await db.from('push_subscriptions')
-                    .update({ tipo: 'jefe' })
+                    .update(cambios)
                     .eq('id', existente.id);
             }
             await adjuntarTokenSesion(token);
@@ -2513,7 +2544,8 @@ async function guardarTokenPush(userId, token) {
         const { error } = await db.from('push_subscriptions').insert({
             user_id: userId,
             token: token,
-            tipo: 'jefe'
+            tipo: 'jefe',
+            rol: rol || null
         });
 
         if (error) {
@@ -2699,7 +2731,7 @@ async function activarNotificacionesPushNativo(user) {
         // 2. Token nativo -> guardarlo en Supabase
         PN.addListener('registration', async (token) => {
             console.log('[PUSH] Token nativo obtenido:', String(token.value).slice(0, 20) + '...');
-            await guardarTokenPush(user.area, token.value);
+            await guardarTokenPush(user.area, token.value, user.rol);
         });
 
         PN.addListener('registrationError', (err) => {

@@ -35,6 +35,7 @@ public class MainActivity extends BridgeActivity {
     private static final int CODIGO_UBICACION = 4711;
     private static final int CODIGO_NOTIFICACIONES = 4712;
     private static final int CODIGO_CAMARA = 4713;
+    private static final int CODIGO_FOTOS = 4714;
 
     /* Camara nativa: el WebView ignora el atributo capture de los
        <input type="file">, asi que la foto se toma aqui y se devuelve
@@ -387,44 +388,224 @@ public class MainActivity extends BridgeActivity {
 
     private boolean dialogoUbicacionVisible = false;
 
+    /* ============================================================
+       PERMISOS OBLIGATORIOS DEL PORTAL
+       Notificaciones, pantalla completa, No molestar e instalar
+       apps. Se piden de a uno, en ese orden, y no se puede seguir
+       sin concederlos. Vale para jefes, gerentes, area y tambien
+       para el conductor: su porton de ubicacion es aparte, dentro
+       de "iniciar turno".
+       ============================================================ */
+    private static final String[] PASOS_PORTAL = {
+            "notificaciones", "pantalla_completa", "no_molestar", "instalar"
+    };
+    private boolean pasoPermisoVisible = false;
+    private boolean esperandoSistema = false;
+    private long proximoChequeoPermiso = 0;
+
+    /** La web esta en el plan de contingencia (no en Hallazgos ni en licencias). */
+    private boolean paginaDelPortal() {
+        try {
+            if (getBridge() == null || getBridge().getWebView() == null) return false;
+            String url = getBridge().getWebView().getUrl();
+            if (url == null) return false;
+            return url.contains("plan-contingencia") && !url.contains("licencias.html");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean tieneNotificaciones() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return true;
+        return ContextCompat.checkSelfPermission(this, "android.permission.POST_NOTIFICATIONS")
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean tienePantallaCompleta() {
+        if (android.os.Build.VERSION.SDK_INT < 34) return true;
+        android.app.NotificationManager nm =
+                (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        return nm != null && nm.canUseFullScreenIntent();
+    }
+
+    private boolean tieneNoMolestar() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true;
+        android.app.NotificationManager nm =
+                (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        return nm != null && nm.isNotificationPolicyAccessGranted();
+    }
+
+    private boolean puedeInstalarApps() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return true;
+        return getPackageManager().canRequestPackageInstalls();
+    }
+
+    private boolean faltaPaso(String paso) {
+        switch (paso) {
+            case "notificaciones": return !tieneNotificaciones();
+            case "pantalla_completa": return !tienePantallaCompleta();
+            case "no_molestar": return !tieneNoMolestar();
+            default: return !puedeInstalarApps();
+        }
+    }
+
+    /** Lista fija de pasos que aplican a esta version de Android. */
+    private java.util.List<String> pasosPortal = null;
+
+    private java.util.List<String> pasosPortal() {
+        if (pasosPortal != null) return pasosPortal;
+        java.util.List<String> lista = new java.util.ArrayList<>();
+        for (String p : PASOS_PORTAL) {
+            if (p.equals("notificaciones") && android.os.Build.VERSION.SDK_INT < 33) continue;
+            if (p.equals("pantalla_completa") && android.os.Build.VERSION.SDK_INT < 34) continue;
+            if (p.equals("no_molestar")
+                    && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) continue;
+            if (p.equals("instalar")
+                    && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) continue;
+            lista.add(p);
+        }
+        pasosPortal = lista;
+        return lista;
+    }
+
+    /** Primer permiso del portal que falta, o null si ya estan todos. */
+    private String siguientePasoPortal() {
+        for (String paso : pasosPortal()) if (faltaPaso(paso)) return paso;
+        return null;
+    }
+
+    /** Muestra UN permiso por vez y espera; el vigilante lo revalida. */
+    private void exigirPermisosPortal() {
+        if (hayTurnoActivo()) return;              // con turno manda el porton de unidades
+        if (!paginaDelPortal()) return;            // Hallazgos y la portada no piden nada
+        if (pasoPermisoVisible || esperandoSistema) return;
+        if (android.os.SystemClock.uptimeMillis() < proximoChequeoPermiso) return;
+
+        final String paso = siguientePasoPortal();
+        if (paso == null) return;
+
+        java.util.List<String> lista = pasosPortal();
+        int numero = lista.indexOf(paso) + 1;
+        if (numero < 1) numero = 1;
+        int total = lista.size();
+
+        String titulo;
+        String mensaje;
+        String boton;
+        switch (paso) {
+            case "notificaciones":
+                titulo = "Notificaciones";
+                mensaje = "Sin notificaciones no llegan las alarmas ni los avisos de evacuación.\n\n"
+                        + "Es obligatorio para usar la app.";
+                boton = "Permitir";
+                break;
+            case "pantalla_completa":
+                titulo = "Alerta a pantalla completa";
+                mensaje = "Para que la alarma aparezca aunque el teléfono esté bloqueado.\n\n"
+                        + "Es obligatorio para usar la app. Una vez concedido no se vuelve a pedir.";
+                boton = "Abrir ajustes";
+                break;
+            case "no_molestar":
+                titulo = "Acceso a No molestar";
+                mensaje = "Para que la sirena suene aunque el equipo esté en silencio total.\n\n"
+                        + "Es obligatorio para usar la app.";
+                boton = "Abrir ajustes";
+                break;
+            default:
+                titulo = "Instalar actualizaciones";
+                mensaje = "Para que la app pueda actualizarse sola cuando haya una versión nueva.\n\n"
+                        + "Es obligatorio para usar la app.";
+                boton = "Abrir ajustes";
+                break;
+        }
+
+        pasoPermisoVisible = true;
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Permiso " + numero + " de " + total + " — " + titulo)
+                .setMessage(mensaje)
+                .setCancelable(false)
+                .setPositiveButton(boton, (d1, w) -> {
+                    pasoPermisoVisible = false;
+                    esperandoSistema = true;
+                    proximoChequeoPermiso = android.os.SystemClock.uptimeMillis() + 1200;
+                    lanzarPasoPortal(paso);
+                })
+                .show();
+    }
+
+    /** Abre el dialogo del sistema o la pantalla de Ajustes del permiso pedido. */
+    private void lanzarPasoPortal(String paso) {
+        boolean abierto = false;
+        try {
+            switch (paso) {
+                case "notificaciones":
+                    // Si Android ya no muestra el dialogo (lo nego dos veces),
+                    // se abre directo la pantalla de notificaciones de la app.
+                    boolean pedidas = getSharedPreferences("avisos", MODE_PRIVATE)
+                            .getBoolean("notif_pedidas", false);
+                    boolean puedeDialogo = !pedidas
+                            || ActivityCompat.shouldShowRequestPermissionRationale(
+                                    this, "android.permission.POST_NOTIFICATIONS");
+                    if (puedeDialogo) {
+                        ActivityCompat.requestPermissions(this,
+                                new String[]{"android.permission.POST_NOTIFICATIONS"}, CODIGO_NOTIFICACIONES);
+                    } else {
+                        try {
+                            Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                            i.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                            startActivity(i);
+                        } catch (Exception e) { abrirAjustesApp(); }
+                    }
+                    abierto = true;
+                    break;
+                case "pantalla_completa":
+                    try {
+                        Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                        i.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(i);
+                        abierto = true;
+                    } catch (Exception e) { abrirAjustesApp(); }
+                    break;
+                case "no_molestar":
+                    try {
+                        startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
+                        abierto = true;
+                    } catch (Exception e) { abrirAjustesApp(); }
+                    break;
+                default:
+                    try {
+                        Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                        i.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(i);
+                        abierto = true;
+                    } catch (Exception e) { abrirAjustesApp(); }
+                    break;
+            }
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "lanzarPasoPortal " + paso, e);
+        }
+
+        // Si no se pudo abrir nada, se libera la cola para que no quede trabada
+        if (!abierto) {
+            esperandoSistema = false;
+            proximoChequeoPermiso = android.os.SystemClock.uptimeMillis() + 1500;
+        }
+    }
+
     /**
-     * Revisa lo que hace falta para que la ALERTA EMERGENTE aparezca de verdad.
-     * La alarma se muestra como notificacion con fullScreenIntent: sin permiso de
-     * notificaciones, sin "pantalla completa" o con el canal silenciado, no sale nada.
+     * Revisa lo que hace falta para que la ALERTA EMERGENTE suene de verdad.
+     * Los permisos los maneja exigirPermisosPortal(); aqui solo queda el aviso
+     * del canal de la alarma silenciado, que no es un permiso.
      */
     private void verificarAlarmaEmergente(boolean alAbrir) {
         try {
-            // Con turno activo, exigirUbicacionObligatoria() ya pide todo esto
             if (hayTurnoActivo()) return;
-
-            // 1) Permiso de notificaciones (Android 13+)
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                boolean notificaciones = androidx.core.content.ContextCompat.checkSelfPermission(
-                        this, "android.permission.POST_NOTIFICATIONS")
-                        == android.content.pm.PackageManager.PERMISSION_GRANTED;
-
-                if (!notificaciones) {
-                    if (alAbrir) {
-                        androidx.core.app.ActivityCompat.requestPermissions(this,
-                                new String[]{"android.permission.POST_NOTIFICATIONS"}, CODIGO_NOTIFICACIONES);
-                    } else {
-                        avisarNotificacionesApagadas();
-                    }
-                    return;
-                }
-            }
-
+            // Mientras la cola de permisos este trabajando no se encima otro aviso
+            if (pasoPermisoVisible || siguientePasoPortal() != null) return;
             android.app.NotificationManager nm =
                     (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (nm == null) return;
-
-            // 2) Permitir pantalla completa (Android 14+)
-            if (android.os.Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()) {
-                avisarPantallaCompleta();
-                return;
-            }
-
-            // 3) El canal de la alarma silenciado por el usuario
             if (android.os.Build.VERSION.SDK_INT >= 26) {
                 android.app.NotificationChannel canal =
                         nm.getNotificationChannel(AlarmaNotificacion.CANAL_ID);
@@ -455,40 +636,6 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    private void avisarNotificacionesApagadas() {
-        if (!puedoAvisar("aviso_notificaciones", 6L * 60 * 60 * 1000)) return;
-        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
-                .setTitle("Sin permiso de notificaciones")
-                .setMessage("Así no pueden aparecer las alertas de evacuación.\n\nActiva las notificaciones de esta app para recibir la alarma a pantalla completa.")
-                .setPositiveButton("Abrir ajustes", (d1, w) -> {
-                    try {
-                        android.content.Intent i = new android.content.Intent(
-                                android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                        i.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
-                        startActivity(i);
-                    } catch (Exception e) { abrirAjustesApp(); }
-                })
-                .setNegativeButton("Ahora no", null)
-                .show());
-    }
-
-    private void avisarPantallaCompleta() {
-        if (!puedoAvisar("pantalla_completa", 12L * 60 * 60 * 1000)) return;
-        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
-                .setTitle("Permitir alertas a pantalla completa")
-                .setMessage("Para que la alarma de evacuación aparezca aunque el teléfono esté bloqueado, activa \"Permitir pantalla completa\".")
-                .setPositiveButton("Abrir ajustes", (d1, w) -> {
-                    try {
-                        android.content.Intent i = new android.content.Intent(
-                                android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
-                        i.setData(android.net.Uri.parse("package:" + getPackageName()));
-                        startActivity(i);
-                    } catch (Exception e) { abrirAjustesApp(); }
-                })
-                .setNegativeButton("Ahora no", null)
-                .show());
-    }
-
     private void avisarCanalSilenciado() {
         if (!puedoAvisar("canal_alarma", 12L * 60 * 60 * 1000)) return;
         runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
@@ -502,33 +649,6 @@ public class MainActivity extends BridgeActivity {
                         i.putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, AlarmaNotificacion.CANAL_ID);
                         startActivity(i);
                     } catch (Exception e) { abrirAjustesApp(); }
-                })
-                .setNegativeButton("Ahora no", null)
-                .show());
-    }
-
-    private void pedirPantallaCompletaAlIniciar() {
-        if (android.os.Build.VERSION.SDK_INT < 34) return;
-
-        android.app.NotificationManager nm =
-                (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (nm == null || nm.canUseFullScreenIntent()) return;
-
-        android.content.SharedPreferences prefs = getSharedPreferences("avisos", MODE_PRIVATE);
-        long ultima = prefs.getLong("pantalla_completa", 0);
-        if (System.currentTimeMillis() - ultima < 12L * 60 * 60 * 1000) return;   // cada 12 h
-        prefs.edit().putLong("pantalla_completa", System.currentTimeMillis()).apply();
-
-        runOnUiThread(() -> new android.app.AlertDialog.Builder(this)
-                .setTitle("Permitir alertas a pantalla completa")
-                .setMessage("Para que la alarma de evacuación aparezca aunque el teléfono esté bloqueado, activa \"Permitir pantalla completa\".")
-                .setPositiveButton("Abrir ajustes", (d1, w) -> {
-                    try {
-                        android.content.Intent i = new android.content.Intent(
-                                android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
-                        i.setData(android.net.Uri.parse("package:" + getPackageName()));
-                        startActivity(i);
-                    } catch (Exception e) { e.printStackTrace(); }
                 })
                 .setNegativeButton("Ahora no", null)
                 .show());
@@ -565,7 +685,13 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         revisarActualizacion(false);
+        // Al volver de Ajustes se deja pasar un momento y la cola revalida sola.
+        if (esperandoSistema) {
+            esperandoSistema = false;
+            proximoChequeoPermiso = android.os.SystemClock.uptimeMillis() + 900;
+        }
         try { verificarAlarmaEmergente(false); } catch (Exception e) { e.printStackTrace(); }
+        try { exigirPermisosPortal(); } catch (Exception e) { }
     }
 
     @Override
@@ -598,7 +724,16 @@ public class MainActivity extends BridgeActivity {
         try { exigirUbicacionObligatoria(); } catch (Exception e) { }
 
         if (requestCode == CODIGO_NOTIFICACIONES) {
+            getSharedPreferences("avisos", MODE_PRIVATE)
+                    .edit().putBoolean("notif_pedidas", true).apply();
+            // La cola de permisos retoma desde el paso que sigue
+            esperandoSistema = false;
+            proximoChequeoPermiso = android.os.SystemClock.uptimeMillis() + 500;
             try { verificarAlarmaEmergente(false); } catch (Exception e) { }
+        }
+
+        if (requestCode == CODIGO_FOTOS) {
+            esperandoSistema = false;
         }
 
         if (requestCode == CODIGO_UBICACION && callbackUbicacion != null) {
@@ -611,6 +746,8 @@ public class MainActivity extends BridgeActivity {
 
         // Resultado del permiso de camara para la foto nativa.
         if (requestCode == CODIGO_CAMARA) {
+            getSharedPreferences("avisos", MODE_PRIVATE)
+                    .edit().putBoolean("camara_pedida", true).apply();
             boolean concedido = grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             if (concedido) {
@@ -663,14 +800,23 @@ public class MainActivity extends BridgeActivity {
             }
         }, 4000);
 
-        // Permiso de pantalla completa para que la alarma salte sola
+        // Cola de permisos del portal: uno por vez, sin salida.
+        // Cada segundo revalida; si el usuario nego o se fue, vuelve a pedir.
+        final android.os.Handler cola = new android.os.Handler(android.os.Looper.getMainLooper());
+        cola.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try { exigirPermisosPortal(); } catch (Exception e) { }
+                cola.postDelayed(this, 1000);
+            }
+        }, 1200);
+
+        // Aviso del canal de la alarma silenciado (no es un permiso)
         try { verificarAlarmaEmergente(true); } catch (Exception e) { e.printStackTrace(); }
 
         // Si habia un turno activo, reactivar el envio de ubicacion al abrir
         try { reanudarServicioSiHabiaTurno(); } catch (Exception e) { e.printStackTrace(); }
 
-        // Pedir permiso de instalacion y revisar si hay version nueva
-        try { Actualizador.pedirPermisoInstalacion(this); } catch (Exception e) { e.printStackTrace(); }
         revisarActualizacion(true);
 
         // Boton/gesto de retroceder:
@@ -680,6 +826,11 @@ public class MainActivity extends BridgeActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                // Con permisos obligatorios pendientes, "atras" no hace nada
+                if (pasoPermisoVisible || (!hayTurnoActivo() && paginaDelPortal()
+                        && siguientePasoPortal() != null)) {
+                    return;
+                }
                 WebView webView = (getBridge() != null) ? getBridge().getWebView() : null;
                 if (webView != null && webView.canGoBack()) {
                     webView.goBack();
@@ -718,21 +869,53 @@ public class MainActivity extends BridgeActivity {
                     }
 
                     /* Foto con la camara del telefono. Devuelve el resultado
-                       a la pagina por window.__fotoCamara(...). */
+                       a la pagina por window.__fotoCamara(...).
+                       Si el permiso esta negado se vuelve a pedir en CADA
+                       toque; si Android ya no muestra el dialogo, se abre
+                       Ajustes para que lo active a mano. */
                     @JavascriptInterface
                     public void tomarFoto() {
                         runOnUiThread(() -> {
                             try {
                                 if (ContextCompat.checkSelfPermission(MainActivity.this,
                                         Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                                    ActivityCompat.requestPermissions(MainActivity.this,
-                                            new String[]{Manifest.permission.CAMERA}, CODIGO_CAMARA);
+                                    pedirPermisoCamara();
                                     return;
                                 }
                                 abrirCamara();
                             } catch (Exception e) {
                                 android.util.Log.e("MainActivity", "tomarFoto", e);
                                 respuestaCamara("error:" + e.getMessage());
+                            }
+                        });
+                    }
+
+                    /* Fotos/galeria: no bloquea la app, se pide al usar la
+                       funcion y se vuelve a pedir en cada toque. */
+                    @JavascriptInterface
+                    public boolean tienePermisoFotos() {
+                        try {
+                            String permiso = permisoFotos();
+                            if (permiso == null) return true;
+                            return ContextCompat.checkSelfPermission(MainActivity.this, permiso)
+                                    == PackageManager.PERMISSION_GRANTED;
+                        } catch (Exception e) {
+                            return true;
+                        }
+                    }
+
+                    @JavascriptInterface
+                    public void pedirPermisoFotos() {
+                        runOnUiThread(() -> {
+                            try {
+                                String permiso = permisoFotos();
+                                if (permiso == null) return;
+                                if (ContextCompat.checkSelfPermission(MainActivity.this, permiso)
+                                        == PackageManager.PERMISSION_GRANTED) return;
+                                ActivityCompat.requestPermissions(MainActivity.this,
+                                        new String[]{permiso}, CODIGO_FOTOS);
+                            } catch (Exception e) {
+                                android.util.Log.e("MainActivity", "pedirPermisoFotos", e);
                             }
                         });
                     }
@@ -916,6 +1099,15 @@ public class MainActivity extends BridgeActivity {
 
                 webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
                     @Override
+                    public void onPageFinished(WebView view, String url) {
+                        super.onPageFinished(view, url);
+                        // Al entrar al plan de contingencia arranca la cola de permisos
+                        view.postDelayed(() -> {
+                            try { exigirPermisosPortal(); } catch (Exception e) { }
+                        }, 700);
+                    }
+
+                    @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                         String url = (request != null && request.getUrl() != null)
                                 ? request.getUrl().toString() : "";
@@ -978,6 +1170,38 @@ public class MainActivity extends BridgeActivity {
                 android.util.Log.e("MainActivity", "respuestaCamara", e);
             }
         });
+    }
+
+    /* Permiso de fotos segun la version de Android (null = no hace falta). */
+    private String permisoFotos() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) return "android.permission.READ_MEDIA_IMAGES";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            return Manifest.permission.READ_EXTERNAL_STORAGE;
+        }
+        return null;
+    }
+
+    /**
+     * Camara: se pide en cada intento. Si Android ya no muestra el dialogo
+     * (lo nego dos veces), se abre Ajustes para que lo active a mano.
+     */
+    private void pedirPermisoCamara() {
+        try {
+            boolean pedidaAntes = getSharedPreferences("avisos", MODE_PRIVATE)
+                    .getBoolean("camara_pedida", false);
+            boolean puedeDialogo = !pedidaAntes
+                    || ActivityCompat.shouldShowRequestPermissionRationale(
+                            this, Manifest.permission.CAMERA);
+
+            if (puedeDialogo) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.CAMERA}, CODIGO_CAMARA);
+            } else {
+                abrirAjustesApp();
+            }
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "pedirPermisoCamara", e);
+        }
     }
 
     private void abrirCamara() {
