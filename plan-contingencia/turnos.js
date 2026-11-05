@@ -113,10 +113,14 @@
         if (c) c.textContent = texto || '';
     }
 
-    async function pintar() {
+        async function pintar() {
         var unidades = document.getElementById('turnos-unidades');
         var sesiones = document.getElementById('turnos-sesiones');
         if (!unidades || !sesiones) return;
+
+        // --- 1. GUARDAR POSICIÓN DEL SCROLL ---
+        var caja = document.querySelector('.turnos-caja');
+        var scrollPos = caja ? caja.scrollTop : 0;
 
         var clave = clavePortal();
         if (!clave) {
@@ -178,31 +182,52 @@
                 '<p class="turnos-sub">No se pudo consultar.</p>';
         }
         aviso('');
+
+        // --- 2. RESTAURAR POSICIÓN DEL SCROLL ---
+        if (caja) caja.scrollTop = scrollPos;
     }
 
     /* El switch es la unica senal: verde recibe alarmas, rojo no le llega nada.
        El estado queda guardado en la base hasta que se vuelva a poner verde. */
-    async function alternarAlarma(userId, tipo, apagar, boton) {
+        async function alternarAlarma(userId, tipo, apagar, boton) {
         if (boton) boton.disabled = true;
         try {
+            // La consulta a la base de datos se mantiene EXACTAMENTE IGUAL
             var r = await db.rpc('alternar_alarma', {
                 p_clave_quien: clavePortal(),
                 p_user_id: userId,
                 p_apagar: apagar,
                 p_tipo: tipo || null
             });
+            
             var ok = !r.error && r.data && r.data.ok;
-            await pintar();
-            if (!ok) {
+
+            if (ok) {
+                // SI LA BASE DE DATOS DICE "OK", cambiamos solo el botón
+                if (boton) {
+                    if (apagar) {
+                        boton.classList.add('apagada');
+                        boton.setAttribute('aria-checked', 'false');
+                        boton.title = 'Alarmas apagadas · pulsa para activarlas';
+                    } else {
+                        boton.classList.remove('apagada');
+                        boton.setAttribute('aria-checked', 'true');
+                        boton.title = 'Alarmas activas · pulsa para apagarlas';
+                    }
+                    boton.disabled = false; // Volvemos a habilitar el botón
+                }
+                aviso(String(userId).trim() + (apagar
+                    ? ': alarmas apagadas, no le llega nada'
+                    : ': alarmas activas'));
+            } else {
+                // SI FALLÓ, el botón nunca cambió visualmente, solo lo reactivamos
+                if (boton) boton.disabled = false;
                 aviso('No se pudo ' + (apagar ? 'silenciar' : 'activar') + ': ' +
                     ((r.error && r.error.message) || (r.data && r.data.motivo) || 'sin permiso'));
-                return;
             }
-            aviso(String(userId).trim() + (apagar
-                ? ': alarmas apagadas, no le llega nada'
-                : ': alarmas activas'));
         } catch (e) {
-            await pintar();
+            // SI HAY UN ERROR DE RED, reactivamos el botón sin recargar la lista
+            if (boton) boton.disabled = false;
             aviso('No se pudo cambiar: ' + e.message);
         }
     }

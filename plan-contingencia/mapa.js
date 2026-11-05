@@ -2690,8 +2690,15 @@ function volverAlOrigen(e) {
     // Si todo falla, volvemos al inicio
     window.location.href = 'index.html';
 }
-/* La sesion del conductor se resuelve en la base antes de arrancar */
 (async () => {
+    const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
+    
+    // Solo el rol 'area' de Gerencia de Campo se queda sin mapa (ve compuertas)
+    if (u && String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO' && String(u.rol || '').trim().toLowerCase() === 'area') {
+        console.log("Rol area de campo detectado. Omitiendo carga del mapa.");
+        return; // Detenemos la ejecución para que no se dibuje el mapa
+    }
+
     await cargarSesionConductor();
     iniciarMapa();
 })();

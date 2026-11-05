@@ -686,35 +686,31 @@ function suscribirRealtimeImagenes() {
 }
 
 /* ============================================================
-   CUSTOM SELECT DE ÁREAS (LOGIN)
+   CUSTOM SELECT DE ÁREAS (LOGIN) - CON BÚSQUEDA DIRECTA
    ============================================================ */
 const customSelect        = document.getElementById('custom-area-select');
 const customSelectTrigger = document.getElementById('custom-select-trigger');
-const customSelectValue   = document.getElementById('custom-select-value');
 const customSelectMenu    = document.getElementById('custom-select-menu');
+const customSelectInput   = document.getElementById('custom-select-input'); 
 const loginAreaHidden     = document.getElementById('login-area');
 
 let areasCargadas = [];
-
 let usuariosLogin = [];
-let areasResponsables = [];   // areas/secciones a cargo de los jefes
+let areasResponsables = [];
 
+// 1. Cargar datos desde Supabase
 async function cargarAreasEnLogin() {
-    // La tabla usuarios ya no se puede leer desde el navegador: la lista
-    // de áreas la entrega la función login_areas() (sin contraseñas).
     const { data, error } = await db.rpc('login_areas');
-
     const selGerencia = document.getElementById('login-gerencia');
 
     if (error) {
         console.error('Error al cargar usuarios:', error);
-        customSelectMenu.innerHTML = '<div class="custom-select-option">Error al cargar usuarios</div>';
+        if(customSelectMenu) customSelectMenu.innerHTML = '<div class="custom-select-option" style="text-align:center;">Error al cargar usuarios</div>';
         return;
     }
 
     usuariosLogin = (data || []).filter(u => u.area);
 
-    // Areas responsables = secciones a cargo (no los nombres de las personas)
     const setAreas = new Set();
     usuariosLogin.forEach(u => {
         const sec = (u.seccion || '').trim();
@@ -728,12 +724,18 @@ async function cargarAreasEnLogin() {
         selGerencia.innerHTML = '<option value="">Selecciona tu gerencia</option>' +
             gerencias.map(g => `<option value="${g}">${g}</option>`).join('');
 
-        selGerencia.addEventListener('change', () => pintarUsuariosDeGerencia(selGerencia.value));
+        const nuevoSelect = selGerencia.cloneNode(true);
+        selGerencia.parentNode.replaceChild(nuevoSelect, selGerencia);
+
+        nuevoSelect.addEventListener('change', (e) => {
+            pintarUsuariosDeGerencia(e.target.value);
+        });
     }
 
     pintarUsuariosDeGerencia('');
 }
 
+// 2. Filtrar por gerencia
 function pintarUsuariosDeGerencia(gerencia) {
     const lista = gerencia
         ? usuariosLogin.filter(u => u.gerencia_key === gerencia)
@@ -741,57 +743,100 @@ function pintarUsuariosDeGerencia(gerencia) {
 
     areasCargadas = lista.map(u => u.area);
 
-    customSelectMenu.innerHTML = '';
-    if (lista.length === 0) {
-        customSelectMenu.innerHTML = '<div class="custom-select-option">Sin usuarios en esta gerencia</div>';
+    // Limpiamos la caja de texto y la selección
+    if (customSelectInput) customSelectInput.value = '';
+    loginAreaHidden.value = '';
+    customSelect.classList.remove('has-value');
+    customSelectMenu.innerHTML = ''; 
+    // No llamamos a dibujarOpcionesMenu aquí, para que aparezca vacío hasta que escriban
+}
+
+// 3. Al hacer clic en la caja, abrimos el menú (pero sin mostrar la lista completa)
+customSelectTrigger.addEventListener('click', () => {
+    customSelect.classList.add('open');
+    if (customSelectInput) customSelectInput.focus();
+    
+    // Si el menú está vacío y no han escrito nada, mostramos el mensaje inicial
+    if (customSelectMenu.innerHTML.trim() === '') {
+        customSelectMenu.innerHTML = '<div class="custom-select-option" style="color:#94a3b8;cursor:default;text-align:center;padding:15px;">Escribe para buscar...</div>';
     }
-    areasCargadas.forEach(area => {
+});
+
+// 4. Al escribir en la caja, filtramos
+if (customSelectInput) {
+    customSelectInput.addEventListener('input', (e) => {
+        const term = e.target.value;
+        loginAreaHidden.value = ''; 
+        customSelect.classList.add('open');
+        
+        // Si borra todo, mostramos el mensaje, si no, filtramos
+        if (term.trim() === '') {
+            customSelectMenu.innerHTML = '<div class="custom-select-option" style="color:#94a3b8;cursor:default;text-align:center;padding:15px;">Escribe para buscar...</div>';
+        } else {
+            dibujarOpcionesMenu(term);
+        }
+    });
+}
+
+// 5. Al hacer clic en una opción de la lista
+customSelectMenu.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt || !opt.dataset.value) return;
+
+    customSelectInput.value = opt.dataset.value;
+    loginAreaHidden.value = opt.dataset.value;
+    
+    customSelect.classList.remove('open');
+    customSelect.classList.add('has-value');
+});
+
+// 6. Cerrar si hace clic afuera
+document.addEventListener('click', (e) => {
+    if (!customSelect.contains(e.target)) {
+        customSelect.classList.remove('open');
+        
+        if (!loginAreaHidden.value) {
+            customSelectInput.value = ''; 
+            customSelect.classList.remove('has-value');
+            customSelectMenu.innerHTML = ''; // Vaciamos el menú al cerrar
+        } else {
+            customSelectInput.value = loginAreaHidden.value; 
+        }
+    }
+});
+
+// 7. Función que dibuja los resultados (Solo se llama cuando hay texto)
+function dibujarOpcionesMenu(termino) {
+    customSelectMenu.innerHTML = '';
+    
+    if (!areasCargadas || areasCargadas.length === 0) {
+        customSelectMenu.innerHTML = '<div class="custom-select-option" style="color:#94a3b8;cursor:default;text-align:center;padding:15px;">No hay usuarios disponibles en esta gerencia</div>';
+        return;
+    }
+
+    const term = claveArea(termino);
+    const coincidencias = areasCargadas.filter(area => claveArea(area).includes(term));
+
+    if (coincidencias.length === 0) {
+        customSelectMenu.innerHTML = '<div class="custom-select-option" style="color:#94a3b8;cursor:default;text-align:center;padding:15px;">No se encontraron resultados</div>';
+        return;
+    }
+
+    coincidencias.forEach(area => {
         const opt = document.createElement('div');
         opt.className = 'custom-select-option';
         opt.dataset.value = area;
         opt.textContent = area;
         customSelectMenu.appendChild(opt);
     });
-
-    loginAreaHidden.value = '';
-    if (customSelectValue) customSelectValue.textContent = 'Selecciona tu usuario';
 }
 
-customSelectMenu.addEventListener('click', (e) => {
-    const opt = e.target.closest('.custom-select-option');
-    if (!opt || !opt.dataset.value) return;
-
-    loginAreaHidden.value = opt.dataset.value;
-    customSelectValue.textContent = opt.dataset.value;
-    customSelect.classList.add('has-value');
-    customSelect.classList.remove('open');
-
-    customSelectMenu.querySelectorAll('.custom-select-option')
-        .forEach(o => o.classList.remove('selected'));
-    opt.classList.add('selected');
-});
-
-customSelectTrigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-    customSelect.classList.toggle('open');
-});
-
-document.addEventListener('click', (e) => {
-    if (!customSelect.contains(e.target)) {
-        customSelect.classList.remove('open');
-    }
-});
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') customSelect.classList.remove('open');
-});
-
+// 8. Reset
 function resetCustomSelect() {
     loginAreaHidden.value = '';
-    customSelectValue.textContent = 'Selecciona tu área…';
+    if (customSelectInput) customSelectInput.value = '';
     customSelect.classList.remove('has-value', 'open');
-    customSelectMenu.querySelectorAll('.custom-select-option')
-        .forEach(o => o.classList.remove('selected'));
+    customSelectMenu.innerHTML = '';
 }
 
 /* ============================================================
@@ -872,31 +917,36 @@ function mostrarBotonMapa() {
     const b = document.getElementById('btn-mapa-plan');
     if (!b) return;
     const u = obtenerSesion();
-    if (!u) { b.style.display = 'none'; return; }
-
+    
+    if (!u || esSoloCompuertas()) {  // <--- NUEVO
+        b.style.display = 'none'; 
+        return; 
+    }
     b.style.display = puedeVerMapa(u) ? 'flex' : 'none';
 }
 
 function aplicarVisibilidadGerente() {
+    const user = obtenerSesion();
+    if (!user) return;
+
     const vistaCompleta = esVistaCompleta();
     const gerenteReal   = esGerente();
+    const adminGlobal   = esAdminGlobal();
+    const esJefeOGerente = user.rol && (user.rol.includes('gerente') || user.rol.includes('jefe'));
 
-    // Filtros de área: visibles para TODOS (todos ven el plan completo).
-    // Historial y demás botones de gerente: solo roles con vista completa.
     document.querySelectorAll('.btn-solo-gerente').forEach(el => {
         if (el.tagName === 'SELECT') {
-            el.style.display = 'inline-block';
+            // El dropdown de áreas solo lo ve el Admin Global o los Jefes/Gerentes
+            el.style.display = (adminGlobal || esJefeOGerente) ? 'inline-block' : 'none';
         } else {
             el.style.display = vistaCompleta ? 'inline-flex' : 'none';
         }
     });
 
-    // Iniciar planes de acción → solo gerente general
     document.querySelectorAll('.btn-solo-gerente-real').forEach(el => {
         el.style.display = gerenteReal ? 'inline-flex' : 'none';
     });
 
-    // Agregar medida → solo área
     document.querySelectorAll('.btn-solo-area').forEach(el => {
         el.style.display = vistaCompleta ? 'none' : 'inline-flex';
     });
@@ -921,6 +971,11 @@ async function entrarApp() {
         }
     } catch (e) {
         console.warn('No se pudo refrescar la sesión:', e);
+    }
+         if (esSoloCompuertas()) {
+        // Redirigimos a la página donde está el HTML de compuertas
+        window.location.href = 'mapa.html'; // <--- CAMBIA 'mapa.html' por el nombre real de tu archivo
+        return; 
     }
 
     document.getElementById('main-header').style.display = 'flex';
@@ -1054,7 +1109,8 @@ const SECCIONES_VISTA_TOTAL = ['COMUNICACIONES E IMAGEN CORPORATIVA'];
 function esVistaCompleta() {
     const u = obtenerSesion();
     if (!u) return false;
-    if (u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal' || u.rol === 'gerente_campo') return true;
+    // Quitamos 'gerente_campo' de aquí para que su vista no sea "global"
+    if (u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal') return true;
 
     const seccion = String(u.seccion || '').trim().toUpperCase();
     return SECCIONES_VISTA_TOTAL.includes(seccion);
@@ -1073,6 +1129,19 @@ const AREAS_GERENTE_CAMPO = ['ingenieria agricola', 'operaciones agricolas', 'ad
 function esGerenteCampo() {
     const u = obtenerSesion();
     return !!(u && u.rol === 'gerente_campo');
+}
+function esSoloCompuertas() {
+    const u = obtenerSesion();
+    if (!u) return false;
+    
+    // El Gerente de Campo NO se restringe
+    if (esGerenteCampo() || esAdminGlobal()) return false;
+
+    /* Solo el rol 'area' de Gerencia de Campo queda en compuertas.
+       Jefes (jefe_area) y supervisores (sup_area) ven medidas y mapa. */
+    const miGerencia = String(u.gerencia_key || '').trim().toUpperCase();
+    const miRol = String(u.rol || '').trim().toLowerCase();
+    return miGerencia === 'GERENCIA DE CAMPO' && miRol === 'area';
 }
 
 function medidaEsDeCampo(medida) {
@@ -1104,6 +1173,15 @@ function esEditorTotal() {
     const nombre = claveArea(u.area || '');
     if (!nombre) return false;
     return EDITAN_TODO.some(n => nombre.indexOf(claveArea(n)) === 0);
+}
+function esAdminGlobal() {
+    const u = obtenerSesion();
+    if (!u) return false;
+    // Gerente General, GDO y Gerencial Legal ven todo
+    if (u.rol === 'gerente_general' || u.rol === 'gdo' || u.rol === 'gerencial_legal') return true;
+    // Seguridad Industrial y editores totales ven todo
+    if (esEditorTotal()) return true; 
+    return false;
 }
 
 function puedeEditar(medida) {
@@ -1138,19 +1216,137 @@ function avisoNoEditable() {
 function filtrarVisibles(medidas, filtroArea) {
     const user = obtenerSesion();
     if (!user) return [];
-
-    /* Todas las áreas ven el plan completo.
-       La edición sigue restringida por puedeEditar() a la propia área. */
+    
+    if (esSoloCompuertas()) return []; // <--- NUEVO
+    // ... resto del código
     let result = medidas;
 
+    // 1. ADMINS GLOBALES (Melgar, GDO, Legal, Chunga/Seguridad Industrial) -> Ven TODO
+    if (esAdminGlobal()) {
+        if (filtroArea && filtroArea !== 'all') {
+            const filtroNorm = normalizarArea(filtroArea);
+            result = result.filter(m => m.area && m.area.split('/').map(normalizarArea).includes(filtroNorm));
+        }
+        return result;
+    }
+    let areasPermitidas = [];
+    const miRol = String(user.rol || '').toLowerCase();
+    const miGerencia = String(user.gerencia_key || '').trim().toUpperCase();
+
+    // 2. GERENTES DE GERENCIA (gerente_fabrica, gerente_campo, etc.)
+    if (miRol.includes('gerente') && miGerencia !== 'GERENCIA GENERAL') {
+        
+        const areasDeMiGerencia = (usuariosLogin || [])
+            .filter(u => String(u.gerencia_key || '').trim().toUpperCase() === miGerencia)
+            .map(u => claveArea(u.seccion || u.area))
+            .filter(Boolean);
+        
+        areasPermitidas = [...new Set(areasDeMiGerencia)];
+        
+        const miArea = claveArea(user.seccion || user.area);
+        if (miArea && !areasPermitidas.includes(miArea)) {
+            areasPermitidas.push(miArea);
+        }
+        console.log("Gerente detectado. Mostrando toda la gerencia:", miGerencia);
+
+    } 
+    // 3. JEFES DE ÁREA (rol = jefe_area)
+    else if (miRol.includes('jefe')) {
+        const areasDeMiGerencia = (usuariosLogin || [])
+            .filter(u => String(u.gerencia_key || '').trim().toUpperCase() === miGerencia)
+            .map(u => claveArea(u.seccion || u.area))
+            .filter(Boolean);
+            
+        areasPermitidas = [...new Set(areasDeMiGerencia)];
+        
+        const miArea = claveArea(user.seccion || user.area);
+        if (miArea && !areasPermitidas.includes(miArea)) {
+            areasPermitidas.push(miArea);
+        }
+        console.log("Jefe detectado. Mostrando toda la gerencia:", miGerencia);
+
+    } 
+    // 4. SUPERVISORES (rol = sup_area): solo el area de su seccion
+    else if (miRol === 'sup_area') {
+        areasPermitidas = [claveArea(user.seccion || user.area)].filter(Boolean);
+        console.log("Supervisor detectado. Solo verá su área:", areasPermitidas);
+
+    }
+    // 5. USUARIOS NORMALES (rol = 'area')
+    else {
+        areasPermitidas = [claveArea(user.seccion || user.area)];
+        console.log("Usuario normal. Solo verá su área:", areasPermitidas);
+    }
+
+    // 6. Filtramos las medidas
+    result = result.filter(m => {
+        if (!m.area) return false;
+        const areasMedida = String(m.area).split('/').map(claveArea).filter(Boolean);
+        return areasMedida.some(a => areasPermitidas.includes(a));
+    });
+
+    // 6. Filtro del dropdown
     if (filtroArea && filtroArea !== 'all') {
         const filtroNorm = normalizarArea(filtroArea);
-        result = result.filter(m => {
-            if (!m.area) return false;
-            return m.area.split('/').map(normalizarArea).includes(filtroNorm);
-        });
+        result = result.filter(m => m.area && m.area.split('/').map(normalizarArea).includes(filtroNorm));
     }
+
     return result;
+}
+function aplicarSegmentoUnico(medidas, tabla) {
+    const user = obtenerSesion();
+    if (!user) return medidas;
+
+    const miRol = String(user.rol || '').toLowerCase();
+    const esJefeOGerente = miRol.includes('gerente') || miRol.includes('jefe');
+    
+    if (esAdminGlobal() || !esJefeOGerente) return medidas;
+
+    const miGerenciaRaw = String(user.gerencia_key || '').trim();
+    if (!miGerenciaRaw || miGerenciaRaw.toUpperCase() === 'GERENCIA GENERAL') return medidas;
+
+    // Usamos claveArea para que "FÁBRICA" y "FABRICA" sean iguales
+    const miGerenciaClave = claveArea(miGerenciaRaw);
+
+    const segmentoDeMiGerencia = segmentosCache.find(s => {
+        if (s.tabla !== tabla) return false;
+        const nombreSegClave = claveArea(s.nombre);
+        return nombreSegClave === miGerenciaClave;
+    });
+
+    if (!segmentoDeMiGerencia) {
+        console.warn("⚠️ No se encontró segmento para:", miGerenciaRaw, "en tabla:", tabla);
+        return medidas;
+    }
+
+    console.log("✅ Reubicando medidas al segmento:", segmentoDeMiGerencia.nombre);
+
+    return medidas.map(m => {
+        return { ...m, segmento_id: segmentoDeMiGerencia.id };
+    });
+}
+function actualizarContadoresFiltros(tabla, medidasVisibles) {
+    // Buscamos los botones de filtro de esta tabla específica
+    const contenedor = document.querySelector(`#section-${tabla} .filters-left`);
+    if (!contenedor) return;
+
+    const total = medidasVisibles.length;
+    const noIniciado = medidasVisibles.filter(m => m.estado === 'no-iniciado' || m.estado === 'bloqueado').length;
+    const enEjecucion = medidasVisibles.filter(m => m.estado === 'en-ejecucion' || m.estado === 'iniciado').length;
+    const finalizado = medidasVisibles.filter(m => m.estado === 'finalizado').length;
+
+    // Actualizamos los textos de los badges
+    const btnTodas = contenedor.querySelector('button[data-filter="all"] .badge');
+    if (btnTodas) btnTodas.textContent = total;
+
+    const btnNoIniciado = contenedor.querySelector('button[data-filter="no-iniciado"] .badge');
+    if (btnNoIniciado) btnNoIniciado.textContent = noIniciado;
+
+    const btnEnEjecucion = contenedor.querySelector('button[data-filter="en-ejecucion"] .badge');
+    if (btnEnEjecucion) btnEnEjecucion.textContent = enEjecucion;
+
+    const btnFinalizado = contenedor.querySelector('button[data-filter="finalizado"] .badge');
+    if (btnFinalizado) btnFinalizado.textContent = finalizado;
 }
 /* ============================================================
    NAVEGACIÓN
@@ -1335,10 +1531,19 @@ async function cargarMedidasAntes() {
 
 function renderTablaAntes() {
     const tbody = document.getElementById('tabla-antes-body');
-    const visibles = filtrarVisibles(medidasAntesCache, filtroAreaAntes);
+    // 1. Filtramos normal
+    const visiblesFiltradas = filtrarVisibles(medidasAntesCache, filtroAreaAntes);
+    // 2. Aplicamos la reubicación visual para jefes/gerentes
+    const visibles = aplicarSegmentoUnico(visiblesFiltradas, 'antes');
+    
+    // --- NUEVO: Actualizamos los contadores ---
+    actualizarContadoresFiltros('antes', visibles); 
+    
     const filtradas = filtroEstadoAntes === 'all'
         ? visibles
         : visibles.filter(m => m.estado === filtroEstadoAntes);
+    
+    // ... el resto de tu código se queda igual ...
 
     actualizarTotalAntes(filtradas);
 
@@ -1541,11 +1746,18 @@ async function cargarMedidasDurante() {
 
 function renderTablaDurante() {
     const tbody = document.getElementById('tabla-durante-body');
-    const visibles = filtrarVisibles(medidasDuranteCache, filtroAreaDurante);
+    // 1. Filtramos normal
+    const visiblesFiltradas = filtrarVisibles(medidasDuranteCache, filtroAreaDurante);
+    // 2. Aplicamos la reubicación
+    const visibles = aplicarSegmentoUnico(visiblesFiltradas, 'durante');
+    
+    // --- NUEVO ---
+    actualizarContadoresFiltros('durante', visibles);
+    
     const filtradas = filtroEstadoDurante === 'all'
         ? visibles
         : visibles.filter(m => m.estado === filtroEstadoDurante);
-
+    
     if (filtradas.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No hay actividades para mostrar.</td></tr>';
         actualizarProgresoDurante();
@@ -1747,10 +1959,18 @@ async function cargarMedidasDespues() {
 
 function renderTablaDespues() {
     const tbody = document.getElementById('tabla-despues-body');
-    const visibles = filtrarVisibles(medidasDespuesCache, filtroAreaDespues);
+    // 1. Filtramos normal
+    const visiblesFiltradas = filtrarVisibles(medidasDespuesCache, filtroAreaDespues);
+    // 2. Aplicamos la reubicación
+    const visibles = aplicarSegmentoUnico(visiblesFiltradas, 'despues');
+    
+    // --- NUEVO ---
+    actualizarContadoresFiltros('despues', visibles);
+    
     const filtradas = filtroEstadoDespues === 'all'
         ? visibles
         : visibles.filter(m => m.estado === filtroEstadoDespues);
+    // ... (el resto del código sigue igual)
 
     if (filtradas.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No hay actividades para mostrar.</td></tr>';

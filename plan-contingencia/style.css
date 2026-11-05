@@ -1430,14 +1430,35 @@ body {
     box-shadow: var(--shadow-glow);
 }
 
-.custom-select-value {
+/* Estilos para el input real que reemplaza al span */
+#custom-select-input {
     flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px; /* Mismo tamaño que el resto del login */
     color: var(--gray-400);
+    padding: 0;
+    cursor: text;
 }
-.custom-select.has-value .custom-select-value { color: var(--text-strong); }
+
+/* Cambia el color del texto cuando ya se seleccionó un usuario */
+.custom-select.has-value #custom-select-input {
+    color: var(--text-strong);
+}
+
+/* Ajusta el placeholder para que se vea igual que antes */
+#custom-select-input::placeholder {
+    color: var(--gray-400);
+    opacity: 1;
+}
+
+/* Aseguramos que la flechita no estorbe al hacer clic en el texto */
+.custom-select-arrow {
+    pointer-events: none;
+}
 
 .custom-select-arrow {
     font-size: 11px;

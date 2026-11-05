@@ -92,13 +92,15 @@
 
                     <label class="login-label">USUARIO</label>
                     <div class="custom-select" id="custom-area-select">
-                        <button type="button" class="custom-select-trigger" id="custom-select-trigger">
-                            <span class="custom-select-value" id="custom-select-value">Selecciona tu usuario</span>
-                            <i class="fas fa-chevron-down custom-select-arrow"></i>
-                        </button>
-                        <div class="custom-select-menu" id="custom-select-menu"></div>
-                        <input type="hidden" id="login-area" required>
-                    </div>
+    <!-- El trigger ahora es un contenedor con un input real adentro -->
+    <div class="custom-select-trigger" id="custom-select-trigger">
+        <input type="text" id="custom-select-input" class="custom-select-value" placeholder="Selecciona tu usuario" autocomplete="off">
+        <i class="fas fa-chevron-down custom-select-arrow"></i>
+    </div>
+    <!-- El menú solo contendrá las opciones, NO tendrá un input de búsqueda -->
+    <div class="custom-select-menu" id="custom-select-menu"></div>
+    <input type="hidden" id="login-area" required>
+</div>
 
                     <label class="login-label">CONTRASEÑA</label>
                     <input type="password" id="login-password" class="login-input"
@@ -753,8 +755,8 @@
      <script src="./capacitor-core.js"></script>
      <script src="./capacitor-push-notifications.js"></script>
      <script src="./capacitor-alarma.js"></script>
-     <script src="turnos.js?v=2"></script>
-     <script src="script.js?v=65"></script>
+     <script src="turnos.js?v=3"></script>
+     <script src="script.js?v=67"></script>
      <script src="semaforo.js?v=10"></script>
 
 <!-- MODAL: CAMBIAR CONTRASEÑA -->

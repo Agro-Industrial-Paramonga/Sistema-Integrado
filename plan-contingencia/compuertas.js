@@ -54,7 +54,27 @@ function pcPuedeVer() {
         const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
         if (!u) return false;
         const texto = pcNormalizar(String(u.seccion || '') + ' ' + String(u.area || '') + ' ' + String(u.nombre || ''));
-        return texto.includes('seguridad industrial') || texto.includes('chunga');
+        const esSeguridad = texto.includes('seguridad industrial') || texto.includes('chunga');
+        
+        // Permitir a cualquiera de Gerencia de Campo
+        const esCampo = String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO';
+        
+        return esSeguridad || esCampo;
+    } catch (e) { return false; }
+}
+
+/* Ver el panel no es lo mismo que administrarlo. Gerencia de Campo consulta
+   estados y responsables; crear, borrar compuertas y editar responsables
+   sigue siendo solo de Seguridad Industrial. */
+function pcPuedeAdministrar() {
+    try {
+        const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
+        if (!u) return false;
+        const texto = pcNormalizar(String(u.seccion || '') + ' ' + String(u.area || '') + ' ' + String(u.nombre || ''));
+        if (texto.includes('seguridad industrial') || texto.includes('chunga')) return true;
+        /* Gerencia de Campo administra completa: area, sup_area, jefe_area
+           y el gerente de campo. Un 'area' de otra gerencia no entra aca. */
+        return String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO';
     } catch (e) { return false; }
 }
 
@@ -120,11 +140,28 @@ function pcAbrir() {
     pcPintar();
 }
 
-function pcCerrar() {
+async function pcCerrar() {
     const panel = document.getElementById('pc-panel');
     if (panel) panel.style.display = 'none';
     pcCerrarDetalle();
     pcBloquearFondo(false);
+
+    // Solo el rol 'area' de Gerencia de Campo sale al login al cerrar:
+    // su unica pantalla son las compuertas. Jefes y supervisores cierran el
+    // panel y siguen en el mapa, con su sesion intacta.
+    // Hay que cerrar tambien la sesion en la base: si solo borramos la copia
+    // local, index.html la recupera por equipo y devuelve al panel (rebote).
+    const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
+    if (u && String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO' && String(u.rol || '').trim().toLowerCase() === 'area') {
+        try {
+            const clave = localStorage.getItem('pc_sesion_clave') || null;
+            const disp = localStorage.getItem('pc_dispositivo') || null;
+            await db.rpc('cerrar_sesion_panel', { p_clave: clave, p_dispositivo: disp });
+        } catch (e) { console.warn('cerrar sesion panel', e); }
+        localStorage.removeItem('pc_user');
+        try { localStorage.removeItem('pc_sesion_clave'); } catch (e) {}
+        window.location.href = 'index.html';
+    }
 }
 
 /* Evita que la pagina se arrastre de lado mientras el panel esta abierto */
@@ -185,7 +222,7 @@ async function pcPintar() {
         card.innerHTML =
             '<button type="button" class="pc-chip ' + (abierta ? 'abierta' : 'cerrada') + '" ' +
             'title="Cambiar estado">' + (abierta ? 'Abierto' : 'Cerrado') + '</button>' +
-            (pcPuedeVer() ? '<button type="button" class="pc-borrar" title="Eliminar compuerta" ' +
+            (pcPuedeAdministrar() ? '<button type="button" class="pc-borrar" title="Eliminar compuerta" ' +
                 'aria-label="Eliminar compuerta"><i class="fas fa-xmark"></i></button>' : '') +
             '<div class="pc-gate">' +
             '<img src="assets/compuertas/gate-' + (abierta ? 'green' : 'red') + '.gif" alt="" loading="lazy">' +
@@ -267,8 +304,10 @@ function pcDetalle(c) {
             '<span class="pc-p-cargo">' + pcEscape(p.cargo || '') + '</span>' +
             '<span class="pc-p-tel"><i class="fas fa-phone"></i> ' + pcEscape(p.telefono) + '</span>' +
             '</a>';
-        html += '<button type="button" class="pc-p-del" data-quitar="' + p.id + '" aria-label="Quitar responsable">' +
-            '<i class="fas fa-trash"></i></button>';
+        if (pcPuedeAdministrar()) {
+            html += '<button type="button" class="pc-p-del" data-quitar="' + p.id + '" aria-label="Quitar responsable">' +
+                '<i class="fas fa-trash"></i></button>';
+        }
         html += '</div>';
     });
     html += '</div>';
@@ -299,16 +338,12 @@ function pcPintarPie(c, caja) {
     const abierta = (c.estado || 'cerrada') === 'abierta';
     let h = '';
 
-    if (pcPuedeVer()) {
-        if (pcTablaContactos) {
-            h += '<button type="button" class="pc-btn-add" id="pc-add-persona">' +
-                '<i class="fas fa-user-plus"></i> Añadir responsable</button>';
-        }
-
-        h += '<button type="button" class="pc-volver" id="pc-volver">Volver</button>';
-    } else {
-        h += '<button type="button" class="pc-volver" id="pc-volver">Volver</button>';
+    if (pcPuedeAdministrar() && pcTablaContactos) {
+        h += '<button type="button" class="pc-btn-add" id="pc-add-persona">' +
+            '<i class="fas fa-user-plus"></i> Añadir responsable</button>';
     }
+
+    h += '<button type="button" class="pc-volver" id="pc-volver">Volver</button>';
 
     pie.innerHTML = h;
 
@@ -591,7 +626,10 @@ function pcIniciar() {
     if (refrescar) refrescar.addEventListener('click', () => { pcPintar(); });
 
     const nueva = document.getElementById('pc-add-compuerta');
-    if (nueva) nueva.addEventListener('click', pcFormCompuerta);
+    if (nueva) {
+        if (pcPuedeAdministrar()) nueva.addEventListener('click', pcFormCompuerta);
+        else nueva.style.display = 'none';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
