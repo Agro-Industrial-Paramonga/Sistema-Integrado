@@ -9,6 +9,9 @@
    ------------------------------------------------------------ */
 (function () {
     var ID_CAJA = 'turnos-caja';
+    var URL_FN = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
+    var CLAVE_PUBLICA = 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
+    var MAPA_SESIONES = {};
 
     function esc(t) {
         return String(t == null ? '' : t)
@@ -86,7 +89,33 @@
             'background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.35);transition:left .15s}',
             '.turnos-switch.apagada{background:#dc2626}',
             '.turnos-switch.apagada::after{left:3px}',
-            '.turnos-aviso{margin-top:10px;font-size:.74rem;color:#b91c1c}'
+            '.turnos-aviso{margin-top:10px;font-size:.74rem;color:#b91c1c}',
+
+            /* --- Webhook de NotiAlarm (iPhone) --- */
+            '.turnos-wh{display:inline-flex;align-items:center;gap:5px;border:1px dashed #cbd5e1;background:#fff;',
+            'color:#64748b;border-radius:9px;padding:6px 9px;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap}',
+            '.turnos-wh.puesto{border-style:solid;border-color:#a7f3d0;background:#f0fdf4;color:#047857}',
+            '.turnos-wh.malo{border-style:solid;border-color:#fecaca;background:#fef2f2;color:#b91c1c}',
+            '.wh-fondo{position:fixed;inset:0;z-index:4600;display:none;align-items:center;justify-content:center;padding:16px;',
+            'background:rgba(15,23,42,.9)}',
+            '.wh-fondo.abierto{display:flex}',
+            '.wh-caja{background:#fff;border-radius:16px;width:100%;max-width:440px;padding:18px;font-family:inherit}',
+            '.wh-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}',
+            '.wh-cab h3{margin:0;font-size:.98rem;color:#0f172a}',
+            '.wh-x{border:none;background:#f1f5f9;color:#475569;width:30px;height:30px;border-radius:8px;cursor:pointer}',
+            '.wh-quien{margin:0 0 12px;font-size:.78rem;color:#475569;font-weight:700}',
+            '.wh-caja input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;',
+            'font-size:.8rem;font-family:inherit}',
+            '.wh-nota{margin:8px 0 0;font-size:.7rem;color:#64748b;line-height:1.4}',
+            '.wh-estado{margin-top:10px;font-size:.72rem;font-weight:700;min-height:16px}',
+            '.wh-estado.ok{color:#047857}',
+            '.wh-estado.malo{color:#b91c1c}',
+            '.wh-botones{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}',
+            '.wh-botones button{flex:1 1 auto;border-radius:10px;padding:11px 12px;font-size:.78rem;font-weight:800;',
+            'cursor:pointer;border:1px solid transparent}',
+            '.wh-guardar{background:#10a35e;color:#fff}',
+            '.wh-probar{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}',
+            '.wh-quitar{background:#fef2f2;color:#b91c1c;border-color:#fecaca}'
         ].join('');
         document.head.appendChild(s);
     }
@@ -129,6 +158,8 @@
             return;
         }
 
+        MAPA_SESIONES = {};
+
         unidades.innerHTML = '<p class="turnos-sub">Cargando…</p>';
         sesiones.innerHTML = '';
 
@@ -160,20 +191,28 @@
         try {
             var s2 = await db.rpc('sesiones_panel_lista', { p_clave_quien: clave });
             var lista = (!s2.error && s2.data) ? s2.data : [];
+            var puedeWebhook = !!(lista.length && lista[0].puede_webhook);
             sesiones.innerHTML = '<h3 class="turnos-tit"><i class="fas fa-user-clock"></i> Sesiones abiertas</h3>' +
                 '<p class="turnos-sub">Mientras la sesión exista, ese equipo recibe las alarmas. Al liberarla deja de ' +
                 'recibirlas en el acto y el cierre queda en el historial. ' +
-                'El interruptor verde recibe alarmas; en rojo, ese equipo no recibe ninguna.</p>' +
-                (lista.length ? lista.map(function (s) {
+                'El interruptor verde recibe alarmas; en rojo, ese equipo no recibe ninguna.' +
+                (puedeWebhook ? ' El botón <b>Webhook</b> carga la alarma del iPhone de esa persona.' : '') + '</p>' +
+                (lista.length ? lista.map(function (s, i) {
+                    MAPA_SESIONES[i] = s;
                     var equipo = s.dispositivo ? 'equipo ' + esc(String(s.dispositivo).slice(0, 8)) : 'sin equipo registrado';
                     return '<div class="turnos-fila"><div><div class="turnos-nombre">' + esc(s.user_id) + '</div>' +
                         '<div class="turnos-meta">' + esc(s.seccion || 'sin sección') + ' · desde ' + esc(fechaHora(s.inicio)) +
                         ' · ' + equipo + '</div></div>' +
-                        '<div class="turnos-acciones">' + switchAlarma(s.user_id, 'jefe', s.alarma_off) +
+                        '<div class="turnos-acciones">' +
+                        (puedeWebhook ? botonWebhook(s, i) : '') +
+                        switchAlarma(s.user_id, 'jefe', s.alarma_off) +
                         '<button type="button" class="turnos-lib" data-user="' + esc(s.user_id) +
                         '" data-disp="' + esc(s.dispositivo || '') + '"><i class="fas fa-unlink"></i> Liberar</button></div></div>';
                 }).join('') : '<p class="turnos-sub">Ningún equipo tiene sesión abierta ahora mismo.</p>');
             enlazarSwitches(sesiones);
+            sesiones.querySelectorAll('.turnos-wh').forEach(function (b) {
+                b.addEventListener('click', function () { abrirWebhook(Number(b.dataset.idx)); });
+            });
             sesiones.querySelectorAll('.turnos-lib').forEach(function (b) {
                 b.addEventListener('click', function () { liberarSesion(b.dataset.user, b.dataset.disp || null); });
             });
@@ -252,6 +291,189 @@
             if (r.error || !r.data || !r.data.ok) { aviso('No se pudo liberar: ' + ((r.error && r.error.message) || 'sin permiso')); return; }
             await pintar();
         } catch (e) { aviso('No se pudo liberar: ' + e.message); }
+    }
+
+    /* ============================================================
+       WEBHOOK DE NOTIALARM (iPhone)
+       La URL privada del NotiAlarm de una persona. Solo la carga
+       Seguridad Industrial. Suena mientras la sesión exista y el
+       interruptor esté en verde, igual que el celular Android.
+       ============================================================ */
+
+    function botonWebhook(s, i) {
+        var clase = 'turnos-wh' + (s.webhook ? (s.webhook_estado === 'error' ? ' malo' : ' puesto') : '');
+        var titulo = s.webhook
+            ? 'iPhone enganchado · pulsa para cambiar la dirección'
+            : 'Cargar el webhook de NotiAlarm de esta persona';
+        return '<button type="button" class="' + clase + '" data-idx="' + i + '" title="' + esc(titulo) + '">' +
+            '<i class="fas fa-mobile-screen-button"></i> Webhook</button>';
+    }
+
+    function estadoWebhookTexto(s) {
+        if (!s.webhook) return 'Esta persona todavía no tiene webhook cargado.';
+        if (!s.webhook_estado) return 'Dirección guardada. Todavía no se ha probado.';
+        if (s.webhook_estado === 'error') return 'La última prueba falló (' + fechaHora(s.webhook_probado_en) + ').';
+        return 'Última prueba correcta: ' + fechaHora(s.webhook_probado_en) + '.';
+    }
+
+    function cajaWebhook() {
+        var p = document.getElementById('wh-panel');
+        if (p) return p;
+        p = document.createElement('div');
+        p.id = 'wh-panel';
+        p.className = 'wh-fondo';
+        p.innerHTML =
+            '<div class="wh-caja">' +
+            '<div class="wh-cab"><h3><i class="fas fa-mobile-screen-button"></i> Webhook de NotiAlarm</h3>' +
+            '<button type="button" class="wh-x" aria-label="Cerrar"><i class="fas fa-xmark"></i></button></div>' +
+            '<p class="wh-quien" id="wh-quien"></p>' +
+            '<input id="wh-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" ' +
+            'placeholder="https://hook.notialarm.com/..." />' +
+            '<p class="wh-nota">Pega la dirección privada que muestra NotiAlarm en el iPhone de esta persona. ' +
+            'Es personal: quien la tenga puede hacer sonar ese teléfono. Si la persona cambia de equipo, ' +
+            'se reemplaza por la nueva.</p>' +
+            '<div class="wh-estado" id="wh-estado"></div>' +
+            '<div class="wh-botones">' +
+            '<button type="button" class="wh-probar" id="wh-probar"><i class="fas fa-bell"></i> Probar</button>' +
+            '<button type="button" class="wh-guardar" id="wh-guardar"><i class="fas fa-floppy-disk"></i> Guardar</button>' +
+            '<button type="button" class="wh-quitar" id="wh-quitar"><i class="fas fa-trash"></i> Quitar</button>' +
+            '</div></div>';
+        document.body.appendChild(p);
+        p.querySelector('.wh-x').addEventListener('click', cerrarWebhook);
+        p.addEventListener('click', function (ev) { if (ev.target === p) cerrarWebhook(); });
+        document.getElementById('wh-guardar').addEventListener('click', guardarWebhook);
+        document.getElementById('wh-probar').addEventListener('click', probarWebhook);
+        document.getElementById('wh-quitar').addEventListener('click', quitarWebhook);
+        return p;
+    }
+
+    function estadoWebhook(texto, tipo) {
+        var c = document.getElementById('wh-estado');
+        if (!c) return;
+        c.textContent = texto || '';
+        c.className = 'wh-estado' + (tipo ? ' ' + tipo : '');
+    }
+
+    function abrirWebhook(i) {
+        var s = MAPA_SESIONES[i];
+        if (!s) return;
+        cajaWebhook().dataset.idx = String(i);
+        document.getElementById('wh-quien').textContent = s.user_id;
+        document.getElementById('wh-url').value = s.webhook || '';
+        document.getElementById('wh-quitar').style.display = s.webhook ? '' : 'none';
+        estadoWebhook(estadoWebhookTexto(s), s.webhook_estado === 'error' ? 'malo' : (s.webhook ? 'ok' : ''));
+        document.getElementById('wh-panel').classList.add('abierto');
+    }
+
+    function cerrarWebhook() {
+        var p = document.getElementById('wh-panel');
+        if (p) p.classList.remove('abierto');
+    }
+
+    function sesionWebhook() {
+        var p = document.getElementById('wh-panel');
+        var i = p ? Number(p.dataset.idx) : NaN;
+        return MAPA_SESIONES[i] || null;
+    }
+
+    function motivoTexto(m) {
+        return ({
+            sin_permiso: 'Solo Seguridad Industrial puede cargar webhooks.',
+            sin_sesion: 'Esa persona ya no tiene sesión abierta.',
+            sin_url: 'Escribe la dirección.',
+            url_invalida: 'La dirección debe empezar con https://'
+        })[m] || ('No se pudo guardar: ' + (m || 'error'));
+    }
+
+    async function guardarWebhook() {
+        var s = sesionWebhook();
+        if (!s) return;
+        var url = document.getElementById('wh-url').value.trim();
+        if (!url) { estadoWebhook('Escribe la dirección.', 'malo'); return; }
+        if (!/^https:\/\//i.test(url)) { estadoWebhook('La dirección debe empezar con https://', 'malo'); return; }
+        var b = document.getElementById('wh-guardar');
+        b.disabled = true;
+        estadoWebhook('Guardando…', '');
+        try {
+            var r = await db.rpc('registrar_webhook_notialarm', { p_clave: clavePortal(), p_webhook: url });
+            if (r.error || !r.data || !r.data.ok) {
+                estadoWebhook(motivoTexto((r.data && r.data.motivo) || (r.error && r.error.message)), 'malo');
+                b.disabled = false;
+                return;
+            }
+            await pintar();
+            cerrarWebhook();
+        } catch (e) {
+            estadoWebhook('No se pudo guardar: ' + e.message, 'malo');
+        }
+        b.disabled = false;
+    }
+
+    async function probarWebhook() {
+        var s = sesionWebhook();
+        if (!s) return;
+        var url = document.getElementById('wh-url').value.trim();
+        if (!/^https:\/\//i.test(url)) {
+            estadoWebhook('La dirección debe empezar con https://', 'malo');
+            return;
+        }
+        if (s.alarma_off && !confirm(s.user_id + ' tiene las alarmas en rojo: no le sonará ninguna alarma real. ' +
+            '¿Hacer sonar el teléfono de todos modos para comprobar la dirección?')) return;
+
+        var b = document.getElementById('wh-probar');
+        b.disabled = true;
+        estadoWebhook('Probando…', '');
+        try {
+            var r = await fetch(URL_FN, {
+                method: 'POST',
+                headers: {
+                    apikey: CLAVE_PUBLICA,
+                    Authorization: 'Bearer ' + CLAVE_PUBLICA,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ probar: true, webhook: url, title: s.user_id })
+            });
+            var d = await r.json();
+            if (d.ok) {
+                estadoWebhook('El teléfono contestó: la dirección sirve.', 'ok');
+            } else {
+                estadoWebhook(d.motivo === 'sin_conexion'
+                    ? 'No hubo respuesta del teléfono. Revisa la dirección.'
+                    : 'El teléfono rechazó la dirección (código ' + d.estado + ').',
+                    'malo');
+            }
+            // Deja constancia si la URL probada es la que está guardada
+            if (s.webhook_token && s.webhook && s.webhook === url) {
+                await db.rpc('marcar_webhook_probado', { p_token: s.webhook_token, p_ok: !!d.ok });
+                s.webhook_estado = d.ok ? 'ok' : 'error';
+                s.webhook_probado_en = new Date().toISOString();
+            }
+        } catch (e) {
+            estadoWebhook('No se pudo probar: ' + e.message, 'malo');
+        }
+        b.disabled = false;
+    }
+
+    async function quitarWebhook() {
+        var s = sesionWebhook();
+        if (!s) return;
+        if (!confirm('¿Quitar el webhook de ' + s.user_id + '? Ese iPhone dejará de sonar.')) return;
+        var b = document.getElementById('wh-quitar');
+        b.disabled = true;
+        try {
+            var r = await db.rpc('quitar_webhook_notialarm', { p_clave: clavePortal(), p_user_id: s.user_id });
+            if (r.error || !r.data || !r.data.ok) {
+                estadoWebhook(motivoTexto((r.data && r.data.motivo) || (r.error && r.error.message)), 'malo');
+                b.disabled = false;
+                return;
+            }
+            await pintar();
+            cerrarWebhook();
+            aviso(s.user_id + ': webhook quitado');
+        } catch (e) {
+            estadoWebhook('No se pudo quitar: ' + e.message, 'malo');
+        }
+        b.disabled = false;
     }
 
     function abrir() {

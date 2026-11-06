@@ -310,4 +310,56 @@ nuevo en el siguiente toque.
 
 Versiones: `script.js?v=69`, `mapa.js?v=65`.
 
+---
+
+## 16. Webhook de NotiAlarm para los iPhone (jefes y gerencias) — 6-nov
+
+Hasta aquí la alarma del iPhone era código muerto: `notialarm_webhook` existía en la
+tabla, pero **ninguna fila lo tenía** y no había forma de cargarlo desde la aplicación.
+Un jefe con iPhone no se identificaba en ningún lado, porque la sesión se engancha por
+`token_push` y un iPhone no tiene token FCM.
+
+**Cómo queda.** En *Turnos y sesiones* → *Sesiones abiertas*, cada fila gana un botón
+**Webhook** (solo lo ve Seguridad Industrial). Ahí se pega la URL privada de NotiAlarm
+de esa persona; al guardar, ese iPhone recibe las mismas alarmas que un Android:
+pantalla completa, sonando hasta que se detiene, con el teléfono en silencio.
+
+| Regla | Cómo queda |
+|---|---|
+| Quién lo carga | Solo sección **Seguridad Industrial** exacta (`es_seguridad_industrial()`). Ni Gerencia General, ni Seguridad Patrimonial, ni los propios jefes |
+| Identidad | La URL va pegada a la **persona**, no a la sesión: se guarda con `token = 'ios-' || md5(norm_persona(user_id))` |
+| Al cerrar sesión | Deja de sonar (no hay sesión viva). La URL **no** se borra |
+| Al volver a entrar | Se reengancha sola en `abrir_sesion_panel()` |
+| Interruptor verde/rojo | Manda igual que para Android: en rojo `destinatarios_push()` no devuelve la fila, aunque la URL esté cargada. El silencio sobrevive al cierre de sesión y al reinicio |
+| Cambio de teléfono | Al guardar una URL nueva se borra la fila `ios-` anterior de esa persona |
+| URL muerta | Botón *Probar* (pasa por la función edge, que sí puede hacer el POST) y se guarda el resultado en `webhook_estado` / `webhook_probado_en`; la fila se pinta en rojo |
+
+**Cambios de base** (`plan-contingencia/sql/webhook_notialarm.sql`, ya aplicado):
+`es_seguridad_industrial()`, `token_ios()`, `registrar_webhook_notialarm()`,
+`quitar_webhook_notialarm()`, `marcar_webhook_probado()`, y se recrean
+`destinatarios_push()`, `sesiones_panel_lista()` y `abrir_sesion_panel()`.
+
+- `destinatarios_push()`: la fila `ios-%` entra por **persona con sesión abierta**, no por
+  `token_push`. Así el iPhone suena aunque esa persona tenga además un Android enganchado.
+- `abrir_sesion_panel()`: el barrido ya **no** borra las suscripciones con webhook
+  (`and ps.notialarm_webhook is null`); si no, la URL se perdía en el siguiente login.
+- `sesiones_panel_lista()` devuelve `webhook`, `webhook_estado`, `webhook_probado_en`,
+  `webhook_token` y `puede_webhook`.
+
+**Función edge `send-push-notification` v21:** el POST a NotiAlarm manda
+`message: "<título> — <cuerpo>"` (NotiAlarm solo lee `alert_tag`, `tag`, `message` o
+`title`, así que antes se perdía el cuerpo) y acepta `{ probar, webhook }` para el botón
+*Probar*, sin tocar la base ni FCM.
+
+**Cuenta borrada:** `SST` (rol `area`, sección Seguridad Industrial, inactiva) ya no
+existe; solo quedaba esa fila, sin registros colgando.
+
+Versiones: `turnos.js?v=4`.
+
+**Pendiente de probar en un iPhone real**: cargar una URL de verdad, *Probar* y disparar
+una alarma de semáforo. En el navegador headless se verificó el panel completo con datos
+simulados (botón, modal, guardar, quitar, URL inválida y el aviso de interruptor en rojo).
+
+
+
 

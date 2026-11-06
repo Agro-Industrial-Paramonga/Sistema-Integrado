@@ -107,7 +107,40 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { title, body, userId, token, excluir, tipo } = await req.json();
+    const { title, body, userId, token, excluir, tipo, webhook, probar } = await req.json();
+
+    // ============================================================
+    // 0. Prueba suelta de una URL de NotiAlarm (boton "Probar" del panel).
+    //    No consulta destinatarios, no manda FCM y no toca la base:
+    //    solo dice si la URL contesto. El texto lleva la hora para que
+    //    NotiAlarm no lo tome como repetido y lo descarte.
+    // ============================================================
+    if (probar) {
+      const url = String(webhook || '').trim();
+      if (!/^https:\/\//i.test(url)) {
+        return new Response(JSON.stringify({ ok: false, motivo: 'url_invalida' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'PRUEBA ' + new Date().toISOString().slice(11, 19) + ' · ' + (title || 'Sistema Integrado')
+          })
+        });
+        return new Response(JSON.stringify({ ok: r.ok, estado: r.status }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ ok: false, motivo: 'sin_conexion',
+          detalle: (err as Error).message }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
 
     // ============================================================
     // 1. Obtener tokens del destinatario + webhooks globales de iPhone
@@ -285,8 +318,12 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: tituloFinal,
-            body: cuerpoFinal
+            // NotiAlarm lee alert_tag, tag, message o title (en ese orden):
+            // el texto util va en "message" para que la alarma no salga pelada.
+            message: cuerpoFinal && cuerpoFinal !== tituloFinal
+              ? tituloFinal + ' — ' + cuerpoFinal
+              : tituloFinal,
+            title: tituloFinal
           })
         });
 
