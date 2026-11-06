@@ -12,6 +12,7 @@
     var URL_FN = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
     var CLAVE_PUBLICA = 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
     var MAPA_SESIONES = {};
+    var WH_FILA = null;
 
     function esc(t) {
         return String(t == null ? '' : t)
@@ -357,7 +358,10 @@
     function abrirWebhook(i) {
         var s = MAPA_SESIONES[i];
         if (!s) return;
-        cajaWebhook().dataset.idx = String(i);
+        cajaWebhook();
+        // Se guarda la fila entera, no el número: si la lista se repinta
+        // mientras la ventana está abierta, el número apuntaría a otra persona.
+        WH_FILA = s;
         document.getElementById('wh-quien').textContent = s.user_id;
         document.getElementById('wh-url').value = s.webhook || '';
         document.getElementById('wh-quitar').style.display = s.webhook ? '' : 'none';
@@ -368,18 +372,18 @@
     function cerrarWebhook() {
         var p = document.getElementById('wh-panel');
         if (p) p.classList.remove('abierto');
+        WH_FILA = null;
     }
 
     function sesionWebhook() {
-        var p = document.getElementById('wh-panel');
-        var i = p ? Number(p.dataset.idx) : NaN;
-        return MAPA_SESIONES[i] || null;
+        return WH_FILA;
     }
 
     function motivoTexto(m) {
         return ({
             sin_permiso: 'Solo Seguridad Industrial puede cargar webhooks.',
             sin_sesion: 'Esa persona ya no tiene sesión abierta.',
+            sin_usuario: 'No se identificó a la persona.',
             sin_url: 'Escribe la dirección.',
             url_invalida: 'La dirección debe empezar con https://'
         })[m] || ('No se pudo guardar: ' + (m || 'error'));
@@ -395,7 +399,12 @@
         b.disabled = true;
         estadoWebhook('Guardando…', '');
         try {
-            var r = await db.rpc('registrar_webhook_notialarm', { p_clave: clavePortal(), p_webhook: url });
+            // p_user_id es la persona de la fila; p_clave solo acredita el permiso.
+            var r = await db.rpc('registrar_webhook_notialarm', {
+                p_clave: clavePortal(),
+                p_user_id: s.user_id,
+                p_webhook: url
+            });
             if (r.error || !r.data || !r.data.ok) {
                 estadoWebhook(motivoTexto((r.data && r.data.motivo) || (r.error && r.error.message)), 'malo');
                 b.disabled = false;

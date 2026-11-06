@@ -54,9 +54,13 @@ as $function$
 $function$;
 
 /* ------------------------------------------------------------
-   3. Cargar / cambiar la URL de una persona con sesión abierta
+   3. Cargar / cambiar la URL de una persona
+   p_clave   = sesión de quien carga (solo para el permiso)
+   p_user_id = la persona a la que se le carga (la fila del panel)
    ------------------------------------------------------------ */
-create or replace function public.registrar_webhook_notialarm(p_clave text, p_webhook text)
+drop function if exists public.registrar_webhook_notialarm(text, text);
+
+create or replace function public.registrar_webhook_notialarm(p_clave text, p_user_id text, p_webhook text)
 returns jsonb
 language plpgsql
 security definer
@@ -65,7 +69,7 @@ as $function$
 declare
     v_url   text := btrim(coalesce(p_webhook, ''));
     v_clave text := btrim(coalesce(p_clave, ''));
-    v_user  text;
+    v_user  text := btrim(coalesce(p_user_id, ''));
     v_rol   text;
     v_tok   text;
 begin
@@ -73,11 +77,24 @@ begin
         return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
     end if;
 
-    select s.user_id, s.rol into v_user, v_rol
-      from sesiones_panel s where s.clave = v_clave limit 1;
+    if v_user = '' then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_usuario');
+    end if;
 
-    if v_user is null then
-        return jsonb_build_object('ok', false, 'motivo', 'sin_sesion');
+    -- El rol se toma del equipo de esa persona si lo tiene abierto;
+    -- si no, de su ficha, para seguir la misma regla que el Android.
+    select s.rol into v_rol
+      from sesiones_panel s
+     where upper(btrim(s.user_id)) = upper(btrim(v_user))
+     order by s.inicio desc limit 1;
+
+    if v_rol is null then
+        select u.rol into v_rol from usuarios u
+         where upper(btrim(u.area)) = upper(btrim(v_user)) limit 1;
+    end if;
+
+    if v_rol is null then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_usuario');
     end if;
 
     if v_url = '' then
@@ -111,12 +128,15 @@ begin
         values (v_user, v_tok, 'jefe', v_rol, v_url);
     end if;
 
-    -- La sesión desde donde se cargó queda enganchada al iPhone.
+    -- Se engancha a los equipos DE ESA PERSONA, no al de quien carga.
     -- Si ese equipo ya estaba enganchado a un celular Android, no se le quita:
     -- el webhook suena igual por venir pegado a la persona.
-    delete from sesiones_panel where token_push = v_tok and clave <> v_clave;
+    delete from sesiones_panel
+     where token_push = v_tok
+       and upper(btrim(user_id)) <> upper(btrim(v_user));
+
     update sesiones_panel set token_push = v_tok
-     where clave = v_clave
+     where upper(btrim(user_id)) = upper(btrim(v_user))
        and (token_push is null or token_push like 'ios-%');
 
     insert into app_log (origen, detalle)

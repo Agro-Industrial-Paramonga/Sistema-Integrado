@@ -382,6 +382,17 @@ guardaba mal (PowerShell leía el archivo como cp1252 y llegaba `â€”` al iP
 mismo el 🚨 y los acentos de los textos por defecto estaban corruptos en las v21–v22.
 Al desplegar hay que leer el archivo con `[IO.File]::ReadAllText($ruta, UTF8)`.
 
+**Fallo corregido (6-nov, noche)**: `registrar_webhook_notialarm()` tomaba la persona de
+la **sesión de quien cargaba**, no de la fila abierta. Si Seguridad Industrial cargaba el
+webhook de otra persona, la URL se guardaba a su propio nombre —y como la URL es la del
+teléfono, sonaba igual, lo que disimulaba el error—. Ahora la función recibe `p_user_id` y
+`p_clave` solo acredita el permiso. La ventana del panel guarda además la fila entera
+(`WH_FILA`) en vez del índice de la lista. Versión de `turnos.js`: **v=5**.
+
+Antes de este arreglo quedó una fila `ios-` a nombre de VILLAFRANCA ROMERO EDINSON
+ALEXANDER con una URL que no es suya: hay que quitarla con el botón *Quitar* de su fila y
+volver a cargar la URL en la persona correcta.
+
 
 
 
