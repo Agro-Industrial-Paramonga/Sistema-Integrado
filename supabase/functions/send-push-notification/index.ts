@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { title, body, userId, token, excluir, tipo, webhook, probar } = await req.json();
+    const { title, body, userId, token, excluir, tipo, webhook, probar, soloCuerpo } = await req.json();
 
     // ============================================================
     // 0. Prueba suelta de una URL de NotiAlarm (boton "Probar" del panel).
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: 'PRUEBA ' + new Date().toISOString().slice(11, 19) + ' · ' + (title || 'Sistema Integrado')
+            message: 'PRUEBA ' + new Date().toISOString().slice(11, 19) + ' - ' + (title || 'Sistema Integrado')
           })
         });
         return new Response(JSON.stringify({ ok: r.ok, estado: r.status }), {
@@ -316,13 +316,18 @@ Deno.serve(async (req) => {
       try {
         const respNotiAlarm = await fetch(webhook as string, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({
-            // NotiAlarm lee alert_tag, tag, message o title (en ese orden):
-            // el texto util va en "message" para que la alarma no salga pelada.
-            message: cuerpoFinal && cuerpoFinal !== tituloFinal
-              ? tituloFinal + ' — ' + cuerpoFinal
-              : tituloFinal,
+            // NotiAlarm lee alert_tag, tag, message o title (en ese orden).
+            // Con soloCuerpo llega unicamente el texto que se lee en Android;
+            // sin el, titulo y detalle van en la misma linea.
+            // El separador va en ASCII a proposito: el guion largo se corrompia
+            // al desplegar y llegaba basura a la pantalla del iPhone.
+            message: (soloCuerpo && cuerpoFinal)
+              ? cuerpoFinal
+              : (cuerpoFinal && cuerpoFinal !== tituloFinal
+                  ? tituloFinal + ' - ' + cuerpoFinal
+                  : tituloFinal),
             title: tituloFinal
           })
         });

@@ -28,6 +28,20 @@
     /* Declarador oficial: siempre el Gerente General, aunque declare otra persona */
     const DECLARADOR = { nombre: 'MELGAR BELMONT JOSE MARIANO', rol: 'gerente_general' };
 
+    /* Nombre como se lee en la alarma. El APK (AlarmaActivity.java) tiene
+       exactamente este mismo texto escrito a mano; si se cambia aquí, hay que
+       cambiarlo allá y recompilar. */
+    const DECLARADOR_TEXTO = 'José Mariano Melgar Belmont';
+
+    const FRASE_VERDE = DECLARADOR_TEXTO +
+        ' ha declarado el estado de emergencia en nivel VERDE.';
+    const FRASE_AMARILLO = DECLARADOR_TEXTO +
+        ' ha declarado el estado de emergencia en nivel AMARILLO. ' +
+        'Se solicita ejecutar inmediatamente las actividades que comprenden el plan de contingencia.';
+    const FRASE_ROJO = DECLARADOR_TEXTO +
+        ' ha declarado el Estado de Emergencia en Nivel ROJO. ' +
+        'Se solicita ejecutar inmediatamente las actividades que comprenden el plan de contingencia.';
+
     /* ------------------------------------------------------------
        Definición de los niveles: texto de la lámina + acciones del plan
     ------------------------------------------------------------ */
@@ -344,12 +358,14 @@
        sesión abierta en el portal; el que declara queda excluido. */
     async function semAvisarJefes(nivel, anterior) {
         const n = NIVELES[nivel] || NIVELES.verde;
-        const antes = (NIVELES[anterior] || {}).nombre || '';
-        const quien = (DECLARADOR && DECLARADOR.nombre) || 'Seguridad Industrial';
         let excluir = null;
         try { excluir = localStorage.getItem('pushToken'); } catch (e) {}
 
-        const cuerpo = (antes ? 'Antes ' + antes + '. ' : '') + n.frase + ' · Declaró ' + quien;
+        /* Mismo texto que muestra la pantalla de alarma del APK, palabra por
+           palabra, para que el iPhone diga exactamente lo mismo. */
+        const cuerpo = nivel === 'rojo' ? FRASE_ROJO
+                     : nivel === 'amarillo' ? FRASE_AMARILLO
+                     : FRASE_VERDE;
 
         try {
             await fetch(FUNC_PUSH, {
@@ -359,7 +375,10 @@
                     title: 'Semáforo: ' + n.nombre,
                     body: cuerpo,
                     tipo: 'jefe',
-                    excluir: excluir || undefined
+                    excluir: excluir || undefined,
+                    // El iPhone solo tiene una línea: se le manda el texto tal cual,
+                    // sin el título delante, que es lo que se lee en Android.
+                    soloCuerpo: true
                 })
             });
         } catch (e) {

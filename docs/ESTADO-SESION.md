@@ -360,6 +360,28 @@ Versiones: `turnos.js?v=4`.
 una alarma de semáforo. En el navegador headless se verificó el panel completo con datos
 simulados (botón, modal, guardar, quitar, URL inválida y el aviso de interruptor en rojo).
 
+### Texto igual al del Android (6-nov, más tarde)
+
+El iPhone pedía una sola línea y estaba recibiendo `Semáforo: VERDE - Antes AMARILLO…`,
+mientras la pantalla del APK dice otra cosa. Ahora `semaforo.js` manda la frase exacta de
+`AlarmaActivity.java` y la función la entrega tal cual (`soloCuerpo: true`), sin título
+delante:
+
+- VERDE: «José Mariano Melgar Belmont ha declarado el estado de emergencia en nivel VERDE.»
+- AMARILLO: «…nivel AMARILLO. Se solicita ejecutar inmediatamente las actividades que
+  comprenden el plan de contingencia.»
+- ROJO: «…Estado de Emergencia en Nivel ROJO. Se solicita ejecutar…»
+
+El texto está duplicado a propósito (APK en Java, web en JS). Si cambia el nombre del
+declarador o la redacción, hay que tocar los dos lados y recompilar el APK.
+
+**Se perdió** el «Antes X · Declaró X» que llevaba el aviso: el texto del APK no lo tiene.
+
+La función va por la **v24**. Dos fallos de despliegue corregidos: el guion largo se
+guardaba mal (PowerShell leía el archivo como cp1252 y llegaba `â€”` al iPhone) y por lo
+mismo el 🚨 y los acentos de los textos por defecto estaban corruptos en las v21–v22.
+Al desplegar hay que leer el archivo con `[IO.File]::ReadAllText($ruta, UTF8)`.
+
 
 
 
