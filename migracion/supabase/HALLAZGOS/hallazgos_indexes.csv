@@ -1,0 +1,22 @@
+tablename,indexname,indexdef
+catalogo_faltas,catalogo_faltas_nombre_key,CREATE UNIQUE INDEX catalogo_faltas_nombre_key ON public.catalogo_faltas USING btree (nombre)
+catalogo_faltas,catalogo_faltas_pkey,CREATE UNIQUE INDEX catalogo_faltas_pkey ON public.catalogo_faltas USING btree (id)
+condiciones_inseguras_seleccionadas,condiciones_inseguras_codigo_unique,CREATE UNIQUE INDEX condiciones_inseguras_codigo_unique ON public.condiciones_inseguras_seleccionadas USING btree (codigo_hallazgo)
+condiciones_inseguras_seleccionadas,condiciones_inseguras_seleccionadas_pkey,CREATE UNIQUE INDEX condiciones_inseguras_seleccionadas_pkey ON public.condiciones_inseguras_seleccionadas USING btree (codigo_hallazgo)
+feriados,feriados_fecha_key,CREATE UNIQUE INDEX feriados_fecha_key ON public.feriados USING btree (fecha)
+feriados,feriados_pkey,CREATE UNIQUE INDEX feriados_pkey ON public.feriados USING btree (id)
+gerencias_acceso,gerencias_acceso_nombre_key,CREATE UNIQUE INDEX gerencias_acceso_nombre_key ON public.gerencias_acceso USING btree (nombre)
+gerencias_acceso,gerencias_acceso_pkey,CREATE UNIQUE INDEX gerencias_acceso_pkey ON public.gerencias_acceso USING btree (id)
+hallazgo_faltas,hallazgo_faltas_hallazgo_id_falta_id_key,"CREATE UNIQUE INDEX hallazgo_faltas_hallazgo_id_falta_id_key ON public.hallazgo_faltas USING btree (hallazgo_id, falta_id)"
+hallazgo_faltas,hallazgo_faltas_pkey,CREATE UNIQUE INDEX hallazgo_faltas_pkey ON public.hallazgo_faltas USING btree (id)
+hallazgo_faltas,idx_hf_falta,CREATE INDEX idx_hf_falta ON public.hallazgo_faltas USING btree (falta_id)
+hallazgo_faltas,idx_hf_hallazgo,CREATE INDEX idx_hf_hallazgo ON public.hallazgo_faltas USING btree (hallazgo_id)
+hallazgos,hallazgos_codigo_unique,"CREATE UNIQUE INDEX hallazgos_codigo_unique ON public.hallazgos USING btree (""COD_HALLAZGO"")"
+hallazgos,hallazgos_pkey,CREATE UNIQUE INDEX hallazgos_pkey ON public.hallazgos USING btree (id)
+imagenes_hallazgos,idx_img_hallazgo_destacada,CREATE INDEX idx_img_hallazgo_destacada ON public.imagenes_hallazgos USING btree (hallazgo_id) WHERE (destacada = true)
+imagenes_hallazgos,idx_img_hallazgos_hallazgo,CREATE INDEX idx_img_hallazgos_hallazgo ON public.imagenes_hallazgos USING btree (hallazgo_id)
+imagenes_hallazgos,imagenes_hallazgos_pkey,CREATE UNIQUE INDEX imagenes_hallazgos_pkey ON public.imagenes_hallazgos USING btree (id)
+medida_accion_fotos,idx_maf_falta,CREATE INDEX idx_maf_falta ON public.medida_accion_fotos USING btree (falta_id)
+medida_accion_fotos,medida_accion_fotos_pkey,CREATE UNIQUE INDEX medida_accion_fotos_pkey ON public.medida_accion_fotos USING btree (id)
+relaciones_casos,idx_relaciones_casos_hallazgo,CREATE INDEX idx_relaciones_casos_hallazgo ON public.relaciones_casos USING btree (hallazgo_id)
+relaciones_casos,relaciones_casos_pkey,CREATE UNIQUE INDEX relaciones_casos_pkey ON public.relaciones_casos USING btree (id)

@@ -1,0 +1,4 @@
+event_object_table,trigger_name,action_timing,event_manipulation,action_statement
+medidas_antes,trg_medidas_antes_orden,BEFORE,INSERT,EXECUTE FUNCTION medidas_antes_orden_por_defecto()
+ubicaciones,tr_exigir_sesion,BEFORE,INSERT,EXECUTE FUNCTION exigir_sesion_ubicacion()
+ubicaciones,tr_exigir_sesion,BEFORE,UPDATE,EXECUTE FUNCTION exigir_sesion_ubicacion()

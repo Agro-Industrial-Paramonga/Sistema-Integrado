@@ -1,0 +1,52 @@
+table_name,conname,contype,definition
+medidas_antes,medidas_antes_estado_check,c,"CHECK ((estado = ANY (ARRAY['no-iniciado'::text, 'en-ejecucion'::text, 'finalizado'::text])))"
+medidas_antes,medidas_antes_pkey,p,PRIMARY KEY (id)
+medidas_antes,medidas_antes_segmento_id_fkey,f,FOREIGN KEY (segmento_id) REFERENCES segmentos(id) ON DELETE SET NULL
+medidas_durante,medidas_durante_estado_check,c,"CHECK ((estado = ANY (ARRAY['bloqueado'::text, 'iniciado'::text, 'en-ejecucion'::text, 'finalizado'::text])))"
+medidas_durante,medidas_durante_pkey,p,PRIMARY KEY (id)
+medidas_durante,medidas_durante_segmento_id_fkey,f,FOREIGN KEY (segmento_id) REFERENCES segmentos(id) ON DELETE SET NULL
+medidas_despues,medidas_despues_estado_check,c,"CHECK ((estado = ANY (ARRAY['no-iniciado'::text, 'en-ejecucion'::text, 'finalizado'::text])))"
+medidas_despues,medidas_despues_pkey,p,PRIMARY KEY (id)
+medidas_despues,medidas_despues_segmento_id_fkey,f,FOREIGN KEY (segmento_id) REFERENCES segmentos(id) ON DELETE SET NULL
+usuarios,usuarios_area_key,u,UNIQUE (area)
+usuarios,usuarios_pkey,p,PRIMARY KEY (id)
+usuarios,usuarios_rol_check,c,"CHECK ((rol = ANY (ARRAY['area'::text, 'gdo'::text, 'gerencial_legal'::text, 'gerente_general'::text, 'gerente_campo'::text, 'gerente_fabrica'::text, 'jefe_area'::text, 'sup_area'::text, 'supervisor'::text])))"
+historial,historial_pkey,p,PRIMARY KEY (id)
+imagenes_medidas,imagenes_medidas_pkey,p,PRIMARY KEY (id)
+push_subscriptions,push_subscriptions_pkey,p,PRIMARY KEY (id)
+push_subscriptions,push_subscriptions_tipo_check,c,"CHECK ((tipo = ANY (ARRAY['jefe'::text, 'conductor'::text])))"
+medidas_avances,medidas_avances_pkey,p,PRIMARY KEY (id)
+segmentos,segmentos_pkey,p,PRIMARY KEY (id)
+mapa_capa,mapa_capa_pkey,p,PRIMARY KEY (id)
+ubicaciones,ubicaciones_pkey,p,PRIMARY KEY (user_id)
+unidades,unidades_nombre_key,u,UNIQUE (nombre)
+unidades,unidades_pkey,p,PRIMARY KEY (id)
+app_log,app_log_pkey,p,PRIMARY KEY (id)
+conductores,conductores_nombre_key,u,UNIQUE (nombre)
+conductores,conductores_pkey,p,PRIMARY KEY (id)
+mapa_puntos,mapa_puntos_pkey,p,PRIMARY KEY (id)
+mapa_lineas,mapa_lineas_pkey,p,PRIMARY KEY (id)
+mapa_maquinas,mapa_maquinas_pkey,p,PRIMARY KEY (id)
+mapa_maquinas,mapa_maquinas_unidad_key,u,UNIQUE (unidad)
+sesiones_unidad,sesiones_unidad_pkey,p,PRIMARY KEY (unidad)
+alertas_log,alertas_log_pkey,p,PRIMARY KEY (id)
+compuertas,compuertas_administracion_nombre_key,u,"UNIQUE (administracion, nombre)"
+compuertas,compuertas_pkey,p,PRIMARY KEY (id)
+compuertas_contactos,compuertas_contactos_compuerta_id_fkey,f,FOREIGN KEY (compuerta_id) REFERENCES compuertas(id) ON DELETE CASCADE
+compuertas_contactos,compuertas_contactos_pkey,p,PRIMARY KEY (id)
+semaforo_estado,semaforo_estado_fila_unica,c,CHECK ((id = 1))
+semaforo_estado,semaforo_estado_nivel_valido,c,"CHECK ((nivel = ANY (ARRAY['verde'::text, 'amarillo'::text, 'naranja'::text, 'rojo'::text])))"
+semaforo_estado,semaforo_estado_pkey,p,PRIMARY KEY (id)
+semaforo_eventos,semaforo_eventos_pkey,p,PRIMARY KEY (id)
+campos_anillos,campos_anillos_pkey,p,PRIMARY KEY (id)
+evac_estado,evac_estado_pkey,p,PRIMARY KEY (id)
+sesiones_panel,sesiones_panel_clave_key,u,UNIQUE (clave)
+sesiones_panel,sesiones_panel_pkey,p,PRIMARY KEY (id)
+sesiones_historial,sesiones_historial_motivo_check,c,"CHECK ((motivo = ANY (ARRAY['cerrada'::text, 'forzada'::text, 'reemplazada'::text])))"
+sesiones_historial,sesiones_historial_pkey,p,PRIMARY KEY (id)
+sesiones_historial,sesiones_historial_tipo_check,c,"CHECK ((tipo = ANY (ARRAY['jefe'::text, 'conductor'::text])))"
+mapa_fotos,mapa_fotos_check,c,CHECK (((punto_id IS NOT NULL) OR (compuerta_id IS NOT NULL)))
+mapa_fotos,mapa_fotos_compuerta_id_fkey,f,FOREIGN KEY (compuerta_id) REFERENCES compuertas(id) ON DELETE CASCADE
+mapa_fotos,mapa_fotos_pkey,p,PRIMARY KEY (id)
+mapa_fotos,mapa_fotos_punto_id_fkey,f,FOREIGN KEY (punto_id) REFERENCES mapa_puntos(id) ON DELETE CASCADE
+alarmas_silenciadas,alarmas_silenciadas_pkey,p,PRIMARY KEY (clave)

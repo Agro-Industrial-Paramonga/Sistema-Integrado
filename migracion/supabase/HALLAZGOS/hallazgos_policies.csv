@@ -1,0 +1,28 @@
+tablename,policyname,cmd,roles,qual,with_check
+catalogo_faltas,Permitir leer catalogo_faltas a anon,SELECT,{anon},true,
+catalogo_faltas,cf_insert,INSERT,{public},,true
+catalogo_faltas,cf_select,SELECT,{public},true,
+catalogo_faltas,cf_update,UPDATE,{public},true,true
+condiciones_inseguras_seleccionadas,Lectura de condiciones seleccionadas,SELECT,"{anon,authenticated}",true,
+condiciones_inseguras_seleccionadas,Permitir eliminaciÃ³n a todos,DELETE,{public},true,
+condiciones_inseguras_seleccionadas,Permitir inserciÃ³n a todos,INSERT,{public},,true
+condiciones_inseguras_seleccionadas,Permitir lectura a todos,SELECT,{public},true,
+feriados,Permitir leer feriados a anon,SELECT,{anon},true,
+gerencias_acceso,lectura_publica_gerencias,SELECT,{public},true,
+hallazgo_faltas,hf_delete,DELETE,{public},true,
+hallazgo_faltas,hf_insert,INSERT,{public},,true
+hallazgo_faltas,hf_select,SELECT,{public},true,
+hallazgos,Admin puede actualizar hallazgos,UPDATE,{authenticated},is_admin(),is_admin()
+hallazgos,Admin puede escribir hallazgos,INSERT,{authenticated},,is_admin()
+hallazgos,Lectura pÃºblica de hallazgos,SELECT,{public},true,
+hallazgos,Permitir actualizar hallazgos a anon,UPDATE,{anon},true,true
+hallazgos,Permitir insertar hallazgos a anon,INSERT,{anon},,true
+hallazgos,Permitir lectura pÃºblica,SELECT,{public},true,
+hallazgos,Permitir leer hallazgos a anon,SELECT,{anon},true,
+imagenes_hallazgos,img_hallazgos_delete,DELETE,{public},true,
+imagenes_hallazgos,img_hallazgos_insert,INSERT,{public},,true
+imagenes_hallazgos,img_hallazgos_select,SELECT,{public},true,
+medida_accion_fotos,maf_delete,DELETE,{public},true,
+medida_accion_fotos,maf_insert,INSERT,{public},,true
+medida_accion_fotos,maf_select,SELECT,{public},true,
+relaciones_casos,Permitir todo relaciones_casos a anon,ALL,{anon},true,true

@@ -1,0 +1,48 @@
+tablename,policyname,cmd,roles,qual,with_check
+alertas_log,alertas_insert,INSERT,{anon},,true
+alertas_log,alertas_select,SELECT,{anon},true,
+app_log,app_log_todos,ALL,{public},true,true
+compuertas,compuertas_alta,INSERT,"{anon,authenticated}",,true
+compuertas,compuertas_borrado,DELETE,"{anon,authenticated}",true,
+compuertas,compuertas_select,SELECT,{anon},true,
+compuertas,compuertas_update,UPDATE,{anon},true,true
+compuertas_contactos,compuertas_contactos_alta,INSERT,"{anon,authenticated}",,true
+compuertas_contactos,compuertas_contactos_borrado,DELETE,"{anon,authenticated}",true,
+compuertas_contactos,compuertas_contactos_cambio,UPDATE,"{anon,authenticated}",true,true
+compuertas_contactos,compuertas_contactos_lectura,SELECT,"{anon,authenticated}",true,
+conductores,conductores_todos,ALL,{public},true,true
+historial,historial_insert,INSERT,{public},,true
+historial,historial_select,SELECT,{public},true,
+imagenes_medidas,imagenes_delete,DELETE,{public},true,
+imagenes_medidas,imagenes_insert,INSERT,{public},,true
+imagenes_medidas,imagenes_select,SELECT,{public},true,
+mapa_capa,mapa_capa_todos,ALL,{public},true,true
+mapa_fotos,mapa_fotos_todos,ALL,{public},true,true
+mapa_lineas,mapa_lineas_todos,ALL,{public},true,true
+mapa_maquinas,mapa_maquinas_todos,ALL,{public},true,true
+mapa_puntos,mapa_puntos_todos,ALL,{public},true,true
+medidas_antes,ActualizaciÃ³n pÃºblica medidas_antes,UPDATE,"{anon,authenticated}",true,true
+medidas_antes,Lectura pÃºblica medidas_antes,SELECT,"{anon,authenticated}",true,
+medidas_antes,medidas_antes_delete,DELETE,{public},true,
+medidas_antes,medidas_antes_insert,INSERT,{public},,true
+medidas_avances,avances_todos,ALL,{public},true,true
+medidas_despues,ActualizaciÃ³n pÃºblica medidas_despues,UPDATE,"{anon,authenticated}",true,true
+medidas_despues,Lectura pÃºblica medidas_despues,SELECT,"{anon,authenticated}",true,
+medidas_despues,medidas_despues_delete,DELETE,{public},true,
+medidas_despues,medidas_despues_insert,INSERT,{public},,true
+medidas_durante,ActualizaciÃ³n pÃºblica medidas_durante,UPDATE,"{anon,authenticated}",true,true
+medidas_durante,Lectura pÃºblica medidas_durante,SELECT,"{anon,authenticated}",true,
+medidas_durante,medidas_durante_delete,DELETE,{public},true,
+medidas_durante,medidas_durante_insert,INSERT,{public},,true
+push_subscriptions,permitir_delete_anon,DELETE,{anon},true,
+push_subscriptions,permitir_insert_anon,INSERT,{anon},,true
+push_subscriptions,permitir_select_anon,SELECT,{anon},true,
+segmentos,segmentos_todos,ALL,{public},true,true
+semaforo_estado,semaforo_estado_lectura,SELECT,"{anon,authenticated}",true,
+semaforo_eventos,semaforo_eventos_lectura,SELECT,"{anon,authenticated}",true,
+sesiones_unidad,sesiones_delete,DELETE,{anon},true,
+sesiones_unidad,sesiones_insert,INSERT,{anon},,true
+sesiones_unidad,sesiones_select,SELECT,{anon},true,
+sesiones_unidad,sesiones_update,UPDATE,{anon},true,true
+ubicaciones,ubicaciones_todos,ALL,{public},true,true
+unidades,unidades_todos,ALL,{public},true,true

@@ -1,0 +1,18 @@
+table_name,conname,contype,definition
+hallazgos,hallazgos_codigo_unique,u,"UNIQUE (""COD_HALLAZGO"")"
+hallazgos,hallazgos_pkey,p,PRIMARY KEY (id)
+gerencias_acceso,gerencias_acceso_nombre_key,u,UNIQUE (nombre)
+gerencias_acceso,gerencias_acceso_pkey,p,PRIMARY KEY (id)
+relaciones_casos,relaciones_casos_pkey,p,PRIMARY KEY (id)
+catalogo_faltas,catalogo_faltas_nombre_key,u,UNIQUE (nombre)
+catalogo_faltas,catalogo_faltas_pkey,p,PRIMARY KEY (id)
+feriados,feriados_fecha_key,u,UNIQUE (fecha)
+feriados,feriados_pkey,p,PRIMARY KEY (id)
+imagenes_hallazgos,imagenes_hallazgos_pkey,p,PRIMARY KEY (id)
+hallazgo_faltas,hallazgo_faltas_falta_id_fkey,f,FOREIGN KEY (falta_id) REFERENCES catalogo_faltas(id) ON DELETE CASCADE
+hallazgo_faltas,hallazgo_faltas_hallazgo_id_falta_id_key,u,"UNIQUE (hallazgo_id, falta_id)"
+hallazgo_faltas,hallazgo_faltas_pkey,p,PRIMARY KEY (id)
+medida_accion_fotos,medida_accion_fotos_falta_id_fkey,f,FOREIGN KEY (falta_id) REFERENCES catalogo_faltas(id) ON DELETE CASCADE
+medida_accion_fotos,medida_accion_fotos_pkey,p,PRIMARY KEY (id)
+condiciones_inseguras_seleccionadas,condiciones_inseguras_codigo_unique,u,UNIQUE (codigo_hallazgo)
+condiciones_inseguras_seleccionadas,condiciones_inseguras_seleccionadas_pkey,p,PRIMARY KEY (codigo_hallazgo)

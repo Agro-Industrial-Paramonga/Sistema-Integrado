@@ -1,0 +1,208 @@
+table_name,ordinal_position,column_name,data_type,character_maximum_length,numeric_precision,numeric_scale,is_nullable,column_default
+alarmas_silenciadas,1,clave,text,,,,NO,
+alarmas_silenciadas,2,user_id,text,,,,NO,
+alarmas_silenciadas,3,tipo,text,,,,YES,
+alarmas_silenciadas,4,apagada_en,timestamp with time zone,,,,NO,now()
+alarmas_silenciadas,5,apagada_por,text,,,,YES,
+alertas_log,1,id,bigint,,64,0,NO,nextval('alertas_log_id_seq'::regclass)
+alertas_log,2,unidad,text,,,,YES,
+alertas_log,3,user_id,text,,,,YES,
+alertas_log,4,token,text,,,,YES,
+alertas_log,5,resultado,text,,,,YES,
+alertas_log,6,detalle,text,,,,YES,
+alertas_log,7,creado_en,timestamp with time zone,,,,NO,now()
+app_log,1,id,bigint,,64,0,NO,nextval('app_log_id_seq'::regclass)
+app_log,2,origen,text,,,,YES,
+app_log,3,detalle,text,,,,YES,
+app_log,4,creado_en,timestamp with time zone,,,,NO,now()
+campos_anillos,1,id,integer,,32,0,NO,nextval('campos_anillos_id_seq'::regclass)
+campos_anillos,2,campo,text,,,,YES,
+campos_anillos,3,anillo,jsonb,,,,NO,
+compuertas,1,id,bigint,,64,0,NO,nextval('compuertas_id_seq'::regclass)
+compuertas,2,administracion,text,,,,NO,
+compuertas,3,nombre,text,,,,NO,
+compuertas,4,estado,text,,,,NO,'cerrada'::text
+compuertas,5,actualizado_por,text,,,,YES,
+compuertas,6,actualizado_en,timestamp with time zone,,,,NO,now()
+compuertas,7,lat,double precision,,53,,YES,
+compuertas,8,lon,double precision,,53,,YES,
+compuertas_contactos,1,id,bigint,,64,0,NO,
+compuertas_contactos,2,compuerta_id,bigint,,64,0,NO,
+compuertas_contactos,3,nombre,text,,,,NO,
+compuertas_contactos,4,cargo,text,,,,YES,
+compuertas_contactos,5,telefono,text,,,,NO,
+compuertas_contactos,6,creado_en,timestamp with time zone,,,,NO,now()
+conductores,1,id,uuid,,,,NO,gen_random_uuid()
+conductores,2,nombre,text,,,,NO,
+conductores,3,dni,text,,,,YES,
+conductores,4,activo,boolean,,,,NO,true
+conductores,5,creado_en,timestamp with time zone,,,,NO,now()
+evac_estado,1,id,integer,,32,0,NO,1
+evac_estado,2,vigente_desde,timestamp with time zone,,,,YES,
+historial,1,id,uuid,,,,NO,gen_random_uuid()
+historial,2,area,text,,,,NO,
+historial,3,accion,text,,,,NO,
+historial,4,tabla,text,,,,NO,
+historial,5,medida_id,text,,,,YES,
+historial,6,detalle,text,,,,YES,
+historial,7,created_at,timestamp with time zone,,,,YES,now()
+imagenes_medidas,1,id,uuid,,,,NO,gen_random_uuid()
+imagenes_medidas,2,medida_id,text,,,,NO,
+imagenes_medidas,3,tabla,text,,,,NO,
+imagenes_medidas,4,nombre,text,,,,NO,
+imagenes_medidas,5,storage_path,text,,,,NO,
+imagenes_medidas,6,area,text,,,,NO,
+imagenes_medidas,7,created_at,timestamp with time zone,,,,YES,now()
+mapa_capa,1,id,integer,,32,0,NO,1
+mapa_capa,2,norte,double precision,,53,,NO,
+mapa_capa,3,sur,double precision,,53,,NO,
+mapa_capa,4,este,double precision,,53,,NO,
+mapa_capa,5,oeste,double precision,,53,,NO,
+mapa_capa,6,opacidad,real,,24,,NO,0.55
+mapa_capa,7,actualizado_en,timestamp with time zone,,,,NO,now()
+mapa_capa,8,nombre,text,,,,YES,
+mapa_fotos,1,id,uuid,,,,NO,gen_random_uuid()
+mapa_fotos,2,punto_id,uuid,,,,YES,
+mapa_fotos,3,compuerta_id,bigint,,64,0,YES,
+mapa_fotos,4,nombre,text,,,,YES,
+mapa_fotos,5,storage_path,text,,,,NO,
+mapa_fotos,6,subido_por,text,,,,YES,
+mapa_fotos,7,creado_en,timestamp with time zone,,,,NO,now()
+mapa_lineas,1,id,uuid,,,,NO,gen_random_uuid()
+mapa_lineas,2,nombre,text,,,,YES,
+mapa_lineas,3,color,text,,,,YES,'#dc2626'::text
+mapa_lineas,4,coords,jsonb,,,,NO,
+mapa_lineas,5,creado_en,timestamp with time zone,,,,NO,now()
+mapa_lineas,6,grosor,integer,,32,0,NO,8
+mapa_lineas,7,tipo,text,,,,NO,'linea'::text
+mapa_lineas,8,ambito,text,,,,NO,'criticos'::text
+mapa_maquinas,1,id,uuid,,,,NO,gen_random_uuid()
+mapa_maquinas,2,unidad,text,,,,NO,
+mapa_maquinas,3,lat,double precision,,53,,NO,
+mapa_maquinas,4,lon,double precision,,53,,NO,
+mapa_maquinas,5,punto_orden,integer,,32,0,YES,
+mapa_maquinas,6,tamano,integer,,32,0,NO,40
+mapa_maquinas,7,actualizado_en,timestamp with time zone,,,,NO,now()
+mapa_puntos,1,id,uuid,,,,NO,gen_random_uuid()
+mapa_puntos,2,nombre,text,,,,YES,
+mapa_puntos,3,lat,double precision,,53,,NO,
+mapa_puntos,4,lon,double precision,,53,,NO,
+mapa_puntos,5,orden,integer,,32,0,NO,1
+mapa_puntos,6,color,text,,,,YES,'#facc15'::text
+mapa_puntos,7,creado_en,timestamp with time zone,,,,NO,now()
+mapa_puntos,8,tipo,text,,,,NO,'punto'::text
+mapa_puntos,9,responsable,text,,,,YES,
+mapa_puntos,10,equipos,text,,,,YES,
+medidas_antes,1,id,text,,,,NO,
+medidas_antes,2,actividad,text,,,,NO,
+medidas_antes,3,periodo,text,,,,YES,
+medidas_antes,4,area,text,,,,YES,
+medidas_antes,5,costo,text,,,,YES,''::text
+medidas_antes,6,estado,text,,,,NO,'no-iniciado'::text
+medidas_antes,7,updated_at,timestamp with time zone,,,,YES,now()
+medidas_antes,8,segmento_id,uuid,,,,YES,
+medidas_antes,9,orden,integer,,32,0,YES,
+medidas_avances,1,id,uuid,,,,NO,gen_random_uuid()
+medidas_avances,2,tabla,text,,,,NO,
+medidas_avances,3,medida_id,text,,,,NO,
+medidas_avances,4,texto,text,,,,NO,
+medidas_avances,5,autor,text,,,,YES,
+medidas_avances,6,created_at,timestamp with time zone,,,,NO,now()
+medidas_avances,7,updated_at,timestamp with time zone,,,,YES,
+medidas_despues,1,id,text,,,,NO,
+medidas_despues,2,actividad,text,,,,NO,
+medidas_despues,3,periodo,text,,,,YES,
+medidas_despues,4,area,text,,,,YES,
+medidas_despues,5,costo,text,,,,YES,''::text
+medidas_despues,6,estado,text,,,,NO,'no-iniciado'::text
+medidas_despues,7,updated_at,timestamp with time zone,,,,YES,now()
+medidas_despues,8,segmento_id,uuid,,,,YES,
+medidas_durante,1,id,text,,,,NO,
+medidas_durante,2,actividad,text,,,,NO,
+medidas_durante,3,periodo,text,,,,YES,
+medidas_durante,4,area,text,,,,YES,
+medidas_durante,5,costo,text,,,,YES,''::text
+medidas_durante,6,estado,text,,,,NO,'bloqueado'::text
+medidas_durante,7,updated_at,timestamp with time zone,,,,YES,now()
+medidas_durante,8,activo,boolean,,,,YES,false
+medidas_durante,9,segmento_id,uuid,,,,YES,
+push_subscriptions,1,id,uuid,,,,NO,gen_random_uuid()
+push_subscriptions,2,user_id,text,,,,NO,
+push_subscriptions,3,token,text,,,,NO,
+push_subscriptions,4,created_at,timestamp with time zone,,,,YES,now()
+push_subscriptions,5,notialarm_webhook,text,,,,YES,
+push_subscriptions,6,unidad,text,,,,YES,
+push_subscriptions,7,tipo,text,,,,NO,'conductor'::text
+push_subscriptions,8,rol,text,,,,YES,
+push_subscriptions,9,webhook_estado,text,,,,YES,
+push_subscriptions,10,webhook_probado_en,timestamp with time zone,,,,YES,
+segmentos,1,id,uuid,,,,NO,gen_random_uuid()
+segmentos,2,tabla,text,,,,NO,
+segmentos,3,nombre,text,,,,NO,
+segmentos,4,orden,integer,,32,0,NO,0
+segmentos,5,created_at,timestamp with time zone,,,,NO,now()
+semaforo_estado,1,id,smallint,,16,0,NO,1
+semaforo_estado,2,nivel,text,,,,NO,'verde'::text
+semaforo_estado,3,motivo,text,,,,YES,
+semaforo_estado,4,declarado_por,text,,,,YES,
+semaforo_estado,5,declarado_por_rol,text,,,,YES,
+semaforo_estado,6,es_guardia,boolean,,,,NO,false
+semaforo_estado,7,vigente_desde,timestamp with time zone,,,,NO,now()
+semaforo_estado,8,actualizado_en,timestamp with time zone,,,,NO,now()
+semaforo_estado,9,declarado_por_real,text,,,,YES,
+semaforo_eventos,1,id,bigint,,64,0,NO,
+semaforo_eventos,2,nivel,text,,,,NO,
+semaforo_eventos,3,nivel_anterior,text,,,,YES,
+semaforo_eventos,4,motivo,text,,,,YES,
+semaforo_eventos,5,declarado_por,text,,,,YES,
+semaforo_eventos,6,declarado_por_rol,text,,,,YES,
+semaforo_eventos,7,es_guardia,boolean,,,,NO,false
+semaforo_eventos,8,verificado,boolean,,,,NO,false
+semaforo_eventos,9,creado_en,timestamp with time zone,,,,NO,now()
+semaforo_eventos,10,declarado_por_real,text,,,,YES,
+sesiones_historial,1,id,bigint,,64,0,NO,nextval('sesiones_historial_id_seq'::regclass)
+sesiones_historial,2,tipo,text,,,,NO,'jefe'::text
+sesiones_historial,3,user_id,text,,,,NO,
+sesiones_historial,4,unidad,text,,,,YES,
+sesiones_historial,5,rol,text,,,,YES,
+sesiones_historial,6,dispositivo,text,,,,YES,
+sesiones_historial,7,inicio,timestamp with time zone,,,,YES,
+sesiones_historial,8,cerrada_en,timestamp with time zone,,,,NO,now()
+sesiones_historial,9,motivo,text,,,,NO,'cerrada'::text
+sesiones_historial,10,liberada_por,text,,,,YES,
+sesiones_panel,1,id,uuid,,,,NO,gen_random_uuid()
+sesiones_panel,2,user_id,text,,,,NO,
+sesiones_panel,3,rol,text,,,,YES,
+sesiones_panel,4,clave,text,,,,NO,
+sesiones_panel,5,token_push,text,,,,YES,
+sesiones_panel,6,inicio,timestamp with time zone,,,,NO,now()
+sesiones_panel,7,dispositivo,text,,,,YES,
+sesiones_unidad,1,unidad,text,,,,NO,
+sesiones_unidad,2,user_id,text,,,,NO,
+sesiones_unidad,3,token,text,,,,YES,
+sesiones_unidad,4,inicio,timestamp with time zone,,,,NO,now()
+sesiones_unidad,5,dispositivo,text,,,,YES,
+sesiones_unidad,6,dni,text,,,,YES,
+ubicaciones,1,user_id,text,,,,NO,
+ubicaciones,2,lat,double precision,,53,,NO,
+ubicaciones,3,lon,double precision,,53,,NO,
+ubicaciones,4,precision_m,real,,24,,YES,
+ubicaciones,5,bateria,integer,,32,0,YES,
+ubicaciones,6,actualizado_en,timestamp with time zone,,,,NO,now()
+ubicaciones,7,unidad,text,,,,YES,
+ubicaciones,8,token,text,,,,YES,
+unidades,1,id,uuid,,,,NO,gen_random_uuid()
+unidades,2,nombre,text,,,,NO,
+unidades,3,tipo,text,,,,YES,
+unidades,4,activo,boolean,,,,NO,true
+unidades,5,creado_en,timestamp with time zone,,,,NO,now()
+unidades,6,prefijo,text,,,,YES,
+unidades,7,orden,integer,,32,0,NO,100
+usuarios,1,id,uuid,,,,NO,gen_random_uuid()
+usuarios,2,area,text,,,,NO,
+usuarios,3,password,text,,,,NO,
+usuarios,4,rol,text,,,,NO,'area'::text
+usuarios,5,activo,boolean,,,,YES,true
+usuarios,6,created_at,timestamp with time zone,,,,YES,now()
+usuarios,7,gerencia_key,text,,,,YES,
+usuarios,8,seccion,text,,,,YES,

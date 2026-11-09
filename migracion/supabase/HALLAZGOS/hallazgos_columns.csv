@@ -1,0 +1,84 @@
+table_name,ordinal_position,column_name,data_type,character_maximum_length,numeric_precision,numeric_scale,is_nullable,column_default
+catalogo_faltas,1,id,integer,,32,0,NO,nextval('catalogo_faltas_id_seq'::regclass)
+catalogo_faltas,2,nombre,text,,,,NO,
+catalogo_faltas,3,activo,boolean,,,,YES,true
+catalogo_faltas,4,created_at,timestamp with time zone,,,,YES,now()
+catalogo_faltas,5,medida_accion,text,,,,YES,
+condiciones_inseguras_seleccionadas,1,codigo_hallazgo,text,,,,NO,
+condiciones_inseguras_seleccionadas,2,created_at,timestamp with time zone,,,,NO,now()
+feriados,1,id,integer,,32,0,NO,nextval('feriados_id_seq'::regclass)
+feriados,2,fecha,date,,,,NO,
+feriados,3,descripcion,text,,,,YES,
+feriados,4,created_at,timestamp with time zone,,,,YES,now()
+gerencias_acceso,1,id,uuid,,,,NO,gen_random_uuid()
+gerencias_acceso,2,nombre,text,,,,NO,
+gerencias_acceso,3,password,text,,,,NO,
+gerencias_acceso,4,es_admin,boolean,,,,YES,false
+gerencias_acceso,5,created_at,timestamp with time zone,,,,NO,"timezone('utc'::text, now())"
+gerencias_acceso,6,gerencia_key,text,,,,YES,
+gerencias_acceso,7,es_gerente,boolean,,,,YES,false
+gerencias_acceso,8,desc_seccion,text,,,,YES,
+hallazgo_faltas,1,id,uuid,,,,NO,gen_random_uuid()
+hallazgo_faltas,2,hallazgo_id,text,,,,NO,
+hallazgo_faltas,3,falta_id,integer,,32,0,NO,
+hallazgo_faltas,4,created_at,timestamp with time zone,,,,NO,now()
+hallazgos,1,id,uuid,,,,NO,gen_random_uuid()
+hallazgos,2,COD_HALLAZGO,text,,,,YES,
+hallazgos,3,FECHA_REGISTRO,text,,,,YES,
+hallazgos,4,FECHA_ACONTECIMIENTO,text,,,,YES,
+hallazgos,5,USR_REGISTRA,text,,,,YES,
+hallazgos,6,USR_AUTORIZADO,text,,,,YES,
+hallazgos,7,PRIORIDAD,text,,,,YES,
+hallazgos,8,DESC_EVENTO,text,,,,YES,
+hallazgos,9,DESC_EMPRESA,text,,,,YES,
+hallazgos,10,DESC_AREA,text,,,,YES,
+hallazgos,11,DESC_SECCION,text,,,,YES,
+hallazgos,12,USR_RESPONSABLE,text,,,,YES,
+hallazgos,13,USR_REASIGNADO,text,,,,YES,
+hallazgos,14,ACONTECIMIENTO,text,,,,YES,
+hallazgos,15,MEDIDA,text,,,,YES,
+hallazgos,16,NRO_DOC,text,,,,YES,
+hallazgos,17,TRABAJADOR,text,,,,YES,
+hallazgos,18,FECHA_CIERRE,text,,,,YES,
+hallazgos,19,USR_CIERRE,text,,,,YES,
+hallazgos,20,ESTADO,text,,,,YES,
+hallazgos,21,DESC_PELIGRO,text,,,,YES,
+hallazgos,22,DESC_RIESGOS,text,,,,YES,
+hallazgos,23,created_at,timestamp with time zone,,,,NO,"timezone('utc'::text, now())"
+hallazgos,24,descripcion_acto,text,,,,YES,
+imagenes_hallazgos,1,id,uuid,,,,NO,gen_random_uuid()
+imagenes_hallazgos,2,hallazgo_id,text,,,,NO,
+imagenes_hallazgos,3,nombre,text,,,,NO,
+imagenes_hallazgos,4,storage_path,text,,,,NO,
+imagenes_hallazgos,5,subido_por,text,,,,YES,
+imagenes_hallazgos,6,created_at,timestamp with time zone,,,,NO,now()
+imagenes_hallazgos,7,destacada,boolean,,,,YES,false
+medida_accion_fotos,1,id,uuid,,,,NO,gen_random_uuid()
+medida_accion_fotos,2,falta_id,integer,,32,0,NO,
+medida_accion_fotos,3,nombre,text,,,,NO,
+medida_accion_fotos,4,storage_path,text,,,,NO,
+medida_accion_fotos,5,subido_por,text,,,,YES,
+medida_accion_fotos,6,created_at,timestamp with time zone,,,,NO,now()
+relaciones_casos,1,id,uuid,,,,NO,gen_random_uuid()
+relaciones_casos,2,hallazgo_id,text,,,,NO,
+relaciones_casos,3,paso_actual,integer,,32,0,YES,1
+relaciones_casos,4,cargo_1_url,text,,,,YES,
+relaciones_casos,5,fecha_emision_1,timestamp with time zone,,,,YES,
+relaciones_casos,6,fecha_recepcion_1,timestamp with time zone,,,,YES,
+relaciones_casos,7,descargo,text,,,,YES,
+relaciones_casos,8,cargo_2_url,text,,,,YES,
+relaciones_casos,9,fecha_emision_2,timestamp with time zone,,,,YES,
+relaciones_casos,11,fecha_recepcion_2,timestamp with time zone,,,,YES,
+relaciones_casos,12,medida_disciplinaria,text,,,,YES,
+relaciones_casos,13,dias_suspension,integer,,32,0,YES,
+relaciones_casos,14,afecta_incentivos,boolean,,,,YES,
+relaciones_casos,15,fecha_cierre,timestamp with time zone,,,,YES,
+relaciones_casos,16,created_at,timestamp with time zone,,,,YES,now()
+relaciones_casos,17,updated_at,timestamp with time zone,,,,YES,now()
+relaciones_casos,18,cargo_1_destinatario,text,,,,YES,
+relaciones_casos,19,cargo_1_firmado_url,text,,,,YES,
+relaciones_casos,20,fecha_limite_descargo,timestamp with time zone,,,,YES,
+relaciones_casos,21,descargo_url,text,,,,YES,
+relaciones_casos,22,cargo_2_destinatario,text,,,,YES,
+relaciones_casos,23,cartas_adicionales,jsonb,,,,YES,'[]'::jsonb
+relaciones_casos,24,meta,jsonb,,,,YES,'{}'::jsonb

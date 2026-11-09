@@ -1,0 +1,975 @@
+function_name,definition
+abrir_sesion_panel,"CREATE OR REPLACE FUNCTION public.abrir_sesion_panel(p_area text, p_password text, p_dispositivo text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    u record;
+    v_clave text;
+    v_disp text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    v_tok text;
+begin
+    select area, rol, activo, gerencia_key, seccion into u
+      from usuarios
+     where upper(btrim(area)) = upper(btrim(p_area))
+       and password = p_password
+       limit 1;
+
+    if u.area is null or u.activo is not true then
+        return jsonb_build_object('ok', false, 'motivo', 'credenciales');
+    end if;
+
+    -- Este equipo deja su sesion anterior en el historial. Las sesiones
+    -- de otros equipos del mismo jefe NO se tocan.
+    if v_disp is not null then
+        insert into sesiones_historial (tipo, user_id, unidad, rol, dispositivo, inicio, motivo)
+        select 'jefe', user_id, null, rol, dispositivo, inicio, 'reemplazada'
+          from sesiones_panel
+         where dispositivo = v_disp;
+
+        delete from sesiones_panel where dispositivo = v_disp;
+    end if;
+
+    -- Restos del flujo anterior: filas de este usuario sin token y sin equipo.
+    delete from sesiones_panel
+     where upper(btrim(user_id)) = upper(btrim(u.area))
+       and token_push is null
+       and dispositivo is null;
+
+    v_clave := replace(gen_random_uuid()::text, '-', '')
+            || replace(gen_random_uuid()::text, '-', '');
+
+    insert into sesiones_panel (user_id, rol, clave, dispositivo)
+    values (u.area, u.rol, v_clave, v_disp);
+
+    -- Barrido: una suscripcion de jefe sin sesion viva no le sirve a nadie.
+    -- Se conservan las que tienen webhook: son de la persona, no del equipo,
+    -- y tienen que seguir ahi para cuando vuelva a entrar.
+    delete from push_subscriptions ps
+     where ps.tipo = 'jefe'
+       and ps.token is not null
+       and ps.notialarm_webhook is null
+       and not exists (select 1 from sesiones_panel s where s.token_push = ps.token);
+
+    -- Si esa persona ya tenia su URL de NotiAlarm, se engancha sola
+    v_tok := token_ios(u.area);
+    if exists (select 1 from push_subscriptions ps
+                where ps.token = v_tok and ps.notialarm_webhook is not null) then
+        update sesiones_panel set token_push = v_tok where clave = v_clave;
+    end if;
+
+    return jsonb_build_object('ok', true, 'rol', u.rol, 'clave', v_clave,
+                              'gerencia_key', u.gerencia_key, 'seccion', u.seccion);
+end
+$function$
+"
+abrir_turno,"CREATE OR REPLACE FUNCTION public.abrir_turno(p_unidad text, p_user_id text, p_dni text, p_dispositivo text, p_token text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_unidad text := btrim(coalesce(p_unidad, ''));
+    v_user   text := btrim(coalesce(p_user_id, ''));
+    v_disp   text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    v_token  text := nullif(btrim(coalesce(p_token, '')), '');
+    r record;
+begin
+    if v_unidad = '' or v_user = '' or v_disp is null then
+        return jsonb_build_object('ok', false, 'motivo', 'datos');
+    end if;
+
+    -- Este equipo ya esta conduciendo otra unidad
+    select unidad, user_id into r
+      from sesiones_unidad
+     where dispositivo = v_disp
+     limit 1;
+
+    if r.unidad is not null and upper(btrim(r.unidad)) <> upper(v_unidad) then
+        return jsonb_build_object('ok', false, 'motivo', 'ya_tiene_turno', 'unidad', r.unidad);
+    end if;
+
+    -- La unidad esta tomada por otra persona
+    select unidad, user_id into r
+      from sesiones_unidad
+     where upper(btrim(unidad)) = upper(v_unidad)
+     limit 1;
+
+    if r.unidad is not null and upper(btrim(r.user_id)) <> upper(v_user) then
+        return jsonb_build_object('ok', false, 'motivo', 'ocupada', 'user_id', r.user_id);
+    end if;
+
+    insert into sesiones_unidad (unidad, user_id, token, inicio, dni, dispositivo)
+    values (v_unidad, v_user, v_token, now(),
+            nullif(btrim(coalesce(p_dni, '')), ''), v_disp)
+    on conflict (unidad) do update
+        set user_id = excluded.user_id,
+            token   = coalesce(excluded.token, sesiones_unidad.token),
+            dni     = coalesce(excluded.dni, sesiones_unidad.dni),
+            dispositivo = excluded.dispositivo;
+
+    return jsonb_build_object('ok', true, 'unidad', v_unidad);
+end
+$function$
+"
+adjuntar_token_dispositivo,"CREATE OR REPLACE FUNCTION public.adjuntar_token_dispositivo(p_dispositivo text, p_token text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_disp text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    v_token text := nullif(btrim(coalesce(p_token, '')), '');
+    n int;
+begin
+    if v_disp is null or v_token is null then
+        return jsonb_build_object('ok', false, 'motivo', 'faltan_datos');
+    end if;
+
+    -- El mismo token no puede quedar atado a dos sesiones.
+    delete from sesiones_panel
+     where token_push = v_token
+       and dispositivo is distinct from v_disp;
+
+    update sesiones_panel
+       set token_push = v_token
+     where dispositivo = v_disp;
+
+    get diagnostics n = row_count;
+    return jsonb_build_object('ok', n > 0);
+end
+$function$
+"
+adjuntar_token_panel,"CREATE OR REPLACE FUNCTION public.adjuntar_token_panel(p_clave text, p_token text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+    if coalesce(btrim(p_token), '') = '' then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_token');
+    end if;
+
+    delete from sesiones_panel
+     where token_push = btrim(p_token)
+       and clave <> btrim(p_clave);
+
+    update sesiones_panel
+       set token_push = btrim(p_token)
+     where clave = btrim(p_clave);
+    get diagnostics n = row_count;
+
+    return jsonb_build_object('ok', n > 0);
+end
+$function$
+"
+adoptar_turno,"CREATE OR REPLACE FUNCTION public.adoptar_turno(p_unidad text, p_user_id text, p_dispositivo text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_unidad text := upper(btrim(coalesce(p_unidad, '')));
+    v_user   text := upper(btrim(coalesce(p_user_id, '')));
+    v_disp   text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    n int := 0;
+begin
+    if v_unidad = '' or v_user = '' or v_disp is null then
+        return jsonb_build_object('ok', false, 'motivo', 'datos');
+    end if;
+
+    -- Ata el equipo a un turno abierto que quedo sin equipo.
+    -- No inserta: si el turno no existe, no hay nada que adoptar.
+    update sesiones_unidad
+       set dispositivo = v_disp
+     where upper(btrim(unidad)) = v_unidad
+       and upper(btrim(user_id)) = v_user
+       and dispositivo is null;
+
+    get diagnostics n = row_count;
+    return jsonb_build_object('ok', n > 0, 'motivo', case when n > 0 then null else 'sin_turno' end);
+end
+$function$
+"
+alternar_alarma,"CREATE OR REPLACE FUNCTION public.alternar_alarma(p_clave_quien text, p_user_id text, p_apagar boolean, p_tipo text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_user text := btrim(coalesce(p_user_id, ''));
+    v_quien text;
+    v_tipo text := nullif(btrim(coalesce(p_tipo, '')), '');
+begin
+    if not puede_liberar(p_clave_quien) then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
+    end if;
+
+    if v_user = '' then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_usuario');
+    end if;
+
+    select user_id into v_quien from sesiones_panel
+     where clave = btrim(coalesce(p_clave_quien, '')) limit 1;
+
+    if p_apagar then
+        insert into alarmas_silenciadas (clave, user_id, tipo, apagada_en, apagada_por)
+        values (norm_persona(v_user), v_user, v_tipo, now(), v_quien)
+        on conflict (clave) do update
+            set user_id     = excluded.user_id,
+                tipo        = coalesce(excluded.tipo, alarmas_silenciadas.tipo),
+                apagada_en  = now(),
+                apagada_por = excluded.apagada_por;
+    else
+        delete from alarmas_silenciadas where clave = norm_persona(v_user);
+    end if;
+
+    insert into app_log (origen, detalle)
+    values ('alarma_mute',
+            (case when p_apagar then 'ALARMAS APAGADAS' else 'ALARMAS ACTIVADAS' end)
+            || ' - ' || v_user || ' - por ' || coalesce(v_quien, 'desconocido'));
+
+    return jsonb_build_object('ok', true, 'user_id', v_user, 'apagada', p_apagar);
+end
+$function$
+"
+bloquear_ubicacion,"CREATE OR REPLACE FUNCTION public.bloquear_ubicacion()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if exists (
+    select 1 from bloqueos_ubicacion b
+    where upper(trim(b.unidad)) = upper(trim(new.unidad))
+      and upper(trim(b.user_id)) = upper(trim(new.user_id))
+  ) then
+    return null;
+  end if;
+  return new;
+end $function$
+"
+cambiar_password,"CREATE OR REPLACE FUNCTION public.cambiar_password(p_area text, p_actual text, p_nueva text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+declare
+  v_ok boolean;
+begin
+  select exists (
+    select 1 from public.usuarios
+    where area = p_area
+      and password = p_actual
+      and activo = true
+  ) into v_ok;
+
+  if not v_ok then
+    return false;
+  end if;
+
+  update public.usuarios
+  set password = p_nueva
+  where area = p_area;
+
+  return true;
+end;
+$function$
+"
+cerrar_sesion_panel,"CREATE OR REPLACE FUNCTION public.cerrar_sesion_panel(p_clave text DEFAULT NULL::text, p_dispositivo text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_clave text := nullif(btrim(coalesce(p_clave, '')), '');
+    v_disp  text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    n int;
+begin
+    if v_clave is null and v_disp is null then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_identificador');
+    end if;
+
+    insert into sesiones_historial (tipo, user_id, unidad, rol, dispositivo, inicio, motivo)
+    select 'jefe', user_id, null, rol, dispositivo, inicio, 'cerrada'
+      from sesiones_panel
+     where (v_clave is not null and clave = v_clave)
+        or (v_disp is not null and dispositivo = v_disp);
+
+    delete from sesiones_panel
+     where (v_clave is not null and clave = v_clave)
+        or (v_disp is not null and dispositivo = v_disp);
+
+    get diagnostics n = row_count;
+    return jsonb_build_object('ok', true, 'cerradas', n);
+end
+$function$
+"
+cerrar_turno,"CREATE OR REPLACE FUNCTION public.cerrar_turno(p_unidad text, p_dispositivo text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_unidad text := nullif(btrim(coalesce(p_unidad, '')), '');
+    v_disp   text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    r record;
+    n int := 0;
+begin
+    for r in
+        select * from sesiones_unidad
+         where (v_disp is not null and dispositivo = v_disp)
+            or (v_unidad is not null and upper(btrim(unidad)) = upper(v_unidad))
+         order by inicio
+    loop
+        insert into sesiones_historial (tipo, user_id, unidad, dispositivo, inicio, motivo)
+        values ('conductor', r.user_id, r.unidad, r.dispositivo, r.inicio, 'cerrada');
+
+        delete from ubicaciones
+         where upper(btrim(user_id)) = upper(btrim(r.user_id))
+            or upper(btrim(coalesce(unidad, ''))) = upper(btrim(r.unidad));
+
+        delete from push_subscriptions
+         where upper(btrim(user_id)) = upper(btrim(r.user_id))
+            or upper(btrim(coalesce(unidad, ''))) = upper(btrim(r.unidad));
+
+        delete from sesiones_unidad where unidad = r.unidad;
+        n := n + 1;
+    end loop;
+
+    return jsonb_build_object('ok', true, 'cerradas', n);
+end
+$function$
+"
+declarar_semaforo,"CREATE OR REPLACE FUNCTION public.declarar_semaforo(p_clave text, p_nivel text, p_verificado boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    s record;
+    v_anterior text;
+    v_ahora timestamptz := now();
+    c_nombre constant text := 'MELGAR BELMONT JOSE MARIANO';
+    c_rol    constant text := 'gerente_general';
+begin
+    if p_nivel not in ('verde', 'amarillo', 'rojo') then
+        return jsonb_build_object('ok', false, 'motivo', 'nivel_invalido');
+    end if;
+
+    select sp.user_id, sp.rol, u.seccion into s
+      from sesiones_panel sp
+      left join usuarios u on upper(btrim(u.area)) = upper(btrim(sp.user_id))
+     where sp.clave = btrim(coalesce(p_clave, ''))
+     limit 1;
+
+    if s.user_id is null then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_sesion');
+    end if;
+
+    if not (coalesce(s.rol, '') in ('gerente_general', 'gerencial_legal')
+            or lower(coalesce(s.seccion, '')) like '%seguridad industrial%') then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
+    end if;
+
+    select nivel into v_anterior from semaforo_estado where id = 1;
+
+    insert into semaforo_estado (id, nivel, motivo, declarado_por, declarado_por_rol,
+                                 es_guardia, vigente_desde, actualizado_en, declarado_por_real)
+    values (1, p_nivel, null, c_nombre, c_rol, false, v_ahora, v_ahora, s.user_id)
+    on conflict (id) do update set
+        nivel             = excluded.nivel,
+        motivo            = null,
+        declarado_por     = excluded.declarado_por,
+        declarado_por_rol = excluded.declarado_por_rol,
+        es_guardia        = false,
+        vigente_desde     = excluded.vigente_desde,
+        actualizado_en    = excluded.actualizado_en,
+        declarado_por_real = excluded.declarado_por_real;
+
+    insert into semaforo_eventos (nivel, nivel_anterior, declarado_por, declarado_por_rol,
+                                  es_guardia, verificado, declarado_por_real)
+    values (p_nivel, v_anterior, c_nombre, c_rol, false, coalesce(p_verificado, false), s.user_id);
+
+    return jsonb_build_object('ok', true, 'nivel', p_nivel, 'anterior', v_anterior, 'por', s.user_id);
+end
+$function$
+"
+destinatarios_push,"CREATE OR REPLACE FUNCTION public.destinatarios_push(p_tipo text DEFAULT NULL::text)
+ RETURNS TABLE(user_id text, token text, notialarm_webhook text, tipo text, rol text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select distinct on (ps.token)
+           ps.user_id, ps.token, ps.notialarm_webhook, ps.tipo, ps.rol
+      from push_subscriptions ps
+     where (p_tipo is null or ps.tipo = p_tipo)
+       and ps.token is not null
+       -- conductor silenciado: su celular no entra a ninguna lista
+       and not (ps.tipo = 'conductor' and esta_silenciado(ps.user_id))
+       and (
+            ps.tipo <> 'jefe'
+            or exists (select 1 from sesiones_panel s
+                        where not esta_silenciado(s.user_id)
+                          and (
+                               -- celular Android: el token de la sesiÃ³n
+                               (s.token_push is not null and s.token_push = ps.token)
+                               -- iPhone: la fila es de la persona, no del equipo
+                            or (ps.token like 'ios-%'
+                                and upper(btrim(s.user_id)) = upper(btrim(ps.user_id)))
+                          ))
+       )
+     order by ps.token;
+$function$
+"
+es_seguridad_industrial,"CREATE OR REPLACE FUNCTION public.es_seguridad_industrial(p_clave text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select coalesce((
+        select upper(btrim(coalesce(u.seccion, ''))) = 'SEGURIDAD INDUSTRIAL'
+          from sesiones_panel s
+          join usuarios u on upper(btrim(u.area)) = upper(btrim(s.user_id))
+         where s.clave = btrim(coalesce(p_clave, ''))
+         limit 1
+    ), false);
+$function$
+"
+esta_silenciado,"CREATE OR REPLACE FUNCTION public.esta_silenciado(p_user_id text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select exists (
+        select 1 from alarmas_silenciadas a
+         where a.clave = norm_persona(p_user_id)
+    );
+$function$
+"
+evacuar_rojo,"CREATE OR REPLACE FUNCTION public.evacuar_rojo()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_nivel text; v_vig timestamptz; v_marca timestamptz;
+  u record; a record;
+  v_lat float8; v_lon float8; v_cos float8;
+  v_dentro bool; v_dmin float8;
+  pts jsonb; n int; i int; j int;
+  yi float8; xi float8; yj float8; xj float8;
+  ay float8; ax float8; ky float8; kx float8;
+  dy float8; dx float8; py float8; px float8; l2 float8; t float8;
+  ddx float8; ddy float8; dd float8;
+  v_afect int := 0;
+  v_url text := 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
+  v_key text := 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
+begin
+  select nivel, vigente_desde into v_nivel, v_vig from semaforo_estado where id = 1;
+  if v_nivel is distinct from 'rojo' then
+    return jsonb_build_object('ok', true, 'motivo', 'no_rojo', 'nivel', v_nivel);
+  end if;
+
+  select vigente_desde into v_marca from evac_estado where id = 1;
+  if v_marca is not distinct from v_vig then
+    return jsonb_build_object('ok', true, 'motivo', 'ya_enviado');
+  end if;
+
+  for u in select unidad, user_id, lat, lon from ubicaciones where unidad is not null loop
+    v_lat := u.lat; v_lon := u.lon;
+    continue when v_lat is null or v_lon is null;
+    v_cos := cos(radians(v_lat));
+    v_dentro := false; v_dmin := 1e12;
+
+    for a in select anillo from campos_anillos loop
+      pts := a.anillo; n := jsonb_array_length(pts);
+
+      j := n - 1;
+      for i in 0..n-1 loop
+        yi := (pts->i->>0)::float8; xi := (pts->i->>1)::float8;
+        yj := (pts->j->>0)::float8; xj := (pts->j->>1)::float8;
+        if ((yi > v_lat) <> (yj > v_lat))
+           and (v_lon < (xj - xi) * (v_lat - yi) / (case when (yj - yi) = 0 then 1e-12 else (yj - yi) end) + xi) then
+          v_dentro := not v_dentro;
+        end if;
+        j := i;
+      end loop;
+
+      for i in 0..n-1 loop
+        ay := (pts->i->>0)::float8; ax := (pts->i->>1)::float8;
+        j := case when i = n-1 then 0 else i+1 end;
+        ky := (pts->j->>0)::float8; kx := (pts->j->>1)::float8;
+        dy := (ky - ay) * 111320;
+        dx := (kx - ax) * 111320 * v_cos;
+        py := (v_lat - ay) * 111320;
+        px := (v_lon - ax) * 111320 * v_cos;
+        l2 := dx*dx + dy*dy;
+        if l2 = 0 then t := 0; else t := (px*dx + py*dy) / l2; end if;
+        t := greatest(0, least(1, t));
+        ddx := px - dx*t; ddy := py - dy*t;
+        dd := sqrt(ddx*ddx + ddy*ddy);
+        if dd < v_dmin then v_dmin := dd; end if;
+      end loop;
+    end loop;
+
+    if v_dentro or v_dmin <= 300 then
+      perform net.http_post(
+        url := v_url,
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'apikey', v_key,
+          'Authorization', 'Bearer ' || v_key
+        ),
+        body := jsonb_build_object(
+          'title', 'EVACUACIÃN Â· ' || coalesce(u.unidad, u.user_id),
+          'body', 'Evacue de inmediato y dirÃ­jase a un lugar seguro.',
+          'userId', coalesce(u.user_id, u.unidad)
+        ),
+        timeout_milliseconds := 8000
+      );
+
+      insert into alertas_log (unidad, user_id, resultado, detalle)
+      values (u.unidad, u.user_id, 'enviada', 'evacuacion automatica Â· ' || round(v_dmin)::text || ' m');
+
+      v_afect := v_afect + 1;
+    end if;
+  end loop;
+
+  update evac_estado set vigente_desde = v_vig where id = 1;
+  return jsonb_build_object('ok', true, 'unidades', v_afect);
+end;
+$function$
+"
+exigir_sesion_ubicacion,"CREATE OR REPLACE FUNCTION public.exigir_sesion_ubicacion()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.unidad is null or btrim(new.unidad) = '' then
+    return new;
+  end if;
+  if exists (
+    select 1 from sesiones_unidad s
+    where upper(btrim(s.unidad)) = upper(btrim(new.unidad))
+      and upper(btrim(s.user_id)) = upper(btrim(new.user_id))
+  ) then
+    return new;
+  end if;
+  return null;
+end $function$
+"
+liberar_sesion_panel,"CREATE OR REPLACE FUNCTION public.liberar_sesion_panel(p_clave_quien text, p_user_id text, p_dispositivo text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_disp text := nullif(btrim(coalesce(p_dispositivo, '')), '');
+    v_quien text;
+    n int;
+begin
+    if not puede_liberar(p_clave_quien) then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
+    end if;
+
+    select user_id into v_quien from sesiones_panel
+     where clave = btrim(coalesce(p_clave_quien, '')) limit 1;
+
+    insert into sesiones_historial (tipo, user_id, unidad, rol, dispositivo, inicio, motivo, liberada_por)
+    select 'jefe', user_id, null, rol, dispositivo, inicio, 'forzada', v_quien
+      from sesiones_panel
+     where upper(btrim(user_id)) = upper(btrim(p_user_id))
+       and (v_disp is null or dispositivo = v_disp);
+
+    delete from sesiones_panel
+     where upper(btrim(user_id)) = upper(btrim(p_user_id))
+       and (v_disp is null or dispositivo = v_disp);
+
+    get diagnostics n = row_count;
+    return jsonb_build_object('ok', true, 'liberadas', n);
+end
+$function$
+"
+liberar_unidad,"CREATE OR REPLACE FUNCTION public.liberar_unidad(p_clave_quien text, p_unidad text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_unidad text := nullif(btrim(coalesce(p_unidad, '')), '');
+    v_quien  text;
+    r record;
+    n int := 0;
+begin
+    if not puede_liberar(p_clave_quien) then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
+    end if;
+
+    select user_id into v_quien from sesiones_panel
+     where clave = btrim(coalesce(p_clave_quien, '')) limit 1;
+
+    if v_unidad is null then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_unidad');
+    end if;
+
+    for r in select * from sesiones_unidad
+              where upper(btrim(unidad)) = upper(v_unidad)
+    loop
+        insert into sesiones_historial (tipo, user_id, unidad, dispositivo, inicio, motivo, liberada_por)
+        values ('conductor', r.user_id, r.unidad, r.dispositivo, r.inicio, 'forzada', v_quien);
+
+        delete from ubicaciones
+         where upper(btrim(user_id)) = upper(btrim(r.user_id))
+            or upper(btrim(coalesce(unidad, ''))) = upper(btrim(r.unidad));
+
+        delete from push_subscriptions
+         where upper(btrim(user_id)) = upper(btrim(r.user_id))
+            or upper(btrim(coalesce(unidad, ''))) = upper(btrim(r.unidad));
+
+        delete from sesiones_unidad where unidad = r.unidad;
+        n := n + 1;
+    end loop;
+
+    return jsonb_build_object('ok', true, 'liberadas', n);
+end
+$function$
+"
+login_areas,"CREATE OR REPLACE FUNCTION public.login_areas()
+ RETURNS TABLE(area text, gerencia_key text, seccion text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select u.area, u.gerencia_key, u.seccion
+      from usuarios u
+     where u.activo is true
+     order by u.area;
+$function$
+"
+marcar_webhook_probado,"CREATE OR REPLACE FUNCTION public.marcar_webhook_probado(p_token text, p_ok boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+    update push_subscriptions
+       set webhook_estado     = case when p_ok then 'ok' else 'error' end,
+           webhook_probado_en = now()
+     where token = btrim(coalesce(p_token, ''));
+    get diagnostics n = row_count;
+
+    return jsonb_build_object('ok', n > 0);
+end
+$function$
+"
+medidas_antes_orden_por_defecto,"CREATE OR REPLACE FUNCTION public.medidas_antes_orden_por_defecto()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+    if new.orden is null then
+        select coalesce(max(orden) + 1, 0)
+          into new.orden
+          from public.medidas_antes
+         where segmento_id is not distinct from new.segmento_id;
+    end if;
+    return new;
+end;
+$function$
+"
+mi_perfil,"CREATE OR REPLACE FUNCTION public.mi_perfil(p_area text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select jsonb_build_object('rol', u.rol, 'gerencia_key', u.gerencia_key, 'seccion', u.seccion)
+      from usuarios u
+     where upper(btrim(u.area)) = upper(btrim(p_area))
+     limit 1;
+$function$
+"
+norm_persona,"CREATE OR REPLACE FUNCTION public.norm_persona(p text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+    select btrim(regexp_replace(
+               upper(translate(coalesce(p, ''), E'\t\n\r' || chr(160), '    ')),
+               '\s+', ' ', 'g'));
+$function$
+"
+puede_liberar,"CREATE OR REPLACE FUNCTION public.puede_liberar(p_clave text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select coalesce((
+        select u.rol = 'gerente_general'
+            or upper(btrim(coalesce(u.seccion, ''))) = 'SEGURIDAD INDUSTRIAL'
+            or upper(btrim(coalesce(u.area, ''))) = 'SST'
+          from sesiones_panel s
+          join usuarios u on upper(btrim(u.area)) = upper(btrim(s.user_id))
+         where s.clave = btrim(coalesce(p_clave, ''))
+         limit 1
+    ), false);
+$function$
+"
+quitar_webhook_notialarm,"CREATE OR REPLACE FUNCTION public.quitar_webhook_notialarm(p_clave text, p_user_id text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_user text := btrim(coalesce(p_user_id, ''));
+    v_tok  text;
+    v_clave text := btrim(coalesce(p_clave, ''));
+begin
+    if not es_seguridad_industrial(v_clave) then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
+    end if;
+
+    if v_user = '' then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_usuario');
+    end if;
+
+    v_tok := token_ios(v_user);
+
+    update sesiones_panel set token_push = null where token_push = v_tok;
+
+    delete from push_subscriptions
+     where token like 'ios-%'
+       and upper(btrim(user_id)) = upper(btrim(v_user));
+
+    insert into app_log (origen, detalle)
+    values ('webhook_notialarm', 'URL quitada a ' || v_user || ' por ' || v_clave);
+
+    return jsonb_build_object('ok', true, 'user_id', v_user);
+end
+$function$
+"
+registrar_webhook_notialarm,"CREATE OR REPLACE FUNCTION public.registrar_webhook_notialarm(p_clave text, p_user_id text, p_webhook text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+    v_url   text := btrim(coalesce(p_webhook, ''));
+    v_clave text := btrim(coalesce(p_clave, ''));
+    v_user  text := btrim(coalesce(p_user_id, ''));
+    v_rol   text;
+    v_tok   text;
+begin
+    if not es_seguridad_industrial(v_clave) then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_permiso');
+    end if;
+
+    if v_user = '' then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_usuario');
+    end if;
+
+    -- El rol se toma del equipo de esa persona si lo tiene abierto;
+    -- si no, de su ficha, para seguir la misma regla que el Android.
+    select s.rol into v_rol
+      from sesiones_panel s
+     where upper(btrim(s.user_id)) = upper(btrim(v_user))
+     order by s.inicio desc limit 1;
+
+    if v_rol is null then
+        select u.rol into v_rol from usuarios u
+         where upper(btrim(u.area)) = upper(btrim(v_user)) limit 1;
+    end if;
+
+    if v_rol is null then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_usuario');
+    end if;
+
+    if v_url = '' then
+        return jsonb_build_object('ok', false, 'motivo', 'sin_url');
+    end if;
+
+    if v_url !~* '^https://' or length(v_url) > 500 then
+        return jsonb_build_object('ok', false, 'motivo', 'url_invalida');
+    end if;
+
+    v_tok := token_ios(v_user);
+
+    -- Una persona, un iPhone: si cambiÃ³ de telÃ©fono se reemplaza la URL.
+    delete from push_subscriptions
+     where token like 'ios-%'
+       and token <> v_tok
+       and upper(btrim(user_id)) = upper(btrim(v_user));
+
+    update push_subscriptions
+       set user_id            = v_user,
+           tipo               = 'jefe',
+           rol                = v_rol,
+           notialarm_webhook  = v_url,
+           webhook_estado     = null,
+           webhook_probado_en = null,
+           created_at         = now()
+     where token = v_tok;
+
+    if not found then
+        insert into push_subscriptions (user_id, token, tipo, rol, notialarm_webhook)
+        values (v_user, v_tok, 'jefe', v_rol, v_url);
+    end if;
+
+    -- Se engancha a los equipos DE ESA PERSONA, no al de quien carga.
+    -- Si ese equipo ya estaba enganchado a un celular Android, no se le quita:
+    -- el webhook suena igual por venir pegado a la persona.
+    delete from sesiones_panel
+     where token_push = v_tok
+       and upper(btrim(user_id)) <> upper(btrim(v_user));
+
+    update sesiones_panel set token_push = v_tok
+     where upper(btrim(user_id)) = upper(btrim(v_user))
+       and (token_push is null or token_push like 'ios-%');
+
+    insert into app_log (origen, detalle)
+    values ('webhook_notialarm', 'URL cargada para ' || v_user || ' por ' || v_clave);
+
+    return jsonb_build_object('ok', true, 'user_id', v_user, 'token', v_tok, 'webhook', v_url);
+end
+$function$
+"
+sesion_panel_por_dispositivo,"CREATE OR REPLACE FUNCTION public.sesion_panel_por_dispositivo(p_dispositivo text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select jsonb_build_object(
+              'ok', true,
+              'user_id', s.user_id,
+              'rol', s.rol,
+              'clave', s.clave,
+              'inicio', s.inicio,
+              'con_token', s.token_push is not null,
+              'gerencia_key', (select u.gerencia_key from usuarios u
+                                where upper(btrim(u.area)) = upper(btrim(s.user_id))
+                                limit 1),
+              'seccion', (select u.seccion from usuarios u
+                           where upper(btrim(u.area)) = upper(btrim(s.user_id))
+                           limit 1)
+           )
+      from sesiones_panel s
+     where s.dispositivo = nullif(btrim(coalesce(p_dispositivo, '')), '')
+     limit 1;
+$function$
+"
+sesion_unidad_por_dispositivo,"CREATE OR REPLACE FUNCTION public.sesion_unidad_por_dispositivo(p_dispositivo text)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select jsonb_build_object(
+              'ok', true,
+              'unidad', unidad,
+              'user_id', user_id,
+              'dni', dni,
+              'inicio', inicio,
+              'con_token', token is not null
+           )
+      from sesiones_unidad
+     where dispositivo = nullif(btrim(coalesce(p_dispositivo, '')), '')
+     limit 1;
+$function$
+"
+sesiones_panel_lista,"CREATE OR REPLACE FUNCTION public.sesiones_panel_lista(p_clave_quien text)
+ RETURNS TABLE(user_id text, rol text, dispositivo text, inicio timestamp with time zone, con_token boolean, seccion text, alarma_off boolean, webhook text, webhook_estado text, webhook_probado_en timestamp with time zone, webhook_token text, puede_webhook boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select s.user_id, s.rol, s.dispositivo, s.inicio,
+           s.token_push is not null,
+           (select u.seccion from usuarios u
+             where upper(btrim(u.area)) = upper(btrim(s.user_id)) limit 1),
+           esta_silenciado(s.user_id),
+           w.notialarm_webhook,
+           w.webhook_estado,
+           w.webhook_probado_en,
+           w.token,
+           es_seguridad_industrial(p_clave_quien)
+      from sesiones_panel s
+      left join lateral (
+           select ps.notialarm_webhook, ps.webhook_estado, ps.webhook_probado_en, ps.token
+             from push_subscriptions ps
+            where ps.token like 'ios-%'
+              and upper(btrim(ps.user_id)) = upper(btrim(s.user_id))
+            order by ps.created_at desc
+            limit 1
+      ) w on true
+     where puede_liberar(p_clave_quien)
+     order by s.inicio;
+$function$
+"
+token_ios,"CREATE OR REPLACE FUNCTION public.token_ios(p_user_id text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+    select 'ios-' || md5(norm_persona(p_user_id));
+$function$
+"
+token_silenciado,"CREATE OR REPLACE FUNCTION public.token_silenciado(p_token text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select exists (
+        select 1 from sesiones_panel s
+         where s.token_push = btrim(coalesce(p_token, ''))
+           and esta_silenciado(s.user_id)
+    ) or exists (
+        select 1 from sesiones_unidad u
+         where u.token = btrim(coalesce(p_token, ''))
+           and esta_silenciado(u.user_id)
+    ) or exists (
+        select 1 from push_subscriptions ps
+         where ps.token = btrim(coalesce(p_token, ''))
+           and esta_silenciado(ps.user_id)
+    );
+$function$
+"
+unidades_en_turno,"CREATE OR REPLACE FUNCTION public.unidades_en_turno(p_clave_quien text)
+ RETURNS TABLE(unidad text, user_id text, dni text, inicio timestamp with time zone, dispositivo text, con_token boolean, alarma_off boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+    select s.unidad, s.user_id, s.dni, s.inicio, s.dispositivo,
+           s.token is not null,
+           esta_silenciado(s.user_id)
+      from sesiones_unidad s
+     where puede_liberar(p_clave_quien)
+     order by s.inicio;
+$function$
+"

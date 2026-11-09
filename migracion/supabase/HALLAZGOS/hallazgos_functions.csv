@@ -1,0 +1,126 @@
+function_name,definition
+cambiar_password_acceso,"CREATE OR REPLACE FUNCTION public.cambiar_password_acceso(p_nombre text, p_actual text, p_nueva text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+declare
+  v_ok boolean;
+begin
+  select exists (
+    select 1 from public.gerencias_acceso
+    where nombre = p_nombre
+      and password = p_actual
+  ) into v_ok;
+
+  if not v_ok then
+    return false;
+  end if;
+
+  update public.gerencias_acceso
+  set password = p_nueva
+  where nombre = p_nombre;
+
+  return true;
+end;
+$function$
+"
+is_admin,"CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$
+  SELECT COALESCE(
+    (SELECT es_admin FROM public.gerencias_acceso 
+     WHERE nombre = (SELECT raw_user_meta_data->>'nombre' 
+                     FROM auth.users WHERE id = auth.uid())),
+    false
+  );
+$function$
+"
+rls_auto_enable,"CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+ RETURNS event_trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  cmd record;
+BEGIN
+  FOR cmd IN
+    SELECT *
+    FROM pg_event_trigger_ddl_commands()
+    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      AND object_type IN ('table','partitioned table')
+  LOOP
+     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN
+      BEGIN
+        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);
+        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
+      END;
+     ELSE
+        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;
+     END IF;
+  END LOOP;
+END;
+$function$
+"
+seleccionar_condicion_insegura,"CREATE OR REPLACE FUNCTION public.seleccionar_condicion_insegura(p_codigo_hallazgo text, p_seleccionada boolean, p_password text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+    IF p_codigo_hallazgo IS NULL OR btrim(p_codigo_hallazgo) = '' THEN
+        RAISE EXCEPTION 'El cÃ³digo del hallazgo es obligatorio.'
+            USING ERRCODE = '22023';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.validar_acceso('Seguridad Industrial', p_password) AS acceso
+        WHERE acceso.es_admin IS TRUE
+    ) THEN
+        RAISE EXCEPTION 'Se requiere una cuenta de administrador para cambiar esta selecciÃ³n.'
+            USING ERRCODE = '42501';
+    END IF;
+
+    IF p_seleccionada THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM public.hallazgos AS hallazgo
+            WHERE hallazgo.""COD_HALLAZGO""::text = btrim(p_codigo_hallazgo)
+              AND hallazgo.""DESC_EVENTO"" = 'Condicion Subestandar'
+              AND hallazgo.""ESTADO"" <> 'Anulado'
+        ) THEN
+            RAISE EXCEPTION 'Solo se pueden seleccionar condiciones inseguras vigentes.'
+                USING ERRCODE = '22023';
+        END IF;
+
+        INSERT INTO public.condiciones_inseguras_seleccionadas (codigo_hallazgo)
+        VALUES (btrim(p_codigo_hallazgo))
+        ON CONFLICT (codigo_hallazgo) DO NOTHING;
+    ELSE
+        DELETE FROM public.condiciones_inseguras_seleccionadas
+        WHERE codigo_hallazgo = btrim(p_codigo_hallazgo);
+    END IF;
+END;
+$function$
+"
+validar_acceso,"CREATE OR REPLACE FUNCTION public.validar_acceso(p_nombre text, p_password text)
+ RETURNS TABLE(nombre text, es_admin boolean, gerencia_key text, es_gerente boolean, desc_seccion text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT u.nombre, u.es_admin, u.gerencia_key, u.es_gerente, u.desc_seccion
+  FROM gerencias_acceso u
+  WHERE u.nombre = p_nombre AND u.password = p_password;
+END;
+$function$
+"
