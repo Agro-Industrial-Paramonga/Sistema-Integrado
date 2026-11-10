@@ -157,7 +157,8 @@ function puedeEditarMapa() {
     const u = usuarioPlan();
     if (!u) return false;
     const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
-    return texto.includes('chunga');
+    // Permitimos a toda la sección de Seguridad Industrial y mantenemos a Chunga
+    return texto.includes('seguridad industrial') || texto.includes('chunga');
 }
 
 function esMovil() {
@@ -450,7 +451,6 @@ function alternarAjuste() {
     modoAjuste = !modoAjuste;
 
     document.getElementById('btn-ajustar').classList.toggle('activo', modoAjuste);
-    document.getElementById('btn-guardar').style.display = modoAjuste ? 'inline-flex' : 'none';
     document.getElementById('leyenda').style.display = modoAjuste ? 'block' : 'none';
 
     const titulo = document.getElementById('leyenda-titulo');
@@ -1642,123 +1642,396 @@ function iconoMaquinaria(tipo) {
     </svg>`;
 }
 
-async function cargarVectores() {
-    capaPuntos.clearLayers();
-    capaLineas.clearLayers();
-    if (capaLineasSeg) capaLineasSeg.clearLayers();
-    marcadoresPuntos = {};
+/* ============================================================
+   DIBUJO DE LÍNEAS Y ZONAS SIN TOCAR LA NUBE
+   Todo lo que se dibuja queda "pendiente" y solo se escribe en
+   Supabase cuando se pulsa Guardar. Al cancelar se descarta.
+   ============================================================ */
+let lineasCache = [];            /* filas tal como están en la nube */
+let pendientesLineas = [];       /* figuras nuevas o fusionadas, sin id */
+let lineasBorradas = new Set();  /* ids de la nube que se borrarán al guardar */
 
-    const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
-    if (puntos) puntosCache = puntos;
-    (puntos || []).forEach(p => {
-        const esMaquina = (p.tipo === 'retro' || p.tipo === 'excavadora');
-        const numero = Number(p.orden) || 0;
+const SNAP_PX = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 20 : 14;
+const TOL_M = 0.75;              /* dos vértices a menos de 75 cm son el mismo */
 
-        const icono = esMaquina
-            ? L.divIcon({
-                className: '',
-                html: '<div class="icono-maquina">' + iconoMaquinaria(p.tipo) + '</div>',
-                iconSize: [46, 35],
-                iconAnchor: [23, 30]
-            })
-            : L.divIcon({
-                className: '',
-                html: '<div class="punto-critico' + (numero > 0 ? '' : ' sin-numero') + '"><span>' +
-                      (numero > 0 ? numero : '?') + '</span></div>',
-                iconSize: [30, 44],
-                iconAnchor: [15, 40]
-            });
+/* ¿Hay algo dibujado sin guardar? */
+function hayCambiosLineas() {
+    return pendientesLineas.length > 0 || lineasBorradas.size > 0;
+}
 
-        const marcador = L.marker([p.lat, p.lon], {
-            draggable: editorActivo,
-            icon: icono
-        }).addTo(capaPuntos);
+/* Marca el botón Guardar cuando hay figuras sin publicar */
+function actualizarBotonGuardar() {
+    const bg = document.getElementById('btn-guardar-editor');
+    if (!bg) return;
+    const n = pendientesLineas.length + lineasBorradas.size;
+    bg.classList.toggle('con-cambios', n > 0);
+    bg.innerHTML = '<i class="fas fa-floppy-disk"></i> Guardar' + (n > 0 ? ' (' + n + ')' : '');
+}
 
-        marcador.__orden = numero;
-        marcadoresPuntos[p.id] = marcador;
+/* Descarta lo dibujado y vuelve a lo que hay en la nube */
+function descartarCambiosLineas() {
+    pendientesLineas = [];
+    lineasBorradas = new Set();
+    actualizarBotonGuardar();
+}
 
-        /* Fuera del editor: al pasar el mouse, responsable y equipos */
-        if (!esMaquina) {
-            marcador.bindTooltip(tarjetaPunto(p), {
-                sticky: true, direction: 'top', className: 'tip-punto', opacity: 1
-            });
-        }
+/* Figuras que deben verse ahora: las de la nube + las pendientes,
+   sin las que están marcadas para borrar. */
+function lineasParaPintar() {
+    const reemplazadas = new Set();
+    pendientesLineas.forEach(p => (p.reemplaza || []).forEach(id => reemplazadas.add(id)));
+    const base = lineasCache.filter(l => l && !lineasBorradas.has(l.id) && !reemplazadas.has(l.id));
+    return base.concat(pendientesLineas);
+}
 
-        marcador.on('dragend', (ev) => {
-            const pos = ev.target.getLatLng();
-            p.lat = pos.lat; p.lon = pos.lng;
-            p.__dirty = true;
-            const est = document.getElementById('estado');
-            if (est) est.textContent = 'Punto ' + (numero || 'sin número') + ' movido · pulsa Guardar para confirmar';
-        });
+/* Punto de pantalla de una coordenada [lat, lon] */
+function puntoPantalla(lat, lon) {
+    return mapa.latLngToContainerPoint([lat, lon]);
+}
 
-        marcador.on('contextmenu', async (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            if (!editorActivo) return;
-            const nombreTxt = esMaquina ? 'esta maquinaria' : ('el punto ' + (numero || 'sin número'));
-            if (!confirm('¿Borrar ' + nombreTxt + '?')) return;
-            await db.from('mapa_puntos').delete().eq('id', p.id);
-            cargarVectores();
-        });
+/* ¿Estas dos coordenadas caen a menos de N píxeles en pantalla? */
+function cercaEnPantalla(lat, lon, coord, px) {
+    if (!mapa || !coord) return false;
+    return puntoPantalla(lat, lon).distanceTo(puntoPantalla(coord[0], coord[1])) <= (px || SNAP_PX);
+}
 
-            marcador.on('click', async () => {
-            if (editorActivo && modoEditor === 'borrar') {
-                if (!confirm('¿Borrar el punto ' + (numero || 'sin número') + '?')) return;
-                await db.from('mapa_puntos').delete().eq('id', p.id);
-                cargarVectores();
-                return;
-            }
-            if (esMaquina) return;
-            
-            // --- ESTA ES LA LÍNEA QUE "BORRA" LA ACCIÓN ---
-            if (editorActivo) return; 
-            // ---------------------------------------------
+/* Vértice ya marcado en el mapa más cercano al clic (el "imán").
+   Devuelve la coordenada exacta del vértice existente, no una copia. */
+function verticeMasCercano(latlng, umbralPx) {
+    if (!mapa || !latlng) return null;
+    const objetivo = mapa.latLngToContainerPoint(latlng);
+    const ambito = ambitoActual();
+    let mejor = null;
+    let mejorDist = Infinity;
 
-            abrirFichaPunto(p, false); 
+    lineasParaPintar().forEach(l => {
+        if (!Array.isArray(l.coords)) return;
+        if ((l.ambito || 'criticos') !== ambito) return;
+        l.coords.forEach(c => {
+            if (!Array.isArray(c) || c.length < 2) return;
+            const d = objetivo.distanceTo(puntoPantalla(c[0], c[1]));
+            if (d <= (umbralPx || SNAP_PX) && d < mejorDist) { mejorDist = d; mejor = c; }
         });
     });
 
-    const { data: lineas } = await db.from('mapa_lineas').select('*');
-    (lineas || []).forEach(l => {
+    return mejor;
+}
+
+/* Aviso visual corto cuando se reutiliza un vértice existente */
+function pulsoVertice(lat, lon) {
+    if (!mapa) return;
+    const aro = L.circleMarker([lat, lon], {
+        radius: 7, color: '#2563eb', weight: 3, fill: false, interactive: false
+    }).addTo(mapa);
+    setTimeout(() => { try { mapa.removeLayer(aro); } catch (e) {} }, 450);
+}
+
+/* Copia el anillo sin vértices repetidos y sin el cierre duplicado */
+function anilloLimpio(coords) {
+    const salida = [];
+    (coords || []).forEach(c => {
+        if (!Array.isArray(c) || c.length < 2) return;
+        const lat = Number(c[0]), lon = Number(c[1]);
+        if (!isFinite(lat) || !isFinite(lon)) return;
+        const ult = salida[salida.length - 1];
+        if (ult && Math.abs(ult[0] - lat) < 1e-9 && Math.abs(ult[1] - lon) < 1e-9) return;
+        salida.push([lat, lon]);
+    });
+    if (salida.length > 2) {
+        const a = salida[0], b = salida[salida.length - 1];
+        if (Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9) salida.pop();
+    }
+    return salida;
+}
+
+/* Copia el anillo usando exactamente los vértices que ya existen, para que
+   las dos figuras compartan el mismo punto y no quede un borde doble
+   (ese borde doble era el origen de la línea que partía la zona). */
+function ajustarAnilloAVertices(anillo, ambito) {
+    const existentes = [];
+    lineasParaPintar().forEach(l => {
+        if (!Array.isArray(l.coords)) return;
+        if ((l.ambito || 'criticos') !== ambito) return;
+        l.coords.forEach(c => { if (Array.isArray(c) && c.length >= 2) existentes.push(c); });
+    });
+
+    return anillo.map(c => {
+        let mejor = null, mejorDist = Infinity;
+        existentes.forEach(e => {
+            const d = distanciaMetros(c[0], c[1], e[0], e[1]);
+            if (d < mejorDist) { mejorDist = d; mejor = e; }
+        });
+        if (mejor && mejorDist <= TOL_M) return [Number(mejor[0]), Number(mejor[1])];
+        return [c[0], c[1]];
+    });
+}
+
+/* Anillo [lat, lon] abierto -> polígono de turf (lng, lat) ya cerrado */
+function poligonoTurf(anillo) {
+    const cerrado = anillo.slice();
+    cerrado.push(cerrado[0]);
+    return turf.cleanCoords(turf.polygon([cerrado.map(c => [c[1], c[0]])]));
+}
+
+/* Cuántos vértices de un anillo coinciden con los de otro */
+function cuantosVerticesComparte(a, b) {
+    let n = 0;
+    a.forEach(va => {
+        if (b.some(vb => distanciaMetros(va[0], va[1], vb[0], vb[1]) <= TOL_M)) n++;
+    });
+    return n;
+}
+
+/* ¿Se solapan de verdad? (tocar apenas el borde no cuenta) */
+function seSolapan(a, b) {
+    try {
+        if (typeof turf === 'undefined') return false;
+        if (!turf.booleanIntersects(a, b)) return false;
+        const cortar = turf.intersect || turf.intersection;
+        const inter = cortar ? cortar(a, b) : null;
+        if (!inter) return false;
+        const areaInter = turf.area(inter);
+        const areaMenor = Math.min(turf.area(a), turf.area(b));
+        return areaInter > Math.max(1, areaMenor * 0.02);
+    } catch (e) { return false; }
+}
+
+/* Escribe en la nube lo dibujado. Si algo falla, no se descarta nada. */
+async function guardarLineasPendientes() {
+    let cambios = 0;
+
+    for (const id of Array.from(lineasBorradas)) {
+        const { error } = await db.from('mapa_lineas').delete().eq('id', id);
+        if (error) throw new Error(error.message || 'No se pudo borrar una figura');
+        cambios++;
+    }
+
+    for (const fig of pendientesLineas.slice()) {
+        const { error } = await db.from('mapa_lineas').insert({
+            nombre: fig.nombre || 'Zona',
+            color: fig.color,
+            grosor: fig.grosor,
+            tipo: fig.tipo,
+            ambito: fig.ambito,
+            coords: fig.coords
+        });
+        if (error) throw new Error(error.message || 'No se pudo guardar una figura');
+        cambios++;
+    }
+
+    descartarCambiosLineas();
+    return cambios;
+}
+
+let cargandoVectores = false;
+
+async function cargarVectores() {
+    if (cargandoVectores) return;
+    cargandoVectores = true;
+
+    try {
+        capaPuntos.clearLayers();
+        capaLineas.clearLayers();
+        if (capaLineasSeg) capaLineasSeg.clearLayers();
+        marcadoresPuntos = {};
+
+        const { data: puntos } = await db.from('mapa_puntos').select('*').order('orden');
+        if (puntos) {
+            const movidos = puntosCache.filter(p => p.__dirty);
+            puntosCache = puntos.map(p => {
+                const movido = movidos.find(m => m.id === p.id);
+                return movido ? movido : p;
+            });
+        }
+
+        (puntosCache || []).forEach(p => {
+            const esMaquina = (p.tipo === 'retro' || p.tipo === 'excavadora');
+            const numero = Number(p.orden) || 0;
+
+            const icono = esMaquina
+                ? L.divIcon({ className: '', html: '<div class="icono-maquina">' + iconoMaquinaria(p.tipo) + '</div>', iconSize: [46, 35], iconAnchor: [23, 30] })
+                : L.divIcon({ className: '', html: '<div class="punto-critico' + (numero > 0 ? '' : ' sin-numero') + '"><span>' + (numero > 0 ? numero : '?') + '</span></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
+
+            const marcador = L.marker([p.lat, p.lon], { draggable: editorActivo, icon: icono }).addTo(capaPuntos);
+            marcador.__orden = numero;
+            marcadoresPuntos[p.id] = marcador;
+
+            if (!esMaquina) marcador.bindTooltip(tarjetaPunto(p), { sticky: true, direction: 'top', className: 'tip-punto', opacity: 1 });
+
+            marcador.on('dragend', (ev) => {
+                const pos = ev.target.getLatLng();
+                p.lat = pos.lat; p.lon = pos.lng; p.__dirty = true;
+            });
+
+            marcador.on('contextmenu', async (ev) => {
+                L.DomEvent.stopPropagation(ev);
+                if (!editorActivo) return;
+                if (!confirm('¿Borrar este punto?')) return;
+                await db.from('mapa_puntos').delete().eq('id', p.id);
+                cargarVectores();
+            });
+
+            marcador.on('click', async () => {
+                if (editorActivo && modoEditor === 'borrar') {
+                    if (!confirm('¿Borrar el punto?')) return;
+                    await db.from('mapa_puntos').delete().eq('id', p.id);
+                    cargarVectores();
+                    return;
+                }
+                if (esMaquina || editorActivo) return; 
+                abrirFichaPunto(p, false); 
+            });
+        });
+
+        const { data: lineas } = await db.from('mapa_lineas').select('*');
+        lineasCache = Array.isArray(lineas) ? lineas : [];
+        pintarLineas();
+    } catch (e) {
+        console.warn("Error al cargar vectores:", e);
+    } finally {
+        cargandoVectores = false;
+    }
+}
+
+/* Pinta las figuras guardadas y las que todavía no se han guardado */
+function pintarLineas() {
+    capaLineas.clearLayers();
+    if (capaLineasSeg) capaLineasSeg.clearLayers();
+
+    lineasParaPintar().forEach(l => {
         if (!Array.isArray(l.coords) || l.coords.length < 2) return;
-        /* Cada línea vive en la pestaña donde se dibujó */
         const destino = (l.ambito === 'seguimiento' && capaLineasSeg) ? capaLineasSeg : capaLineas;
         const estilo = estiloLinea(l.color || '#dc2626');
         const grosor = l.grosor || estilo.weight;
 
-        if (estilo.borde > 0) {
-            L.polyline(l.coords, { color: 'rgba(0,0,0,.45)', weight: grosor + 4, opacity: 1,
-                lineCap: 'round', lineJoin: 'round' }).addTo(destino);
-        }
-
-        let linea;
         if (l.tipo === 'poligono') {
-            linea = L.polygon(l.coords, {
-                color: estilo.color, weight: grosor, opacity: 1,
-                fillColor: estilo.color, fillOpacity: 0.30
+            L.polygon(l.coords, { 
+                color: 'rgba(0,0,0,.5)', weight: grosor + 4, opacity: 1, 
+                fillColor: estilo.color, fillOpacity: 0.30, 
+                lineCap: 'round', lineJoin: 'round' 
+            }).addTo(destino);
+            
+            L.polygon(l.coords, { 
+                color: estilo.color, weight: grosor, opacity: 1, 
+                fill: false, lineCap: 'round', lineJoin: 'round' 
             }).addTo(destino);
         } else {
-            linea = L.polyline(l.coords, {
-                color: estilo.color, weight: grosor, opacity: 1,
-                lineCap: 'round', lineJoin: 'round'
+            L.polyline(l.coords, { 
+                color: 'rgba(0,0,0,.5)', weight: grosor + 4, opacity: 1, 
+                interactive: false, lineCap: 'round', lineJoin: 'round' 
+            }).addTo(destino);
+            
+            L.polyline(l.coords, { 
+                color: estilo.color, weight: grosor, opacity: 1, 
+                lineCap: 'round', lineJoin: 'round' 
             }).addTo(destino);
         }
-        linea.on('click', async () => {
-            if (editorActivo && modoEditor === 'borrar') {
-                if (!confirm('¿Borrar esta línea (' + (l.nombre || '') + ')?')) return;
-                await db.from('mapa_lineas').delete().eq('id', l.id);
-                cargarVectores();
-            }
-        });
+
+        // --- DIBUJAR LOS PUNTOS VISIBLES (SIN DUPLICADOS) ---
+        if (editorActivo) {
+            // Filtramos las coordenadas para eliminar duplicados exactos
+            const puntosUnicos = l.coords.filter((coord, index, self) =>
+                index === self.findIndex((t) => (
+                    Math.abs(t[0] - coord[0]) < 0.00001 && Math.abs(t[1] - coord[1]) < 0.00001
+                ))
+            );
+
+            puntosUnicos.forEach(coord => {
+                L.circleMarker([coord[0], coord[1]], {
+                    radius: 5,
+                    color: '#ffffff', // Borde blanco
+                    weight: 2,
+                    fillColor: '#3b82f6', // Centro azul
+                    fillOpacity: 1,
+                    interactive: false 
+                }).addTo(destino);
+            });
+        }
+
+        // Capa invisible para detectar clics
+        const areaClic = l.tipo === 'poligono' 
+            ? L.polygon(l.coords, { color: 'transparent', fillColor: 'transparent', fillOpacity: 0 }) 
+            : L.polyline(l.coords, { color: 'transparent', weight: grosor + 10 });
+            
+        areaClic.addTo(destino);
+
+        areaClic.on('click', (ev) => manejarClicFigura(ev, l));
     });
+}
+
+/* Qué pasa al tocar una figura ya dibujada estando en el editor.
+   En modo línea NO se guarda ni se cierra nada solo: solo se agrega
+   el vértice (o se reutiliza el que ya está marcado). */
+function manejarClicFigura(ev, figura) {
+    if (!editorActivo) return;
+
+    if (modoEditor === 'borrar') {
+        L.DomEvent.stopPropagation(ev);
+        if (!confirm('¿Borrar esta figura?')) return;
+        borrarFigura(figura);
+        return;
+    }
+
+    if (modoEditor !== 'linea') return;
+
+    // El clic sobre la figura no debe llegar al mapa: sería un punto doble
+    L.DomEvent.stopPropagation(ev);
+
+    const existente = verticeMasCercano(ev.latlng);
+    if (existente) agregarVertice(existente[0], existente[1]);
+    else agregarVertice(ev.latlng.lat, ev.latlng.lng);
+}
+
+/* Borra una figura mientras se edita: queda pendiente hasta Guardar */
+function borrarFigura(figura) {
+    if (figura && figura.__nueva) {
+        const i = pendientesLineas.indexOf(figura);
+        if (i !== -1) pendientesLineas.splice(i, 1);
+    } else if (figura && figura.id != null) {
+        lineasBorradas.add(figura.id);
+    }
+    pintarLineas();
+    actualizarBotonGuardar();
+    avisar('Figura marcada para borrar. Pulsa Guardar para confirmarlo.', 'info');
 }
 
 async function guardarEdicion() {
     if (!puedeEditarMapa()) return;
     if (!confirm('¿Seguro que querés guardar los cambios del mapa?')) return;
+    
     const est = document.getElementById('estado');
     let cambios = 0;
+    const estabaAjustando = modoAjuste; // Guardamos si estábamos en modo ajuste
 
+    // 1. Si estamos en modo "Ajustar capa", guardamos la georreferencia primero
+    if (estabaAjustando) {
+        const c = CAPAS[capaActiva];
+        const { error } = await db.from('mapa_capa').upsert({
+            id: c.id, norte: c.norte, sur: c.sur, este: c.este, oeste: c.oeste,
+            opacidad: c.opacidad, actualizado_en: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+        if (error) {
+            if (est) est.textContent = 'Error al guardar capa: ' + error.message;
+            return;
+        }
+        alternarAjuste(); // Cierra el modo ajuste
+        cambios++;
+    }
+
+    // 2. Publicar las líneas y zonas dibujadas (solo se guardan aquí)
+    if (hayCambiosLineas()) {
+        try {
+            cambios += await guardarLineasPendientes();
+        } catch (e) {
+            console.warn('guardar lineas', e);
+            if (est) est.textContent = 'No se pudieron guardar las figuras: ' + e.message;
+            avisar('No se pudieron guardar las figuras: ' + e.message, 'warn');
+            return; // no se cierra el editor: lo dibujado sigue pendiente
+        }
+    }
+
+    // 3. Guardar los puntos que se hayan movido
     for (const p of puntosCache) {
         if (!p.__dirty) continue;
         await db.from('mapa_puntos').update({ lat: p.lat, lon: p.lon }).eq('id', p.id);
@@ -1766,6 +2039,7 @@ async function guardarEdicion() {
         cambios++;
     }
 
+    // 4. Guardar las máquinas que se hayan movido
     for (const m of maquinasCache) {
         if (!m.__dirty) continue;
         const antes = m.punto_orden;
@@ -1773,6 +2047,7 @@ async function guardarEdicion() {
             lat: m.lat, lon: m.lon, punto_orden: m.punto_orden,
             actualizado_en: new Date().toISOString()
         }).eq('id', m.id);
+        
         if (m.punto_orden && m.punto_orden !== antes) {
             const punto = { orden: m.punto_orden, nombre: '' };
             await alertarMaquina(m.unidad, punto);
@@ -1781,18 +2056,24 @@ async function guardarEdicion() {
         cambios++;
     }
 
-    if (est) est.textContent = cambios > 0 ? ('✓ ' + cambios + ' cambio(s) guardado(s)') : 'Sin cambios pendientes';
+    if (est) {
+        est.textContent = cambios > 0 
+            ? ('✓ ' + (estabaAjustando ? 'Capa y ' : '') + cambios + ' cambio(s) guardado(s)') 
+            : 'Sin cambios pendientes';
+    }
 
-    /* Al guardar se cierra el editor */
+    // Al guardar se cierra el editor
     if (editorActivo) alternarEditor();
 }
 
 function alternarEditor() {
     if (!puedeEditarMapa()) return;
     editorActivo = !editorActivo;
+    
     document.body.classList.toggle('mapa-editando', editorActivo);
     document.querySelector('.barra')?.classList.toggle('editando', editorActivo);
     if (editorActivo && mapa) { try { mapa.closePopup(); } catch (e) {} }
+    
     document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
     const bg = document.getElementById('btn-guardar-editor');
     if (bg) bg.style.display = editorActivo ? 'inline-flex' : 'none';
@@ -1801,21 +2082,32 @@ function alternarEditor() {
     const pal = document.getElementById('paleta-linea');
     if (pal) pal.style.display = 'none';
 
-    // recrear maquinas y puntos para que el arrastre quede habilitado/deshabilitado
-    try { cargarMaquinas(); cargarVectores(); } catch (e) {}
-    const cm = document.getElementById('ctrl-maquina');
-    if (cm) cm.style.display = 'none';
-    document.getElementById('btn-unidad')?.classList.remove('activo');
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
-    document.getElementById('btn-editar-puntos').classList.toggle('activo', editorActivo);
-
-    if (typeof cargarVectores === 'function') cargarVectores();
 
     if (!editorActivo) {
+        // --- SI SALIMOS DEL EDITOR (CANCELAR) ---
         setModoEditor(null);
         terminarLinea(true);
         mapa.dragging.enable();
         mapa.getContainer().style.cursor = '';
+        
+        // LIMPIAMOS LOS CAMBIOS NO GUARDADOS
+        puntosCache.forEach(p => p.__dirty = false);
+        maquinasCache.forEach(m => m.__dirty = false);
+        descartarCambiosLineas();   // lo dibujado y no guardado se descarta
+
+        // Volvemos a leer la base de datos para que todo regrese a su posición original
+        cargarVectores();
+        cargarMaquinas();
+        
+    } else {
+        // --- SI ENTRAMOS AL EDITOR ---
+        descartarCambiosLineas();   // se empieza siempre desde lo publicado
+        actualizarBotonGuardar();
+        try { cargarMaquinas(); cargarVectores(); } catch (e) {}
+        const cm = document.getElementById('ctrl-maquina');
+        if (cm) cm.style.display = 'none';
+        document.getElementById('btn-unidad')?.classList.remove('activo');
     }
 }
 
@@ -1915,8 +2207,27 @@ async function clickEditor(latlng) {
 }
 
 
-/* Vertices de la linea en construccion (estilo Google Earth) */
+/* Vértices de la figura en construcción (estilo Google Earth) */
 function agregarVertice(lat, lon) {
+    // 1) IMÁN: si el clic cae sobre un vértice ya marcado se usa ESE punto,
+    //    con sus mismas coordenadas. Nunca se crea un punto nuevo al ladito.
+    const existente = verticeMasCercano(L.latLng(lat, lon));
+    if (existente) {
+        lat = Number(existente[0]);
+        lon = Number(existente[1]);
+        pulsoVertice(lat, lon);
+    }
+
+    // 2) Tocar el primer vértice de la figura en curso la cierra
+    if (verticesLinea.length >= 2 && cercaEnPantalla(lat, lon, verticesLinea[0], SNAP_PX)) {
+        cerrarZona();
+        return; // no se agrega otro punto
+    }
+
+    // 3) Un doble clic no debe dejar dos veces el mismo punto
+    const ultimo = verticesLinea[verticesLinea.length - 1];
+    if (ultimo && cercaEnPantalla(lat, lon, ultimo, 4)) return;
+
     verticesLinea.push([lat, lon]);
 
     const marca = L.marker([lat, lon], {
@@ -1927,7 +2238,6 @@ function agregarVertice(lat, lon) {
         })
     }).addTo(mapa);
 
-    // click derecho: eliminar vertice
     marca.on('contextmenu', (ev) => {
         L.DomEvent.stopPropagation(ev);
         const idx = marcadoresVertices.findIndex(m => m.marca === marca);
@@ -1938,7 +2248,6 @@ function agregarVertice(lat, lon) {
         redibujarTemporal();
     });
 
-    // arrastrar el vertice: moverlo
     marca.on('drag', (ev) => {
         const idx = marcadoresVertices.findIndex(m => m.marca === marca);
         if (idx === -1) return;
@@ -1976,48 +2285,192 @@ function ambitoActual() {
     return capaActiva === 'canales' ? 'seguimiento' : 'criticos';
 }
 
-async function cerrarZona() {
+/* Cierra la zona. Si comparte al menos dos vértices con una zona ya hecha
+   (o se solapa con ella), se unen en una sola figura y desaparece el borde
+   que quedaba en medio, como el rombo de la baraja. Nada se publica hasta
+   pulsar Guardar. */
+function cerrarZona() {
+    if (typeof turf === 'undefined') {
+        alert('No se pudo cargar la librería de geometría. Revisa la conexión y recarga la página.');
+        return;
+    }
+
     if (verticesLinea.length < 3) {
-        alert('Marca al menos 3 vértices para cerrar una zona.');
+        if (verticesLinea.length === 0) return;
+        alert('Marca al menos 3 vértices para cerrar una zona (o haz clic en el primer punto para cerrarla).');
+        return;
+    }
+
+    const ambito = ambitoActual();
+    const anillo = anilloLimpio(verticesLinea);
+    if (anillo.length < 3) {
+        alert('La zona necesita al menos 3 vértices distintos.');
         return;
     }
 
     const colorFinal = colorLinea;
     const eFinal = estiloLinea(colorFinal);
 
-    await db.from('mapa_lineas').insert({
-        nombre: 'Zona',
+    // Los vértices pasan a ser exactamente los que ya estaban marcados
+    const anilloAjustado = ajustarAnilloAVertices(anillo, ambito);
+
+    let zona;
+    try {
+        zona = poligonoTurf(anilloAjustado);
+    } catch (e) {
+        alert('La forma dibujada no es válida. Revisa que las líneas no se crucen.');
+        return;
+    }
+
+    const reemplaza = [];
+    let huboFusion = false;
+
+    const candidatas = lineasParaPintar().filter(l =>
+        l.tipo === 'poligono' &&
+        (l.ambito || 'criticos') === ambito &&
+        Array.isArray(l.coords) && l.coords.length >= 3
+    );
+
+    for (const otra of candidatas) {
+        const anilloOtro = anilloLimpio(otra.coords);
+        if (anilloOtro.length < 3) continue;
+
+        let vieja;
+        try {
+            vieja = poligonoTurf(anilloOtro);
+        } catch (e) { continue; }
+
+        // Regla pedida: con dos vértices en común ya se fusionan
+        const comparten = cuantosVerticesComparte(anilloAjustado, anilloOtro);
+        if (comparten < 2 && !seSolapan(zona, vieja)) continue;
+
+        let fusion = null;
+        try { fusion = turf.union(zona, vieja); } catch (e) { fusion = null; }
+        if (!fusion || !fusion.geometry) continue;
+        // Si al unirlas quedan islas separadas no hay borde común que quitar
+        if (fusion.geometry.type !== 'Polygon') continue;
+
+        zona = fusion;
+        huboFusion = true;
+
+        if (otra.__nueva) {
+            const i = pendientesLineas.indexOf(otra);
+            if (i !== -1) pendientesLineas.splice(i, 1);
+        } else if (otra.id != null) {
+            reemplaza.push(otra.id);
+        }
+    }
+
+    let coords = anilloLimpio(zona.geometry.coordinates[0].map(c => [c[1], c[0]]));
+    if (coords.length < 3) {
+        alert('La forma resultante no es válida.');
+        return;
+    }
+    // Se guarda cerrada, igual que las zonas que ya existen
+    coords.push([coords[0][0], coords[0][1]]);
+
+    pendientesLineas.push({
+        id: null, __nueva: true,
+        nombre: huboFusion ? 'Zona Unificada' : 'Zona',
         color: colorFinal,
         grosor: eFinal.weight,
         tipo: 'poligono',
-        ambito: ambitoActual(),
-        coords: verticesLinea
+        ambito: ambito,
+        coords: coords,
+        reemplaza: reemplaza
     });
+    reemplaza.forEach(id => lineasBorradas.add(id));
 
     limpiarVertices();
     verticesLinea = [];
-    cargarVectores();
+    pintarLineas();
+    actualizarBotonGuardar();
+
+    avisar(huboFusion
+        ? 'Zona fusionada: se quitó la línea del medio. Pulsa Guardar para publicarla.'
+        : 'Zona cerrada. Pulsa Guardar para publicarla.', 'ok');
 }
 
-async function terminarLinea(cancelar) {
+/* Termina la línea en curso: la deja pendiente y la empalma con las
+   líneas abiertas que toquen sus extremos. */
+function terminarLinea(cancelar) {
+    const trazo = anilloLimpio(verticesLinea);
     limpiarVertices();
+    verticesLinea = [];
 
-    if (!cancelar && verticesLinea.length >= 2 && modoEditor === 'linea') {
-        const colorFinal = colorLinea;
-        const eFinal = estiloLinea(colorFinal);
+    if (cancelar || trazo.length < 2) return;
 
-        await db.from('mapa_lineas').insert({
-            nombre: 'Línea',
-            color: colorFinal,
-            grosor: eFinal.weight,
-            tipo: 'linea',
-            ambito: ambitoActual(),
-            coords: verticesLinea
-        });
-        cargarVectores();
+    const ambito = ambitoActual();
+    const colorFinal = colorLinea;
+    const eFinal = estiloLinea(colorFinal);
+
+    let coords = trazo.slice();
+    const reemplaza = [];
+    const usadas = new Set();
+
+    const mismoPunto = (a, b) => distanciaMetros(a[0], a[1], b[0], b[1]) <= TOL_M;
+
+    const candidatas = () => lineasParaPintar().filter(l =>
+        l.tipo === 'linea' &&
+        (l.ambito || 'criticos') === ambito &&
+        Array.isArray(l.coords) && l.coords.length >= 2
+    );
+
+    // Encadenar con las líneas que ya toquen un extremo (pueden ser varias)
+    let unida = true;
+    while (unida) {
+        unida = false;
+        for (const otra of candidatas()) {
+            if (usadas.has(otra)) continue;
+            const c = otra.coords;
+            if (mismoPunto(c[0], c[c.length - 1])) continue; // cerrada: no se toca
+
+            const ini = coords[0];
+            const fin = coords[coords.length - 1];
+            let unido = null;
+
+            if (mismoPunto(fin, c[0])) {
+                unido = coords.concat(c.slice(1));                       // nueva + vieja
+            } else if (mismoPunto(fin, c[c.length - 1])) {
+                unido = coords.concat(c.slice().reverse().slice(1));     // nueva + vieja al revés
+            } else if (mismoPunto(ini, c[0])) {
+                unido = c.slice().reverse().concat(coords.slice(1));     // vieja al revés + nueva
+            } else if (mismoPunto(ini, c[c.length - 1])) {
+                unido = c.concat(coords.slice(1));                       // vieja + nueva
+            }
+
+            if (!unido) continue;
+
+            coords = unido;
+            usadas.add(otra);
+            if (otra.__nueva) {
+                const i = pendientesLineas.indexOf(otra);
+                if (i !== -1) pendientesLineas.splice(i, 1);
+            } else if (otra.id != null) {
+                reemplaza.push(otra.id);
+            }
+            unida = true;
+            break;
+        }
     }
-    verticesLinea = [];
+
+    pendientesLineas.push({
+        id: null, __nueva: true,
+        nombre: reemplaza.length ? 'Línea Unificada' : 'Línea',
+        color: colorFinal,
+        grosor: eFinal.weight,
+        tipo: 'linea',
+        ambito: ambito,
+        coords: coords,
+        reemplaza: reemplaza
+    });
+    reemplaza.forEach(id => lineasBorradas.add(id));
+
+    pintarLineas();
+    actualizarBotonGuardar();
+    avisar('Línea lista. Pulsa Guardar para publicarla.', 'ok');
 }
+
 
 async function borrarPunto(id) {
     if (!confirm('¿Borrar este punto?')) return;
@@ -2115,15 +2568,6 @@ async function cargarZonasCriticas() {
    ============================================================ */
 let compuertasMapa = [];
 
-function svgCompuerta() {
-    return '<svg viewBox="0 0 40 40" width="38" height="38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-        '<rect x="4" y="7" width="3.6" height="26" rx="1.4" fill="#64748b"/>' +
-        '<rect x="32.4" y="7" width="3.6" height="26" rx="1.4" fill="#64748b"/>' +
-        '<rect x="7.6" y="18" width="24.8" height="4.4" rx="1.6" fill="currentColor"/>' +
-        '<circle cx="20" cy="20.2" r="2.4" fill="#0f172a" fill-opacity=".55"/>' +
-        '</svg>';
-}
-
 function esCompuertaAbierta(c) {
     return String(c && c.estado || '').toLowerCase().indexOf('abiert') === 0;
 }
@@ -2149,14 +2593,14 @@ async function cargarCompuertasMapa() {
         const abierta = esCompuertaAbierta(c);
 
         const marca = L.marker([Number(c.lat), Number(c.lon)], {
-            icon: L.divIcon({
-                className: '',
-                html: '<div class="compuerta-mapa ' + (abierta ? 'abierta' : 'cerrada') + '">' +
-                      svgCompuerta() + '</div>',
-                iconSize: [40, 40],
-                iconAnchor: [20, 20]
-            })
-        }).addTo(capaCompuertasMapa);
+    icon: L.divIcon({
+        className: '',
+        // Usamos una etiqueta <img> en vez del svgCompuerta()
+        html: '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abierta ? 'abierta' : 'cerrada') + '">',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+    })
+}).addTo(capaCompuertasMapa);
 
         marca.bindTooltip(
             '<b>' + (c.nombre || 'Compuerta') + '</b><br>' +
@@ -2720,3 +3164,8 @@ function volverAlOrigen(e) {
     await cargarSesionConductor();
     iniciarMapa();
 })();
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && editorActivo) {
+        alternarEditor(); 
+    }
+});

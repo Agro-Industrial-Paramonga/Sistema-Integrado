@@ -117,7 +117,10 @@
             position: absolute; bottom: 14px; left: 12px; z-index: 1000;
             background: rgba(255,255,255,.95); border-radius: 12px; padding: 10px 12px;
             font-size: .75rem; color: #475569; box-shadow: 0 4px 18px rgba(15,23,42,.15); line-height: 1.5;
+            /* El cartel no debe robarle clics al mapa: solo su aspa y sus enlaces */
+            pointer-events: none;
         }
+        .leyenda button, .leyenda a { pointer-events: auto; }
         .etiqueta-unidad {
             background: rgba(255,255,255,.92); border: 1px solid #e2e8f0; border-radius: 8px;
             padding: 2px 6px; font-size: .66rem; font-weight: 700; color: #0f172a;
@@ -145,6 +148,14 @@
             padding: 7px 11px; font-size: .76rem; font-weight: 700; cursor: pointer;
         }
         .btn-modo-ed.activo { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+
+        /* El botón Guardar avisa cuando hay figuras dibujadas sin publicar */
+        #btn-guardar-editor.con-cambios {
+            background: #f59e0b !important;
+            border-color: #d97706 !important;
+            color: #fff !important;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, .28);
+        }
 
         /* Paleta de colores de la línea */
         .pc-color {
@@ -218,17 +229,20 @@
         #toast-mapa.info  { background: #334155; }
 
         .punto-critico {
-            width: 26px; height: 26px; border-radius: 50%;
-            background: #facc15; border: 2px solid #a16207;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: 800; color: #422006;
-            box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: grab;
-        }
-        .punto-critico::after {
-            content: ""; position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%);
-            width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent;
-            border-top: 10px solid #a16207;
-        }
+    width: 32px; 
+    height: 32px; 
+    border-radius: 50%;
+    background: #1d4ed8; /* Azul vivo e intenso */
+    border: none; /* Sin borde para que se vea sólido */
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    font-size: 16px; 
+    font-weight: 900; 
+    color: #ffffff; /* Blanco puro */
+    box-shadow: 0 3px 8px rgba(0,0,0,.5); /* Sombra para que resalte */
+    cursor: grab;
+}
 
         .num-punto {
             background: transparent !important; border: none !important; box-shadow: none !important;
@@ -419,12 +433,27 @@
         }
         .punto-critico.sin-numero::after { border-top-color: #94a3b8; }
 
-        /* ===== Compuertas en el mapa ===== */
-        .compuerta-mapa { cursor: pointer; filter: drop-shadow(0 2px 5px rgba(0,0,0,.45)); color: #dc2626; }
-        .compuerta-mapa.abierta { color: #16a34a; }
-        .compuerta-mapa svg { animation: compuertaGira 5s linear infinite; }
-        @media (prefers-reduced-motion: reduce) { .compuerta-mapa svg { animation: none; } }
-        @keyframes compuertaGira { to { transform: rotate(360deg); } }
+        /* ===== Compuertas en el mapa (Nuevo diseño) ===== */
+.compuerta-mapa-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: pointer;
+    border-radius: 50%; /* Hace que el borde sea circular */
+    transition: all 0.2s ease-in-out;
+}
+
+/* Si está cerrada: aro rojo y sombra roja */
+.compuerta-mapa-img.cerrada {
+    border: 3px solid #dc2626;
+    box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
+}
+
+/* Si está abierta: aro verde y sombra verde */
+.compuerta-mapa-img.abierta {
+    border: 3px solid #16a34a;
+    box-shadow: 0 0 10px rgba(22, 163, 74, 0.6);
+}
 
         /* ===== Panel de ficha / galería de fotos ===== */
         .panel-mapa {
@@ -536,11 +565,10 @@
             </div>
         </div>
 
-        <!-- ================= FILA DE HERRAMIENTAS (Se muestra solo al editar) ================= -->
+                <!-- ================= FILA DE HERRAMIENTAS (Se muestra solo al editar) ================= -->
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
             <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c; padding: 6px 10px;" class="btn-tool ocultar-en-edicion"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
             <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none; padding: 6px 10px;" class="btn-tool"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
-            <button id="btn-guardar" onclick="guardarCapa()" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;" class="btn-tool"><i class="fas fa-floppy-disk"></i> Guardar</button>
             <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;" class="btn-tool"><i class="fas fa-floppy-disk"></i> Guardar</button>
 
             <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
@@ -560,13 +588,16 @@
             </span>
         </div>
 
+    </div><!-- cierra .barra: el panel de compuertas y el detalle deben colgar del body -->
+
+    <!-- 👇 AQUÍ AFUERA QUEDAN LAS LEYENDAS 👇 -->
     <div class="leyenda" id="leyenda-sim" style="display:none">
         <strong>Simulación</strong><br>
         Toca el mapa para colocar la unidad de prueba.<br>
         <a href="#" onclick="borrarSimulacion();return false;" style="color:#b91c1c">Borrar simulación</a>
     </div>
 
-        <div class="leyenda" id="leyenda-editor" style="display:none">
+    <div class="leyenda" id="leyenda-editor" style="display:none">
         <!-- Botón de cerrar (aspa) -->
         <button type="button" onclick="document.getElementById('leyenda-editor').style.display='none'" 
                 style="position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: #64748b; font-size: 20px; font-weight: bold; cursor: pointer; line-height: 1; padding: 0;">
@@ -580,7 +611,9 @@
         2. Para las líneas elige <strong>roja</strong> o <strong>amarilla</strong> y toca cada vértice.<br>
         3. <strong>Terminar línea</strong> para una ruta, o <strong>Cerrar zona</strong> si encierras un área (se rellena del mismo color).<br>
         4. La línea se guarda en la <strong>pestaña activa</strong> y solo se ve ahí: las líneas de seguimiento no
-        aparecen en Puntos críticos, ni al revés. Los campos delimitados dejan pasar la línea sin abrir su cartel.
+        aparecen en Puntos críticos, ni al revés. Los campos delimitados dejan pasar la línea sin abrir su cartel.<br>
+        5. Toca un <strong>vértice marcado</strong> para reutilizarlo; al cerrar una zona que comparta dos o más vértices con otra, se unen y se quita la línea del medio.<br>
+        6. Nada se publica hasta pulsar <strong>Guardar</strong>; si sales con Editar se descarta.
     </div>
 
     <div class="leyenda" id="leyenda" style="display:none">
@@ -588,7 +621,7 @@
         Arrastra los dos puntos (NOROESTE y SURESTE) hasta que la imagen calce con el terreno.<br>
         Luego pulsa <strong>Guardar</strong>.
     </div>
-    </div><!-- cierra .barra: el panel de compuertas y el detalle deben colgar del body -->
+    <!-- 👆 FIN DE LAS LEYENDAS 👆 -->
 
     <!-- ================= COMPUERTAS ================= -->
     <div id="pc-panel">
@@ -632,7 +665,8 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
-    <script src="mapa.js?v=65"></script>
+     <script src="assets/turf.min.js?v=1"></script>
+    <script src="mapa.js?v=66"></script>
     <script src="compuertas.js?v=10"></script>
     <script src="semaforo.js?v=10"></script>
                         <script>

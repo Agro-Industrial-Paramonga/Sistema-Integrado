@@ -924,7 +924,10 @@ function puedeVerMapa(u) {
     if (!u) return false;
     if (ROLES_JEFE_MAPA.indexOf(u.rol) !== -1) return true;
     if (claveArea(u.gerencia_key || '').indexOf('gerencia de campo') === 0) return true;
-    return claveArea((u.seccion || '') + ' ' + (u.area || '')).indexOf('chunga') !== -1;
+    
+    // Permitimos a toda la sección de Seguridad Industrial y mantenemos a Chunga
+    const texto = claveArea((u.seccion || '') + ' ' + (u.area || ''));
+    return texto.indexOf('seguridad industrial') !== -1 || texto.indexOf('chunga') !== -1;
 }
 
 function mostrarBotonMapa() {
