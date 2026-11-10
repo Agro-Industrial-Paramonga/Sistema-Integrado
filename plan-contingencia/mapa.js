@@ -156,9 +156,14 @@ function puedeEditarMapa() {
     if (sesionConductor()) return false;
     const u = usuarioPlan();
     if (!u) return false;
+    
+    // AGREGA ESTA LÍNEA PARA PERMITIR AL GERENTE GENERAL
+    if (u.rol === 'gerente_general') return true; 
+
     const texto = normalizar((u.seccion || '') + ' ' + (u.area || ''));
-    // Permitimos a toda la sección de Seguridad Industrial y mantenemos a Chunga
-    return texto.includes('seguridad industrial') || texto.includes('chunga');
+    
+    // O si prefieres dárselo por tu nombre exacto, agrégalo aquí:
+    return texto.includes('seguridad industrial') || texto.includes('chunga') || texto.includes('melgar belmont');
 }
 
 function esMovil() {
