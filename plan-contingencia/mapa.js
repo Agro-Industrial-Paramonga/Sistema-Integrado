@@ -40,6 +40,9 @@ let marcSE = null;
 let marcadoresUnidades = [];
 let simulando = false;
 let ultimoEnvio = 0;
+let mostrarUnidades = true;
+let mostrarCompuertas = true;
+let mostrarPuntos = true;
 
 /* ------------------------------------------------------------
    Sesion y permisos
@@ -441,6 +444,12 @@ function actualizarControles() {
     if (botonEd) {
         const puede = !esMovil() && puedeEditarMapa();
         botonEd.style.display = puede ? 'inline-flex' : 'none';
+    }
+
+    // Nos aseguramos de que el botón de gestión de compuertas sea visible si el usuario tiene permiso
+    const botonCompuertas = document.getElementById('btn-compuertas');
+    if (botonCompuertas) {
+        botonCompuertas.style.display = 'inline-flex';
     }
 
     /* «Ajustar capa» solo se muestra dentro del editor */
@@ -1592,24 +1601,42 @@ function mostrarGrupo(grupo, visible) {
 function aplicarVisibilidadCapas() {
     if (!mapa || !capaUnidades) return;
 
-    const esSeguimiento = (capaActiva === 'canales'); 
-
-    // 1. Mantenemos las unidades y campos siempre visibles
-    mostrarGrupo(capaUnidades, true); 
+    // 1. Capas base (siempre visibles)
     mostrarGrupo(capaCampos, true); 
-
-    // 2. ¡AQUÍ ESTÁ EL CAMBIO! Ponemos 'true' para que las líneas de seguimiento también se vean
     mostrarGrupo(capaLineasSeg, true); 
-    
-    // 3. El resto de capas de Puntos Críticos
     mostrarGrupo(capaCamposAipsa, true);
-    mostrarGrupo(capaZonasCriticas, !esSeguimiento); 
-    mostrarGrupo(capaCompuertasMapa, !esSeguimiento);
-    mostrarGrupo(capaPuntos, !esSeguimiento);
-    mostrarGrupo(capaMaquinas, !esSeguimiento && !!usuarioPlan());
-    mostrarGrupo(capaLineas, !esSeguimiento);
+    
+    // 2. Capas controladas ÚNICAMENTE por tus nuevos botones
+    mostrarGrupo(capaUnidades, mostrarUnidades); 
+    mostrarGrupo(capaCompuertasMapa, mostrarCompuertas);
+    mostrarGrupo(capaPuntos, mostrarPuntos);
+    
+    // 3. Resto de capas
+    mostrarGrupo(capaZonasCriticas, true); 
+    mostrarGrupo(capaMaquinas, !!usuarioPlan());
+    mostrarGrupo(capaLineas, true);
 
     aplicarSemaforoEnCampos();
+}
+function toggleCapaMapa(tipo) {
+    if (!mapa) return;
+
+    // Cambiamos el estado (de true a false, o viceversa)
+    if (tipo === 'unidad') {
+        mostrarUnidades = !mostrarUnidades;
+        document.getElementById('btn-capa-unidad').classList.toggle('inactivo', !mostrarUnidades);
+    } 
+    else if (tipo === 'compuerta') {
+        mostrarCompuertas = !mostrarCompuertas;
+        document.getElementById('btn-capa-compuerta').classList.toggle('inactivo', !mostrarCompuertas);
+    } 
+    else if (tipo === 'punto') {
+        mostrarPuntos = !mostrarPuntos;
+        document.getElementById('btn-capa-punto').classList.toggle('inactivo', !mostrarPuntos);
+    }
+
+    // Refrescamos el mapa con los nuevos estados
+    aplicarVisibilidadCapas();
 }
 
 
@@ -2151,8 +2178,10 @@ function setModoEditor(modo) {
 
     // El mapa SIEMPRE se puede arrastrar; el clic (sin mover) marca el vertice
     mapa.dragging.enable();
+    
+    // AQUÍ AGREGAMOS 'compuerta' PARA QUE EL CURSOR CAMBIE
     mapa.getContainer().style.cursor =
-        (modo === 'punto' || modo === 'retro' || modo === 'excavadora' || modo === 'linea')
+        (modo === 'punto' || modo === 'retro' || modo === 'excavadora' || modo === 'linea' || modo === 'compuerta')
             ? 'crosshair' : '';
 
     if (modo !== 'maquina') {
@@ -2162,7 +2191,6 @@ function setModoEditor(modo) {
     }
     if (modo !== 'linea') terminarLinea(true);
 }
-
 /* Muestra u oculta el selector de unidad, para no cargar la barra */
 function alternarUnidad() {
     if (!editorActivo) return;
@@ -2184,7 +2212,6 @@ async function clickEditor(latlng) {
     if (!editorActivo || !modoEditor || !puedeEditarMapa()) return;
 
     if (modoEditor === 'punto' || modoEditor === 'retro' || modoEditor === 'excavadora') {
-        /* Sin numero: el numero se pone despues, en la ficha del punto */
         const { data, error } = await db.from('mapa_puntos').insert({
             lat: latlng.lat, lon: latlng.lng, orden: 0,
             tipo: modoEditor === 'punto' ? 'punto' : modoEditor
@@ -2201,6 +2228,12 @@ async function clickEditor(latlng) {
         return;
     }
 
+    // LLAMAMOS AL MODAL BONITO EN VEZ DEL PROMPT
+    if (modoEditor === 'compuerta') {
+        abrirModalCompuerta(latlng.lat, latlng.lng);
+        return;
+    }
+
     if (modoEditor === 'maquina') {
         await colocarMaquina(latlng);
         return;
@@ -2210,7 +2243,85 @@ async function clickEditor(latlng) {
         agregarVertice(latlng.lat, latlng.lng);
     }
 }
+let tempCompuertaLat = null;
+let tempCompuertaLon = null;
 
+function abrirModalCompuerta(lat, lon) {
+    tempCompuertaLat = lat;
+    tempCompuertaLon = lon;
+
+    // Reutilizamos tu función panelMapa para mantener el mismo diseño
+    const cuerpo = `
+        <div class="panel-campo">
+            <label>Nombre de la compuerta *</label>
+            <input id="nueva-compuerta-nombre" type="text" placeholder="Ej. Compuerta Norte" autocomplete="off">
+        </div>
+        <div class="panel-campo">
+            <label>Administración *</label>
+            <select id="nueva-compuerta-admin" style="width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px; padding: 9px 11px; font-size: .86rem; color: #0f172a; font-family: inherit; background: #fff;">
+                <option value="Administracion 1">Administración 1</option>
+                <option value="Administracion 2">Administración 2</option>
+                <option value="Administracion 3" selected>Administración 3</option>
+            </select>
+        </div>
+        <div class="panel-campo">
+            <label>Ubicación seleccionada</label>
+            <p style="font-size: 0.8rem; color: #64748b; margin:0; padding: 8px; background: #f8fafc; border-radius: 8px;">
+                Lat: ${lat.toFixed(5)} <br> Lon: ${lon.toFixed(5)}
+            </p>
+        </div>
+    `;
+
+    const botones = `
+        <button type="button" class="panel-btn" id="btn-cancelar-compuerta">Cancelar</button>
+        <button type="button" class="panel-btn principal" id="btn-guardar-compuerta">Guardar</button>
+    `;
+
+    const capa = panelMapa('Agregar compuerta', cuerpo, botones);
+
+    capa.querySelector('#btn-cancelar-compuerta').addEventListener('click', cerrarPanelMapa);
+    
+    // Enfocar el input automáticamente
+    setTimeout(() => {
+        const input = document.getElementById('nueva-compuerta-nombre');
+        if (input) input.focus();
+    }, 100);
+
+capa.querySelector('#btn-guardar-compuerta').addEventListener('click', guardarNuevaCompuerta);
+}
+
+async function guardarNuevaCompuerta() {
+    const nombre = document.getElementById('nueva-compuerta-nombre').value.trim();
+    const admin = document.getElementById('nueva-compuerta-admin').value;
+    const btn = document.getElementById('btn-guardar-compuerta');
+
+    if (!nombre) {
+        avisar('Escribe el nombre de la compuerta.', 'warn');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+    const { error } = await db.from('compuertas').insert({
+        nombre: nombre,
+        administracion: admin,
+        estado: 'cerrada',
+        lat: tempCompuertaLat,
+        lon: tempCompuertaLon
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+
+    if (error) {
+        avisar('No se pudo crear la compuerta: ' + error.message, 'warn');
+    } else {
+        avisar('Compuerta creada y ubicada.', 'ok');
+        cerrarPanelMapa(); // Cierra el modal bonito
+        cargarCompuertasMapa(); // Refresca la capa del mapa para que aparezca de inmediato
+    }
+}
 
 /* Vértices de la figura en construcción (estilo Google Earth) */
 function agregarVertice(lat, lon) {

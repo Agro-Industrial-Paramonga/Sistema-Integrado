@@ -513,10 +513,66 @@
         /* Tres formas de elegir la foto: cámara, galería o archivos */
         .foto-opciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
         .foto-opciones .panel-subir { flex: 1 1 30%; min-width: 92px; }
+        /* --- ESTILOS PARA LOS BOTONES DE CAPAS --- */
+/* --- ESTILOS PARA LOS BOTONES DE CAPAS (HORIZONTALES Y SOLO ÍCONOS) --- */
+.controles-capas-derecha {
+    position: absolute;
+    top: 105px; /* Ajustado para quedar justo debajo del botón de Alta Resolución */
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: row; /* Ahora es horizontal */
+    gap: 6px;
+}
+.btn-filtro-mapa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    width: 38px; /* Ancho fijo para que sea cuadrado */
+    height: 38px; /* Alto fijo */
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(15,23,42,.15);
+    transition: all 0.2s;
+    padding: 0;
+}
+.btn-filtro-mapa img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+.btn-filtro-mapa i {
+    font-size: 16px;
+}
+.btn-filtro-mapa:hover {
+    background: #f8fafc;
+    transform: translateY(-1px);
+}
+.btn-filtro-mapa.inactivo {
+    background: #f1f5f9;
+    opacity: 0.4;
+    box-shadow: none;
+    border-color: #cbd5e1;
+}
     </style>
 </head>
 <body>
     <div id="mapa"></div>
+    <!-- Botones de control de capas (Horizontales, solo íconos) -->
+<div class="controles-capas-derecha">
+    <button id="btn-capa-unidad" class="btn-filtro-mapa" onclick="toggleCapaMapa('unidad')" title="Mostrar/Ocultar Unidades">
+        <i class="fas fa-truck-pickup" style="color:#1e3a8a;"></i>
+    </button>
+    <!-- AQUÍ QUITAMOS LA PALABRA 'inactivo' -->
+    <button id="btn-capa-compuerta" class="btn-filtro-mapa" onclick="toggleCapaMapa('compuerta')" title="Mostrar/Ocultar Compuertas">
+        <img src="assets/compuerta.png" alt="Compuertas">
+    </button>
+    <button id="btn-capa-punto" class="btn-filtro-mapa" onclick="toggleCapaMapa('punto')" title="Mostrar/Ocultar Puntos">
+        <i class="fas fa-location-dot" style="color:#1d4ed8;"></i>
+    </button>
+</div>
     <div id="sin-acceso" style="display:none;position:absolute;inset:0;background:#f8fafc;z-index:1500;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;"><div><h2 style="color:#0f172a">Acceso restringido</h2><p style="color:#64748b;max-width:420px">Este mapa es solo para la Gerencia de Campo, el gerente de cada gerencia y Seguridad Industrial.</p><a href="index.html" style="color:#16a34a;font-weight:700">Volver</a></div></div>
 
                                    <div class="barra">
@@ -551,8 +607,11 @@
             <!-- Botón Editar -->
             <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none; padding: 6px 10px;" class="btn-tool"><i class="fas fa-pen-ruler"></i> Editar</button>
             
-            <!-- Botón Compuertas -->
-            <button id="btn-compuertas" onclick="pcAbrir()" style="display:none; padding: 6px 10px;" class="btn-tool ocultar-en-edicion"><i class="fas fa-water"></i> Compuertas</button>
+                                    <!-- Botón Compuertas (Gestión) -->
+            <button id="btn-compuertas" onclick="pcAbrir()" style="display:inline-flex; padding: 6px 10px;" class="btn-tool">
+                <img src="assets/compuerta.png" style="width: 16px; height: 16px; object-fit: contain; margin-right: 4px;"> 
+                Compuertas
+            </button>
 
             <!-- Botón de Opacidad -->
             <div class="ocultar-en-edicion" style="display:flex; align-items:center; gap:6px;">
@@ -573,6 +632,7 @@
 
             <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
                 <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-location-dot"></i> Punto</button>
+                  <button data-modo="compuerta" onclick="setModoEditor('compuerta')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-water"></i> Compuerta</button>
                 <button data-modo="linea" onclick="setModoEditor('linea')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-draw-polygon"></i> Línea</button>
                 <span id="paleta-linea" style="display:none;gap:5px;align-items:center;">
                     <button type="button" class="pc-color activo" data-color="#06b6d4" onclick="setColorLinea('#06b6d4')" title="Turquesa" style="background:#06b6d4"></button>

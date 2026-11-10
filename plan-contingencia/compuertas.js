@@ -53,6 +53,10 @@ function pcPuedeVer() {
     try {
         const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
         if (!u) return false;
+        
+        // Damos acceso total al Gerente General y a Melgar Belmont
+        if (u.rol === 'gerente_general' || String(u.nombre || '').toLowerCase().includes('melgar')) return true;
+
         const texto = pcNormalizar(String(u.seccion || '') + ' ' + String(u.area || '') + ' ' + String(u.nombre || ''));
         const esSeguridad = texto.includes('seguridad industrial') || texto.includes('chunga');
         
@@ -70,10 +74,13 @@ function pcPuedeAdministrar() {
     try {
         const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
         if (!u) return false;
+        // Damos permiso de administración al Gerente General y a Melgar Belmont
+        if (u.rol === 'gerente_general' || String(u.nombre || '').toLowerCase().includes('melgar')) return true;
+
         const texto = pcNormalizar(String(u.seccion || '') + ' ' + String(u.area || '') + ' ' + String(u.nombre || ''));
         if (texto.includes('seguridad industrial') || texto.includes('chunga')) return true;
-        /* Gerencia de Campo administra completa: area, sup_area, jefe_area
-           y el gerente de campo. Un 'area' de otra gerencia no entra aca. */
+        
+        /* Gerencia de Campo administra completa */
         return String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO';
     } catch (e) { return false; }
 }
