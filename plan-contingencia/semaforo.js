@@ -979,7 +979,18 @@
         document.body.appendChild(panel);
     }
 
+    /* La sesión la restaura script.js después de cargar la página (consulta
+       la base). Si el semáforo leyó pc_user antes de que terminara, el rol
+       queda en 'ninguno' y los botones de declarar/reiniciar no salen hasta
+       recargar. Volver a leerlo al abrir el panel (y en cada refresco)
+       resuelve eso sin tocar el resto del flujo. */
+    function semRefrescarRol() {
+        usuario = semLeerUsuario();
+        rol = semRol(usuario);
+    }
+
     function semAbrirPanel() {
+        semRefrescarRol();
         if (!panel) semMontarPanel();
         vista = 'detalle';
         semPintarPanel();
@@ -1539,6 +1550,7 @@
 
         setInterval(async () => {
             if (document.hidden) return;
+            semRefrescarRol();
             await semCargar();
             semPintar();
             if (panel && panel.classList.contains('abierto') && vista === 'detalle') semPintarPanel();
@@ -1546,6 +1558,7 @@
 
         document.addEventListener('visibilitychange', async () => {
             if (document.hidden) return;
+            semRefrescarRol();
             await semCargar();
             semPintar();
         });
