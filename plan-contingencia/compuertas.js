@@ -98,7 +98,8 @@ function pcUsuario() {
 async function pcCargar() {
     const [resGates, resCont] = await Promise.all([
         db.from('compuertas')
-            .select('id, administracion, nombre, estado, actualizado_por, actualizado_en')
+            // CORRECCIÓN AQUÍ: Agregamos lat, lon al select
+            .select('id, administracion, nombre, estado, actualizado_por, actualizado_en, lat, lon')
             .order('nombre'),
         db.from('compuertas_contactos')
             .select('id, compuerta_id, nombre, cargo, telefono')
@@ -294,6 +295,13 @@ function pcDetalle(c) {
             (c.actualizado_en ? ' · ' + pcEscape(pcFecha(c.actualizado_en)) : '') + '</p>';
     }
 
+    // NUEVO: Aviso de si está en el mapa o no
+    if (c.lat && c.lon) {
+        html += '<p class="pc-nota" style="color:#0ea5e9;font-weight:700;"><i class="fas fa-map-marker-alt"></i> Ubicada en el mapa</p>';
+    } else {
+        html += '<p class="pc-nota" style="color:#b45309;font-weight:700;"><i class="fas fa-eye-slash"></i> Solo visualización (sin coordenadas)</p>';
+    }
+
     html += '<div id="pc-aviso" class="pc-aviso" style="display:none"></div>';
 
     if (pcPuedeVer() && !pcTablaContactos) {
@@ -325,7 +333,6 @@ function pcDetalle(c) {
     caja.innerHTML = html;
     caja.style.display = 'flex';
 
-    /* Quitar responsables */
     caja.querySelectorAll('[data-quitar]').forEach(b => {
         b.addEventListener('click', (ev) => {
             ev.preventDefault();
@@ -342,8 +349,24 @@ function pcPintarPie(c, caja) {
     const pie = caja.querySelector('#pc-pie');
     if (!pie) return;
 
-    const abierta = (c.estado || 'cerrada') === 'abierta';
     let h = '';
+    const tieneUbicacion = c.lat && c.lon;
+
+    if (pcPuedeAdministrar()) {
+        if (tieneUbicacion) {
+            // Si ya está en el mapa, mostramos Editar y Quitar
+            h += '<div style="display:flex; gap:8px; margin-bottom:8px;">' +
+                 '<button type="button" class="pc-btn-add" id="pc-ubicar-mapa" style="flex:1; border-color:#bae6fd;background:#f0f9ff;color:#0284c7;margin:0;">' +
+                 '<i class="fas fa-map-marker-alt"></i> Editar ubicación</button>' +
+                 '<button type="button" class="pc-btn-add" id="pc-eliminar-mapa" style="flex:1; border-color:#fecaca;background:#fef2f2;color:#b91c1c;margin:0;">' +
+                 '<i class="fas fa-trash"></i> Quitar del mapa</button>' +
+                 '</div>';
+        } else {
+            // Si no está en el mapa, solo mostramos Ubicar
+            h += '<button type="button" class="pc-btn-add" id="pc-ubicar-mapa" style="border-color:#bae6fd;background:#f0f9ff;color:#0284c7;margin-bottom:8px;">' +
+                 '<i class="fas fa-map-marker-alt"></i> Ubicar en el mapa</button>';
+        }
+    }
 
     if (pcPuedeAdministrar() && pcTablaContactos) {
         h += '<button type="button" class="pc-btn-add" id="pc-add-persona">' +
@@ -357,8 +380,74 @@ function pcPintarPie(c, caja) {
     const volver = pie.querySelector('#pc-volver');
     if (volver) volver.addEventListener('click', pcCerrarDetalle);
 
+    // Evento para editar o poner coordenadas
+    const ubicar = pie.querySelector('#pc-ubicar-mapa');
+    if (ubicar) ubicar.addEventListener('click', () => pcFormUbicacion(c, caja));
+
+    // Evento para quitar del mapa directamente
+    const eliminar = pie.querySelector('#pc-eliminar-mapa');
+    if (eliminar) {
+        eliminar.addEventListener('click', async () => {
+            if (!confirm('¿Quitar la compuerta "' + c.nombre + '" del mapa? Las coordenadas se borrarán y solo quedará en el panel.')) return;
+            
+            pcCargando = true;
+            const { error } = await db.from('compuertas').update({ lat: null, lon: null }).eq('id', c.id);
+            pcCargando = false;
+            
+            if (error) {
+                pcAviso(caja, 'No se pudo quitar del mapa: ' + error.message, true);
+                return;
+            }
+
+            await pcRefrescarDetalle(c.id);
+            if (typeof cargarCompuertasMapa === 'function') cargarCompuertasMapa();
+        });
+    }
+
     const add = pie.querySelector('#pc-add-persona');
     if (add) add.addEventListener('click', () => pcFormularioResponsable(c, caja));
+}
+function pcFormUbicacion(c, caja) {
+    const pie = caja.querySelector('#pc-pie');
+    if (!pie) return;
+
+    // Tomamos los valores actuales para que no salga vacío
+    const valLat = c.lat ? c.lat : '';
+    const valLon = c.lon ? c.lon : '';
+
+    pie.innerHTML = '<form class="pc-form" id="pc-form-ubicacion">' +
+        '<p class="pc-form-titulo" style="font-size:.9rem;margin-bottom:8px;">Ubicación Geográfica</p>' +
+        '<input name="lat" type="number" step="any" placeholder="Latitud (ej. -10.67140)" value="' + valLat + '" required>' +
+        '<input name="lon" type="number" step="any" placeholder="Longitud (ej. -77.75900)" value="' + valLon + '" required>' +
+        '<div class="pc-form-acciones" style="margin-top:10px;">' +
+        '<button type="submit" class="pc-btn ok">Guardar</button>' +
+        '<button type="button" class="pc-btn" id="pc-cancelar-ubicacion">Cancelar</button>' +
+        '</div></form>';
+
+    const form = pie.querySelector('#pc-form-ubicacion');
+    
+    form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const datos = new FormData(form);
+        const lat = parseFloat(datos.get('lat'));
+        const lon = parseFloat(datos.get('lon'));
+        
+        if (isNaN(lat) || isNaN(lon)) { pcAviso(caja, 'Coordenadas no válidas', true); return; }
+
+        pcCargando = true;
+        const { error } = await db.from('compuertas').update({ lat: lat, lon: lon }).eq('id', c.id);
+        pcCargando = false;
+
+        if (error) {
+            pcAviso(caja, 'No se pudo guardar: ' + error.message, true);
+            return;
+        }
+
+        await pcRefrescarDetalle(c.id);
+        if (typeof cargarCompuertasMapa === 'function') cargarCompuertasMapa();
+    });
+
+    pie.querySelector('#pc-cancelar-ubicacion').addEventListener('click', () => pcPintarPie(c, caja));
 }
 
 /* El formulario de alta ocupa el pie mientras se escribe */
@@ -520,7 +609,14 @@ function pcFormCompuerta() {
         '<div id="pc-aviso" class="pc-aviso" style="display:none"></div>' +
         '<form class="pc-form" id="pc-form-compuerta" style="display:flex">' +
         '<input name="nombre" type="text" placeholder="Nombre de la compuerta" autocomplete="off" required>' +
-        '<div class="pc-form-acciones">' +
+        
+        // NUEVOS CAMPOS OPCIONALES
+        '<div style="display:flex;gap:8px;margin-top:8px;">' +
+            '<input name="lat" type="number" step="any" placeholder="Latitud (opcional)" style="flex:1;font-size:.8rem;padding:8px;">' +
+            '<input name="lon" type="number" step="any" placeholder="Longitud (opcional)" style="flex:1;font-size:.8rem;padding:8px;">' +
+        '</div>' +
+
+        '<div class="pc-form-acciones" style="margin-top:12px;">' +
         '<button type="submit" class="pc-btn ok">Crear</button>' +
         '<button type="button" class="pc-btn" id="pc-cancelar-compuerta">Cancelar</button>' +
         '</div>' +
@@ -532,7 +628,13 @@ function pcFormCompuerta() {
     const form = caja.querySelector('#pc-form-compuerta');
     form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
-        await pcGuardarCompuerta(String(new FormData(form).get('nombre') || ''), caja);
+        const datos = new FormData(form);
+        await pcGuardarCompuerta(
+            String(datos.get('nombre') || ''), 
+            caja,
+            String(datos.get('lat') || '').trim(),
+            String(datos.get('lon') || '').trim()
+        );
     });
 
     const cancelar = caja.querySelector('#pc-cancelar-compuerta');
@@ -540,6 +642,49 @@ function pcFormCompuerta() {
 
     const primero = form.querySelector('input[name="nombre"]');
     if (primero) primero.focus();
+}
+
+async function pcGuardarCompuerta(nombre, caja, latStr, lonStr) {
+    const limpio = nombre.trim();
+    if (!limpio) { pcAviso(caja, 'Escribe el nombre de la compuerta.', true); return; }
+
+    const repetida = pcCompuertas.some(c =>
+        c.administracion === pcAdminActual && pcNormalizar(c.nombre) === pcNormalizar(limpio));
+    if (repetida) { pcAviso(caja, 'Ya existe una compuerta con ese nombre en esta administración.', true); return; }
+
+    // Validar coordenadas
+    let lat = null;
+    let lon = null;
+    if (latStr && lonStr) {
+        lat = parseFloat(latStr);
+        lon = parseFloat(lonStr);
+        if (isNaN(lat) || isNaN(lon)) {
+            pcAviso(caja, 'Las coordenadas no son válidas. Deja ambos campos vacíos o ingresa números correctos.', true);
+            return;
+        }
+    }
+
+    pcCargando = true;
+    const { error } = await db.from('compuertas').insert({
+        administracion: pcAdminActual,
+        nombre: limpio,
+        estado: 'cerrada',
+        lat: lat,
+        lon: lon
+    });
+    pcCargando = false;
+
+    if (error) {
+        console.warn('alta compuerta', error);
+        pcAviso(caja, error.code === '42501' ? PC_MENSAJE_TABLA : 'No se pudo crear: ' + error.message, true);
+        return;
+    }
+
+    pcCerrarDetalle();
+    await pcPintar();
+    
+    // Refrescar mapa si la función está disponible en la página
+    if (typeof cargarCompuertasMapa === 'function') cargarCompuertasMapa();
 }
 
 async function pcGuardarCompuerta(nombre, caja) {

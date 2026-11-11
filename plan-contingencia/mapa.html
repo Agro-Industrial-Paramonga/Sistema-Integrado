@@ -8,10 +8,65 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
-           
+        
     <style>
+        /* --- ESTILOS PARA LOS BOTONES CUADRADOS (CAPAS Y EDITOR) --- */
+        .btn-editor-cuadrado, .btn-filtro-mapa {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            color: #475569;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(15,23,42,.08);
+            transition: all 0.2s;
+            padding: 0;
+            font-size: 16px;
+        }
+        .btn-editor-cuadrado:hover, .btn-filtro-mapa:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+        .btn-editor-cuadrado img, .btn-filtro-mapa img {
+            width: 22px;
+            height: 22px;
+            object-fit: contain;
+        }
+        .btn-editor-cuadrado.activo {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: #3730a3;
+        }
+        .btn-editor-cuadrado.btn-guardar {
+            background: #10b981;
+            border-color: #10b981;
+            color: #ffffff;
+        }
+        .btn-editor-cuadrado.btn-guardar:hover {
+            background: #059669;
+        }
+        .btn-editor-cuadrado.btn-rojo {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+        .btn-editor-cuadrado.btn-rojo:hover {
+            background: #fee2e2;
+        }
+        .btn-filtro-mapa.inactivo {
+            background: #f1f5f9;
+            opacity: 0.4;
+            box-shadow: none;
+            border-color: #cbd5e1;
+        }
+
         .oculto { display: none !important; }
-         /* Ajustes para que el semáforo quepa perfecto al lado de los botones */
+        /* Ajustes para que el semáforo quepa perfecto al lado de los botones */
         .barra #sem-luces {
             padding: 4px 12px !important;
             gap: 8px !important;
@@ -29,62 +84,62 @@
             margin-bottom: 0 !important;
         }
         /* Miniatura clickeable */
-.panel-foto-img { cursor: zoom-in; }
+        .panel-foto-img { cursor: zoom-in; }
 
-/* Lightbox */
-.lightbox-mapa {
-    position: fixed; inset: 0; z-index: 5000;
-    background: rgba(15,23,42,.95);
-    display: none; align-items: center; justify-content: center;
-    padding: 20px;
-}
-.lightbox-mapa.visible { display: flex; }
-.lb-img {
-    max-width: 92vw; max-height: 88vh;
-    object-fit: contain; border-radius: 8px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.6);
-    user-select: none; -webkit-user-drag: none;
-}
-.lb-cerrar {
-    position: absolute; top: 12px; right: 14px;
-    width: 44px; height: 44px; border-radius: 50%;
-    border: none; background: rgba(255,255,255,.15); color: #fff;
-    font-size: 26px; line-height: 1; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-}
-.lb-cerrar:hover { background: rgba(255,255,255,.28); }
-.lb-nav {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    width: 48px; height: 48px; border-radius: 50%;
-    border: none; background: rgba(255,255,255,.18); color: #fff;
-    font-size: 22px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-}
-.lb-nav:hover { background: rgba(255,255,255,.3); }
-.lb-prev { left: 14px; }
-.lb-next { right: 14px; }
-.lb-contador {
-    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-    color: #fff; font-size: .82rem; font-weight: 700;
-    background: rgba(15,23,42,.7); padding: 6px 12px; border-radius: 999px;
-}
-@media (max-width: 600px) {
-    .lb-nav { width: 40px; height: 40px; font-size: 18px; }
-    .lb-prev { left: 6px; }
-    .lb-next { right: 6px; }
-}
+        /* Lightbox */
+        .lightbox-mapa {
+            position: fixed; inset: 0; z-index: 5000;
+            background: rgba(15,23,42,.95);
+            display: none; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .lightbox-mapa.visible { display: flex; }
+        .lb-img {
+            max-width: 92vw; max-height: 88vh;
+            object-fit: contain; border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,.6);
+            user-select: none; -webkit-user-drag: none;
+        }
+        .lb-cerrar {
+            position: absolute; top: 12px; right: 14px;
+            width: 44px; height: 44px; border-radius: 50%;
+            border: none; background: rgba(255,255,255,.15); color: #fff;
+            font-size: 26px; line-height: 1; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .lb-cerrar:hover { background: rgba(255,255,255,.28); }
+        .lb-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 48px; height: 48px; border-radius: 50%;
+            border: none; background: rgba(255,255,255,.18); color: #fff;
+            font-size: 22px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .lb-nav:hover { background: rgba(255,255,255,.3); }
+        .lb-prev { left: 14px; }
+        .lb-next { right: 14px; }
+        .lb-contador {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            color: #fff; font-size: .82rem; font-weight: 700;
+            background: rgba(15,23,42,.7); padding: 6px 12px; border-radius: 999px;
+        }
+        @media (max-width: 600px) {
+            .lb-nav { width: 40px; height: 40px; font-size: 18px; }
+            .lb-prev { left: 6px; }
+            .lb-next { right: 6px; }
+        }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; }
         #mapa { position: absolute; inset: 0; }
-                .barra {
-    position: absolute; top: 12px; left: 12px; z-index: 1000;
-    background: #ffffff; border-radius: 12px; padding: 12px 16px;
-    box-shadow: 0 6px 24px rgba(15,23,42,.12);
-    border-top: 4px solid #dc2626;
-    display: flex; flex-direction: column; gap: 10px;
-    max-width: calc(100% - 24px);
-    width: max-content;
-}
+        .barra {
+            position: absolute; top: 12px; left: 12px; z-index: 1000;
+            background: #ffffff; border-radius: 12px; padding: 12px 16px;
+            box-shadow: 0 6px 24px rgba(15,23,42,.12);
+            border-top: 4px solid #dc2626;
+            display: flex; flex-direction: column; gap: 10px;
+            max-width: calc(100% - 24px);
+            width: max-content;
+        }
         .nivel-label {
             display: block; font-size: 0.65rem; font-weight: 800; color: #94a3b8;
             text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
@@ -128,8 +183,7 @@
         }
         .etiqueta-unidad::before { display: none; }
 
-        /* En rojo los campos delimitados se ven como zona de evacuación.
-           Va por CSS además del setStyle, para que no falle por tiempos de carga. */
+        /* En rojo los campos delimitados se ven como zona de evacuación. */
         body.mapa-evac .leaflet-overlay-pane svg path.campo-poligono {
             stroke: #dc2626 !important;
             stroke-width: 2.5 !important;
@@ -137,8 +191,7 @@
             fill-opacity: 0.45 !important;
         }
 
-        /* Con el editor activo los campos delimitados dejan pasar el clic:
-           la línea se dibuja encima sin abrir el cartel del campo */
+        /* Con el editor activo los campos delimitados dejan pasar el clic */
         body.mapa-editando .leaflet-overlay-pane svg path.campo-poligono {
             pointer-events: none;
         }
@@ -163,14 +216,6 @@
             border: 2px solid #fff; box-shadow: 0 0 0 1px #cbd5e1; cursor: pointer;
         }
         .pc-color.activo { box-shadow: 0 0 0 2px #0f172a; }
-
-        /* En modo edición la barra muestra solo el editor */
-        /* Ocultar todo lo que no se necesita en modo edición */
-.barra.editando .ocultar-en-edicion {
-    display: none !important;
-}
-        .barra.editando #editor-controles { flex: 1 1 auto; }
-        .barra.editando #btn-borrar-ed { margin-left: auto; }
 
         .tab-capa {
             border: 1px solid #e2e8f0; background: #fff; color: #475569;
@@ -228,11 +273,11 @@
         #toast-mapa.warn  { background: #b45309; }
         #toast-mapa.info  { background: #334155; }
 
-        .punto-critico {
+                .punto-critico {
     width: 32px; 
     height: 32px; 
     border-radius: 50%;
-    background: #1d4ed8; /* Azul vivo e intenso */
+    background-color: #1d4ed8; /* <--- AQUÍ ESTÁ EL CAMBIO */
     border: none; /* Sin borde para que se vea sólido */
     display: flex; 
     align-items: center; 
@@ -243,7 +288,6 @@
     box-shadow: 0 3px 8px rgba(0,0,0,.5); /* Sombra para que resalte */
     cursor: grab;
 }
-
         .num-punto {
             background: transparent !important; border: none !important; box-shadow: none !important;
             color: #422006; font-weight: 800; font-size: .72rem; padding: 0;
@@ -281,30 +325,23 @@
         .pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
 
         .pc-card {
-            position: relative;
-            width: 100%; display: block; font: inherit; -webkit-appearance: none; appearance: none;
+            position: relative; width: 100%; display: block; font: inherit;
             background: #fff; border: 2px solid #e2e8f0; border-radius: 14px;
             padding: 26px 8px 8px; text-align: center; touch-action: manipulation;
-            cursor: pointer; user-select: none; -webkit-user-select: none;
+            cursor: pointer; user-select: none;
         }
         .pc-card:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
-        /* Arriba a la izquierda: estado (un toque lo cambia) */
         .pc-chip {
-            position: absolute; top: 6px; left: 6px;
-            border: none; border-radius: 999px; padding: 3px 9px;
-            font-size: .56rem; font-weight: 800; letter-spacing: .02em;
-            color: #fff; cursor: pointer; line-height: 1.5;
+            position: absolute; top: 6px; left: 6px; border: none; border-radius: 999px; padding: 3px 9px;
+            font-size: .56rem; font-weight: 800; letter-spacing: .02em; color: #fff; cursor: pointer; line-height: 1.5;
             box-shadow: 0 1px 4px rgba(15,23,42,.18);
         }
         .pc-chip.abierta { background: #16a34a; }
         .pc-chip.cerrada { background: #dc2626; }
         .pc-chip:active { transform: scale(.95); }
-        /* Arriba a la derecha: eliminar la compuerta */
         .pc-borrar {
-            position: absolute; top: 5px; right: 5px;
-            width: 22px; height: 22px; border-radius: 50%;
-            border: 1px solid #e2e8f0; background: #f8fafc; color: #94a3b8;
-            font-size: .62rem; cursor: pointer; line-height: 1;
+            position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%;
+            border: 1px solid #e2e8f0; background: #f8fafc; color: #94a3b8; font-size: .62rem; cursor: pointer; line-height: 1;
             display: flex; align-items: center; justify-content: center; padding: 0;
         }
         .pc-borrar:active, .pc-borrar:hover { background: #fee2e2; border-color: #fecaca; color: #b91c1c; }
@@ -335,7 +372,6 @@
             flex: 0 0 auto; background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
             border-radius: 10px; padding: 8px 10px; font-size: .72rem; margin: 6px 0 8px;
         }
-        /* Aviso previo antes de mover una compuerta */
         #pc-confirmar {
             position: fixed; inset: 0; z-index: 3200; display: none;
             align-items: center; justify-content: center; padding: 18px;
@@ -352,7 +388,6 @@
             margin: 0 0 10px; overflow-y: auto; flex: 1 1 auto; min-height: 60px;
             -webkit-overflow-scrolling: touch;
         }
-        /* Los bloques conservan su alto natural (no se aplastan al hacer scroll) */
         .pc-lista > * { flex: 0 0 auto; }
         .pc-pie { flex: 0 0 auto; border-top: 1px solid #e2e8f0; padding-top: 10px; }
         .pc-btn-add {
@@ -403,7 +438,6 @@
         }
 
         /* ===== Campos del KMZ (solo Seguimiento de maquinarias) ===== */
-        /* En edición el polígono no captura el clic ni muestra carteles */
         body.mapa-editando .leaflet-pane > svg path.sector-aipsa { pointer-events: none !important; }
         body.mapa-editando .leaflet-pane > svg path.zona-critica { pointer-events: none !important; }
         body.mapa-editando .tip-sector,
@@ -417,11 +451,10 @@
         }
         .tip-sector::before { border-top-color: #166534; }
 
-                .tip-punto, .tip-compuerta {
+        .tip-punto, .tip-compuerta {
             background: #0f172a; color: #fff; border: none; border-radius: 10px;
-            font-size: .7rem; padding: 6px 9px; max-width: 400px; /* Aumentamos el ancho */
-            white-space: nowrap; /* Evita que el texto baje de línea */
-            box-shadow: 0 8px 22px rgba(15,23,42,.35);
+            font-size: .7rem; padding: 6px 9px; max-width: 400px;
+            white-space: nowrap; box-shadow: 0 8px 22px rgba(15,23,42,.35);
         }
         .tip-punto::before, .tip-compuerta::before { border-top-color: #0f172a; }
         .tip-ficha-tit { font-weight: 800; margin-bottom: 4px; }
@@ -433,27 +466,13 @@
         }
         .punto-critico.sin-numero::after { border-top-color: #94a3b8; }
 
-        /* ===== Compuertas en el mapa (Nuevo diseño) ===== */
-.compuerta-mapa-img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    cursor: pointer;
-    border-radius: 50%; /* Hace que el borde sea circular */
-    transition: all 0.2s ease-in-out;
-}
-
-/* Si está cerrada: aro rojo y sombra roja */
-.compuerta-mapa-img.cerrada {
-    border: 3px solid #dc2626;
-    box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
-}
-
-/* Si está abierta: aro verde y sombra verde */
-.compuerta-mapa-img.abierta {
-    border: 3px solid #16a34a;
-    box-shadow: 0 0 10px rgba(22, 163, 74, 0.6);
-}
+        /* ===== Compuertas en el mapa ===== */
+        .compuerta-mapa-img {
+            width: 100%; height: 100%; object-fit: contain; cursor: pointer;
+            border-radius: 50%; transition: all 0.2s ease-in-out;
+        }
+        .compuerta-mapa-img.cerrada { border: 3px solid #dc2626; box-shadow: 0 0 10px rgba(220, 38, 38, 0.6); }
+        .compuerta-mapa-img.abierta { border: 3px solid #16a34a; box-shadow: 0 0 10px rgba(22, 163, 74, 0.6); }
 
         /* ===== Panel de ficha / galería de fotos ===== */
         .panel-mapa {
@@ -470,10 +489,7 @@
             padding: 14px 16px; border-bottom: 1px solid #e2e8f0;
         }
         .panel-mapa-cab h2 { margin: 0; font-size: .98rem; color: #0f172a; }
-        .panel-mapa-x {
-            border: none; background: transparent; font-size: 24px; line-height: 1;
-            color: #94a3b8; cursor: pointer;
-        }
+        .panel-mapa-x { border: none; background: transparent; font-size: 24px; line-height: 1; color: #94a3b8; cursor: pointer; }
         .panel-mapa-cuerpo { padding: 14px 16px; overflow: auto; }
         .panel-mapa-pie { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #e2e8f0; }
         .panel-btn {
@@ -510,72 +526,38 @@
             border: 1px dashed #94a3b8; color: #475569; font-size: .8rem; font-weight: 700;
         }
         .panel-subir input { display: none; }
-        /* Tres formas de elegir la foto: cámara, galería o archivos */
         .foto-opciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
         .foto-opciones .panel-subir { flex: 1 1 30%; min-width: 92px; }
+
         /* --- ESTILOS PARA LOS BOTONES DE CAPAS --- */
-/* --- ESTILOS PARA LOS BOTONES DE CAPAS (HORIZONTALES Y SOLO ÍCONOS) --- */
-.controles-capas-derecha {
-    position: absolute;
-    top: 105px; /* Ajustado para quedar justo debajo del botón de Alta Resolución */
-    right: 10px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: row; /* Ahora es horizontal */
-    gap: 6px;
-}
-.btn-filtro-mapa {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    width: 38px; /* Ancho fijo para que sea cuadrado */
-    height: 38px; /* Alto fijo */
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(15,23,42,.15);
-    transition: all 0.2s;
-    padding: 0;
-}
-.btn-filtro-mapa img {
-    width: 22px;
-    height: 22px;
-    object-fit: contain;
-}
-.btn-filtro-mapa i {
-    font-size: 16px;
-}
-.btn-filtro-mapa:hover {
-    background: #f8fafc;
-    transform: translateY(-1px);
-}
-.btn-filtro-mapa.inactivo {
-    background: #f1f5f9;
-    opacity: 0.4;
-    box-shadow: none;
-    border-color: #cbd5e1;
-}
+        .controles-capas-derecha {
+            position: absolute;
+            top: 105px; /* Ajustado para quedar justo debajo del botón de Alta Resolución */
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: row; /* Ahora es horizontal */
+            gap: 6px;
+        }
     </style>
 </head>
 <body>
     <div id="mapa"></div>
     <!-- Botones de control de capas (Horizontales, solo íconos) -->
-<div class="controles-capas-derecha">
-    <button id="btn-capa-unidad" class="btn-filtro-mapa" onclick="toggleCapaMapa('unidad')" title="Mostrar/Ocultar Unidades">
-        <i class="fas fa-truck-pickup" style="color:#1e3a8a;"></i>
-    </button>
-    <!-- AQUÍ QUITAMOS LA PALABRA 'inactivo' -->
-    <button id="btn-capa-compuerta" class="btn-filtro-mapa" onclick="toggleCapaMapa('compuerta')" title="Mostrar/Ocultar Compuertas">
-        <img src="assets/compuerta.png" alt="Compuertas">
-    </button>
-    <button id="btn-capa-punto" class="btn-filtro-mapa" onclick="toggleCapaMapa('punto')" title="Mostrar/Ocultar Puntos">
-        <i class="fas fa-location-dot" style="color:#1d4ed8;"></i>
-    </button>
-</div>
+    <div class="controles-capas-derecha">
+        <button id="btn-capa-unidad" class="btn-filtro-mapa" onclick="toggleCapaMapa('unidad')" title="Mostrar/Ocultar Unidades">
+            <i class="fas fa-truck-pickup" style="color:#1e3a8a;"></i>
+        </button>
+        <button id="btn-capa-compuerta" class="btn-filtro-mapa" onclick="toggleCapaMapa('compuerta')" title="Mostrar/Ocultar Compuertas">
+            <img src="assets/compuerta.png" alt="Compuertas">
+        </button>
+        <button id="btn-capa-punto" class="btn-filtro-mapa" onclick="toggleCapaMapa('punto')" title="Mostrar/Ocultar Puntos">
+            <i class="fas fa-location-dot" style="color:#1d4ed8;"></i>
+        </button>
+    </div>
     <div id="sin-acceso" style="display:none;position:absolute;inset:0;background:#f8fafc;z-index:1500;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;"><div><h2 style="color:#0f172a">Acceso restringido</h2><p style="color:#64748b;max-width:420px">Este mapa es solo para la Gerencia de Campo, el gerente de cada gerencia y Seguridad Industrial.</p><a href="index.html" style="color:#16a34a;font-weight:700">Volver</a></div></div>
 
-                                   <div class="barra">
+    <div class="barra">
         <!-- ================= FILA SUPERIOR: Título + Semáforo (Izq) y Unidades (Der) ================= -->
         <div class="ocultar-en-edicion" style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
             
@@ -596,7 +578,7 @@
             <span class="estado" id="estado" style="font-size: 0.75rem; white-space: nowrap; margin-left: auto; margin-top: -6px; align-self: flex-start;">Cargando…</span>
         </div>
 
-                <!-- ================= FILA INFERIOR: Volver y herramientas ================= -->
+        <!-- ================= FILA INFERIOR: Volver y herramientas ================= -->
         <div class="ocultar-en-edicion" style="display: flex; gap: 10px; align-items: center; width: 100%; border-top: 1px solid #e2e8f0; padding-top: 10px; flex-wrap: wrap;">
             
             <!-- Botón Volver -->
@@ -605,50 +587,92 @@
             </a>
 
             <!-- Botón Editar -->
-            <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none; padding: 6px 10px;" class="btn-tool"><i class="fas fa-pen-ruler"></i> Editar</button>
+            <button id="btn-editar-puntos" onclick="alternarEditor()" style="display:none;" class="btn-filtro-mapa" title="Editar mapa">
+                <i class="fas fa-pen-ruler"></i>
+            </button>
             
-                                    <!-- Botón Compuertas (Gestión) -->
-            <button id="btn-compuertas" onclick="pcAbrir()" style="display:inline-flex; padding: 6px 10px;" class="btn-tool">
-                <img src="assets/compuerta.png" style="width: 16px; height: 16px; object-fit: contain; margin-right: 4px;"> 
-                Compuertas
+            <!-- Botón Compuertas (Gestión) -->
+            <button id="btn-compuertas" onclick="pcAbrir()" style="display:inline-flex;" class="btn-filtro-mapa" title="Gestionar compuertas">
+                <img src="assets/compuerta.png" alt="Compuertas">
             </button>
 
             <!-- Botón de Opacidad -->
             <div class="ocultar-en-edicion" style="display:flex; align-items:center; gap:6px;">
-                <button id="btn-toggle-opacidad" class="btn-tool" style="padding: 6px 10px;">
-                    <i class="fas fa-adjust"></i> Opacidad
+                <button id="btn-toggle-opacidad" class="btn-filtro-mapa" title="Ajustar opacidad">
+                    <i class="fas fa-adjust"></i>
                 </button>
                 <div id="contenedor-opacidad" class="oculto" style="display:flex; align-items:center;">
                     <input id="opacidad" type="range" min="10" max="100" value="55" oninput="cambiarOpacidad(this.value)" style="width:70px; accent-color: #3b82f6;">
                 </div>
             </div>
         </div>
+    </div><!-- cierra .barra -->
 
-                <!-- ================= FILA DE HERRAMIENTAS (Se muestra solo al editar) ================= -->
-        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-            <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;border-color:#fecaca;background:#fef2f2;color:#b91c1c; padding: 6px 10px;" class="btn-tool ocultar-en-edicion"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
-            <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none; padding: 6px 10px;" class="btn-tool"><i class="fas fa-crop-simple"></i> Ajustar capa</button>
-            <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;" class="btn-tool"><i class="fas fa-floppy-disk"></i> Guardar</button>
+        <!-- ================= BARRA FLOTANTE DE EDICIÓN ================= -->
+    <div id="barra-editor-flotante" style="display:none; position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:1002; background:#fff; padding:8px 12px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,.15); gap:8px; align-items:center; border-top: 4px solid #dc2626; flex-wrap:wrap; justify-content:center;">
+        
+        <!-- 1. GUARDAR (A LA IZQUIERDA DE TODO) -->
+        <button id="btn-guardar-editor" onclick="guardarEdicion()" style="display:none;" class="btn-editor-cuadrado btn-guardar" title="Guardar cambios">
+            <i class="fas fa-floppy-disk"></i>
+        </button>
 
-            <span id="editor-controles" style="display:none;gap:6px;align-items:center;">
-                <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-location-dot"></i> Punto</button>
-                  <button data-modo="compuerta" onclick="setModoEditor('compuerta')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-water"></i> Compuerta</button>
-                <button data-modo="linea" onclick="setModoEditor('linea')" class="btn-modo-ed" style="padding: 6px 10px;"><i class="fas fa-draw-polygon"></i> Línea</button>
-                <span id="paleta-linea" style="display:none;gap:5px;align-items:center;">
-                    <button type="button" class="pc-color activo" data-color="#06b6d4" onclick="setColorLinea('#06b6d4')" title="Turquesa" style="background:#06b6d4"></button>
-                    <button type="button" class="pc-color" data-color="#dc2626" onclick="setColorLinea('#dc2626')" title="Rojo" style="background:#dc2626"></button>
-                    <button type="button" class="pc-color" data-color="#eab308" onclick="setColorLinea('#eab308')" title="Amarillo" style="background:#eab308"></button>
-                    <button type="button" class="pc-color" data-color="#16a34a" onclick="setColorLinea('#16a34a')" title="Verde" style="background:#16a34a"></button>
-                    <button type="button" class="pc-color" data-color="#2563eb" onclick="setColorLinea('#2563eb')" title="Azul" style="background:#2563eb"></button>
-                    <button type="button" class="pc-color" data-color="#0f172a" onclick="setColorLinea('#0f172a')" title="Negro" style="background:#0f172a"></button>
-                </span>
-                <button onclick="cerrarZona()"  id="btn-cerrar-zona" style="display:none;background:#0ea5e9;color:#fff;border-color:#0ea5e9; padding: 6px 10px;">Cerrar zona</button>
-                <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none;background:#10b981;color:#fff;border-color:#10b981; padding: 6px 10px;">Terminar línea</button>
-                <button data-modo="borrar" id="btn-borrar-ed" onclick="setModoEditor('borrar')" class="btn-modo-ed" style="border-color:#fecaca;background:#fef2f2;color:#b91c1c; padding: 6px 10px;"><i class="fas fa-eraser"></i> Borrar</button>
-            </span>
-        </div>
+        <!-- 2. AJUSTAR CAPA -->
+        <button id="btn-ajustar" onclick="alternarAjuste()" style="display:none;" class="btn-editor-cuadrado" title="Ajustar capa">
+            <i class="fas fa-crop-simple"></i>
+        </button>
+        
+        <!-- 3. CERRAR TURNO -->
+        <button id="btn-cerrar-turno" onclick="cerrarTurno()" style="display:none;" class="btn-tool"><i class="fas fa-right-from-bracket"></i> Cerrar turno</button>
+        
+                       <!-- 4. PUNTO -->
+        <button data-modo="punto" onclick="setModoEditor('punto')" class="btn-editor-cuadrado btn-modo-ed" title="Agregar Punto">
+            <i class="fas fa-location-dot"></i>
+        </button>
 
-    </div><!-- cierra .barra: el panel de compuertas y el detalle deben colgar del body -->
+        <!-- PALETA DE COLORES PARA PUNTOS -->
+        <span id="paleta-punto" style="display:none; gap:5px; align-items:center; background: #fff; padding: 4px 8px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <button type="button" class="pc-color activo" data-color="#1d4ed8" onclick="setColorPunto('#1d4ed8')" title="Azul" style="background:#1d4ed8"></button>
+            <button type="button" class="pc-color" data-color="#dc2626" onclick="setColorPunto('#dc2626')" title="Rojo" style="background:#dc2626"></button>
+            <button type="button" class="pc-color" data-color="#eab308" onclick="setColorPunto('#eab308')" title="Amarillo" style="background:#eab308"></button>
+            <button type="button" class="pc-color" data-color="#16a34a" onclick="setColorPunto('#16a34a')" title="Verde" style="background:#16a34a"></button>
+        </span>
+        
+        <!-- 5. COMPUERTA -->
+        <button data-modo="compuerta" onclick="setModoEditor('compuerta')" class="btn-editor-cuadrado btn-modo-ed" title="Agregar Compuerta">
+            <img src="assets/compuerta.png" alt="Compuerta">
+        </button>
+        
+        <!-- 6. LÍNEA -->
+        <button data-modo="linea" onclick="setModoEditor('linea')" class="btn-editor-cuadrado btn-modo-ed" title="Dibujar Línea">
+            <i class="fas fa-draw-polygon"></i>
+        </button>
+
+        <!-- PALETA DE COLORES -->
+        <span id="paleta-linea" style="display:none; gap:5px; align-items:center; background: #fff; padding: 4px 8px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <button type="button" class="pc-color activo" data-color="#06b6d4" onclick="setColorLinea('#06b6d4')" title="Turquesa" style="background:#06b6d4"></button>
+            <button type="button" class="pc-color" data-color="#dc2626" onclick="setColorLinea('#dc2626')" title="Rojo" style="background:#dc2626"></button>
+            <button type="button" class="pc-color" data-color="#eab308" onclick="setColorLinea('#eab308')" title="Amarillo" style="background:#eab308"></button>
+            <button type="button" class="pc-color" data-color="#16a34a" onclick="setColorLinea('#16a34a')" title="Verde" style="background:#16a34a"></button>
+            <button type="button" class="pc-color" data-color="#2563eb" onclick="setColorLinea('#2563eb')" title="Azul" style="background:#2563eb"></button>
+            <button type="button" class="pc-color" data-color="#0f172a" onclick="setColorLinea('#0f172a')" title="Negro" style="background:#0f172a"></button>
+        </span>
+
+        <!-- 7. CERRAR ZONA -->
+        <button onclick="cerrarZona()" id="btn-cerrar-zona" style="display:none; background:#0ea5e9; color:#fff; border-color:#0ea5e9;" class="btn-editor-cuadrado" title="Cerrar Zona (Polígono)">
+            <i class="fas fa-vector-square"></i>
+        </button>
+        
+        <!-- 8. TERMINAR LÍNEA -->
+        <button onclick="terminarLinea()" id="btn-terminar-linea" style="display:none; background:#10b981; color:#fff; border-color:#10b981;" class="btn-editor-cuadrado" title="Terminar Línea">
+            <i class="fas fa-check"></i>
+        </button>
+        
+        <!-- 9. BORRAR -->
+        <button data-modo="borrar" id="btn-borrar-ed" onclick="setModoEditor('borrar')" class="btn-editor-cuadrado btn-modo-ed btn-rojo" title="Borrar elemento">
+            <i class="fas fa-eraser"></i>
+        </button>
+
+    </div>
 
     <!-- 👇 AQUÍ AFUERA QUEDAN LAS LEYENDAS 👇 -->
     <div class="leyenda" id="leyenda-sim" style="display:none">
@@ -729,7 +753,7 @@
     <script src="mapa.js?v=66"></script>
     <script src="compuertas.js?v=10"></script>
     <script src="semaforo.js?v=10"></script>
-                        <script>
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const btnOpacidad = document.getElementById('btn-toggle-opacidad');
             const contenedorOpacidad = document.getElementById('contenedor-opacidad');
@@ -754,7 +778,7 @@
             if (u && String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO' && String(u.rol || '').trim().toLowerCase() === 'area') {
                 
                 // 1. Ocultar todo el mapa, barra y leyendas
-                document.body.style.background = '#f8fafc'; // Fondo sólido para que no se vea blanco puro
+                document.body.style.background = '#f8fafc';
                 const divMapa = document.getElementById('mapa');
                 if (divMapa) divMapa.style.display = 'none';
                 
@@ -768,7 +792,7 @@
                 // 2. Mostrar el panel de compuertas a pantalla completa
                 const panel = document.getElementById('pc-panel');
                 if (panel) {
-                    panel.style.setProperty('display', 'flex', 'important'); // Forzar que se vea
+                    panel.style.setProperty('display', 'flex', 'important');
                     panel.style.background = '#f8fafc'; 
                     panel.style.alignItems = 'flex-start';
                     
@@ -788,16 +812,15 @@
                     const grid = document.getElementById('pc-grid');
                     
                     if (typeof pcPintar === 'function') {
-                        clearInterval(timer); // Ya cargó la función, dejamos de buscar
+                        clearInterval(timer);
                         if (grid) grid.innerHTML = '<div class="pc-vacio">Cargando compuertas...</div>';
                         
-                        // Ejecutamos pcPintar y atrapamos cualquier error
                         pcPintar().catch(e => {
                             console.error("Error al cargar compuertas:", e);
                             if (grid) grid.innerHTML = '<div class="pc-aviso error">Error al cargar los datos. Revisa la consola (F12).</div>';
                         });
                     } else if (intentos > 20) {
-                        clearInterval(timer); // Si pasan 10 segundos, dejamos de buscar
+                        clearInterval(timer);
                         console.error("La función pcPintar no está definida.");
                     }
                 }, 500);

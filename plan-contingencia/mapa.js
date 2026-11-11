@@ -1644,7 +1644,9 @@ function toggleCapaMapa(tipo) {
 function estiloLinea(color) {
     if (color === '#06b6d4') return { color: '#06b6d4', weight: 4, borde: 0 };
     if (color === '#eab308') return { color: '#eab308', weight: 8, borde: 12 };
-    return { color: '#dc2626', weight: 8, borde: 12 };
+    
+    // CORRECCIÓN: Usa el color elegido. Si por alguna razón llega vacío, usa rojo como último recurso.
+    return { color: color || '#dc2626', weight: 8, borde: 12 };
 }
 
 
@@ -1696,8 +1698,15 @@ function actualizarBotonGuardar() {
     const bg = document.getElementById('btn-guardar-editor');
     if (!bg) return;
     const n = pendientesLineas.length + lineasBorradas.size;
+    
+    // Si hay cambios, le pone la clase para que cambie de color
     bg.classList.toggle('con-cambios', n > 0);
-    bg.innerHTML = '<i class="fas fa-floppy-disk"></i> Guardar' + (n > 0 ? ' (' + n + ')' : '');
+    
+    // SOLO EL ÍCONO, SIN TEXTO
+    bg.innerHTML = '<i class="fas fa-floppy-disk"></i>';
+    
+    // El mensaje se muestra en el tooltip al pasar el mouse
+    bg.title = n > 0 ? `Guardar cambios (${n} pendientes)` : 'Guardar cambios';
 }
 
 /* Descarta lo dibujado y vuelve a lo que hay en la nube */
@@ -1879,10 +1888,14 @@ async function cargarVectores() {
         (puntosCache || []).forEach(p => {
             const esMaquina = (p.tipo === 'retro' || p.tipo === 'excavadora');
             const numero = Number(p.orden) || 0;
+            
+            // Leemos el color de la base de datos
+            const colorFondo = p.color || '#1d4ed8'; 
 
             const icono = esMaquina
                 ? L.divIcon({ className: '', html: '<div class="icono-maquina">' + iconoMaquinaria(p.tipo) + '</div>', iconSize: [46, 35], iconAnchor: [23, 30] })
-                : L.divIcon({ className: '', html: '<div class="punto-critico' + (numero > 0 ? '' : ' sin-numero') + '"><span>' + (numero > 0 ? numero : '?') + '</span></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
+                // Le aplicamos el color al estilo
+                : L.divIcon({ className: '', html: '<div class="punto-critico' + (numero > 0 ? '' : ' sin-numero') + '" style="background-color: ' + colorFondo + ';"><span>' + (numero > 0 ? numero : '?') + '</span></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
 
             const marcador = L.marker([p.lat, p.lon], { draggable: editorActivo, icon: icono }).addTo(capaPuntos);
             marcador.__orden = numero;
@@ -1910,7 +1923,9 @@ async function cargarVectores() {
                     cargarVectores();
                     return;
                 }
-                if (esMaquina || editorActivo) return; 
+                if (esMaquina) return; 
+                
+                // CORRECCIÓN: Siempre se abre en modo lectura (false)
                 abrirFichaPunto(p, false); 
             });
         });
@@ -1960,7 +1975,8 @@ function pintarLineas() {
         }
 
         // --- DIBUJAR LOS PUNTOS VISIBLES (SIN DUPLICADOS) ---
-        if (editorActivo) {
+        // AQUÍ ESTÁ EL CAMBIO: Solo dibuja los puntos si estás en modo 'linea'
+        if (editorActivo && modoEditor === 'linea') {
             // Filtramos las coordenadas para eliminar duplicados exactos
             const puntosUnicos = l.coords.filter((coord, index, self) =>
                 index === self.findIndex((t) => (
@@ -2103,10 +2119,16 @@ function alternarEditor() {
     editorActivo = !editorActivo;
     
     document.body.classList.toggle('mapa-editando', editorActivo);
-    document.querySelector('.barra')?.classList.toggle('editando', editorActivo);
     if (editorActivo && mapa) { try { mapa.closePopup(); } catch (e) {} }
     
-    document.getElementById('editor-controles').style.display = editorActivo ? 'inline-flex' : 'none';
+    // Ocultar la barra principal y mostrar la flotante
+    const barraNormal = document.querySelector('.barra');
+    if (barraNormal) barraNormal.style.display = editorActivo ? 'none' : 'flex';
+
+    const barraFlotante = document.getElementById('barra-editor-flotante');
+    if (barraFlotante) barraFlotante.style.display = editorActivo ? 'flex' : 'none';
+
+    // Mostrar/ocultar botones específicos
     const bg = document.getElementById('btn-guardar-editor');
     if (bg) bg.style.display = editorActivo ? 'inline-flex' : 'none';
     const ba = document.getElementById('btn-ajustar');
@@ -2117,24 +2139,21 @@ function alternarEditor() {
     document.getElementById('leyenda-editor').style.display = editorActivo ? 'block' : 'none';
 
     if (!editorActivo) {
-        // --- SI SALIMOS DEL EDITOR (CANCELAR) ---
+        // Al salir del editor, limpiamos todo
         setModoEditor(null);
         terminarLinea(true);
         mapa.dragging.enable();
         mapa.getContainer().style.cursor = '';
         
-        // LIMPIAMOS LOS CAMBIOS NO GUARDADOS
         puntosCache.forEach(p => p.__dirty = false);
         maquinasCache.forEach(m => m.__dirty = false);
-        descartarCambiosLineas();   // lo dibujado y no guardado se descarta
+        descartarCambiosLineas();
 
-        // Volvemos a leer la base de datos para que todo regrese a su posición original
         cargarVectores();
         cargarMaquinas();
-        
     } else {
-        // --- SI ENTRAMOS AL EDITOR ---
-        descartarCambiosLineas();   // se empieza siempre desde lo publicado
+        // Al entrar al editor
+        descartarCambiosLineas();
         actualizarBotonGuardar();
         try { cargarMaquinas(); cargarVectores(); } catch (e) {}
         const cm = document.getElementById('ctrl-maquina');
@@ -2156,7 +2175,11 @@ function setColorLinea(color) {
 }
 
 function setModoEditor(modo) {
-    /* Los nombres viejos de línea siguen entrando por compatibilidad */
+    if (modo === 'compuerta') {
+        abrirOpcionesCompuerta();
+        return;
+    }
+
     if (modo === 'roja' || modo === 'amarilla' || modo === 'turquesa') {
         if (modo === 'roja') colorLinea = '#dc2626';
         if (modo === 'amarilla') colorLinea = '#eab308';
@@ -2170,18 +2193,24 @@ function setModoEditor(modo) {
     });
 
     const esLinea = (modo === 'linea');
+    const esPunto = (modo === 'punto');
+    
+    // Paleta de líneas
     const pal = document.getElementById('paleta-linea');
     if (pal) pal.style.display = esLinea ? 'inline-flex' : 'none';
+    
+    // Paleta de puntos
+    const palPunto = document.getElementById('paleta-punto');
+    if (palPunto) palPunto.style.display = esPunto ? 'inline-flex' : 'none';
+
     document.getElementById('btn-terminar-linea').style.display = esLinea ? 'inline-flex' : 'none';
     document.getElementById('btn-cerrar-zona').style.display = esLinea ? 'inline-flex' : 'none';
     if (esLinea) setColorLinea(colorLinea);
 
-    // El mapa SIEMPRE se puede arrastrar; el clic (sin mover) marca el vertice
     mapa.dragging.enable();
     
-    // AQUÍ AGREGAMOS 'compuerta' PARA QUE EL CURSOR CAMBIE
     mapa.getContainer().style.cursor =
-        (modo === 'punto' || modo === 'retro' || modo === 'excavadora' || modo === 'linea' || modo === 'compuerta')
+        (modo === 'punto' || modo === 'retro' || modo === 'excavadora' || modo === 'linea')
             ? 'crosshair' : '';
 
     if (modo !== 'maquina') {
@@ -2190,6 +2219,116 @@ function setModoEditor(modo) {
         document.getElementById('btn-unidad')?.classList.remove('activo');
     }
     if (modo !== 'linea') terminarLinea(true);
+}
+let colorPunto = '#1d4ed8'; // Color por defecto
+function abrirOpcionesCompuerta() {
+    const cuerpo = `
+        <p style="font-size:.88rem;color:#475569;margin-bottom:18px;text-align:center;line-height:1.4;">
+            ¿Cómo deseas agregar esta nueva compuerta?
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <button id="btn-comp-mapa" class="panel-btn" style="padding:16px;justify-content:center;border-color:#bae6fd;background:#f0f9ff;color:#0284c7;">
+                <i class="fas fa-map-marker-alt" style="font-size:1.2rem;margin-right:8px;"></i> 
+                <span style="font-size:.9rem;">Seleccionar en el mapa</span>
+            </button>
+            <button id="btn-comp-coord" class="panel-btn" style="padding:16px;justify-content:center;">
+                <i class="fas fa-keyboard" style="font-size:1.2rem;margin-right:8px;color:#64748b;"></i> 
+                <span style="font-size:.9rem;color:#334155;">Escribir coordenadas</span>
+            </button>
+        </div>
+    `;
+    const capa = panelMapa('Agregar Compuerta', cuerpo, '');
+    
+    capa.querySelector('#btn-comp-mapa').addEventListener('click', () => {
+        cerrarPanelMapa(false);
+        modoEditor = 'compuerta';
+        document.querySelectorAll('.btn-modo-ed').forEach(b => {
+            b.classList.toggle('activo', b.dataset.modo === 'compuerta');
+        });
+        mapa.getContainer().style.cursor = 'crosshair';
+        avisar('Haz clic en el mapa para ubicar la compuerta.', 'info');
+    });
+
+    capa.querySelector('#btn-comp-coord').addEventListener('click', () => {
+        cerrarPanelMapa(false);
+        abrirModalCompuertaManual();
+    });
+}
+
+function abrirModalCompuertaManual() {
+    const cuerpo = `
+        <div class="panel-campo">
+            <label>Nombre de la compuerta *</label>
+            <input id="nueva-compuerta-nombre" type="text" placeholder="Ej. Compuerta Norte" autocomplete="off">
+        </div>
+        <div class="panel-campo">
+            <label>Administración *</label>
+            <select id="nueva-compuerta-admin" style="width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px; padding: 9px 11px; font-size: .86rem; color: #0f172a; font-family: inherit; background: #fff;">
+                <option value="Administracion 1">Administración 1</option>
+                <option value="Administracion 2">Administración 2</option>
+                <option value="Administracion 3" selected>Administración 3</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <div class="panel-campo" style="flex:1;">
+                <label>Latitud *</label>
+                <input id="nueva-compuerta-lat" type="number" step="any" placeholder="-10.67140">
+            </div>
+            <div class="panel-campo" style="flex:1;">
+                <label>Longitud *</label>
+                <input id="nueva-compuerta-lon" type="number" step="any" placeholder="-77.75900">
+            </div>
+        </div>
+    `;
+    const botones = `
+        <button type="button" class="panel-btn" id="btn-cancelar-compuerta-manual">Cancelar</button>
+        <button type="button" class="panel-btn principal" id="btn-guardar-compuerta-manual">Guardar</button>
+    `;
+    const capa = panelMapa('Ubicación Manual', cuerpo, botones);
+
+    capa.querySelector('#btn-cancelar-compuerta-manual').addEventListener('click', () => cerrarPanelMapa(false));
+    
+    setTimeout(() => {
+        const input = capa.querySelector('#nueva-compuerta-nombre');
+        if (input) input.focus();
+    }, 100);
+
+    capa.querySelector('#btn-guardar-compuerta-manual').addEventListener('click', async () => {
+        const nombre = capa.querySelector('#nueva-compuerta-nombre').value.trim();
+        const admin = capa.querySelector('#nueva-compuerta-admin').value;
+        const latStr = capa.querySelector('#nueva-compuerta-lat').value.trim();
+        const lonStr = capa.querySelector('#nueva-compuerta-lon').value.trim();
+
+        if (!nombre) { avisar('Escribe el nombre de la compuerta.', 'warn'); return; }
+        
+        const lat = parseFloat(latStr);
+        const lon = parseFloat(lonStr);
+        if (isNaN(lat) || isNaN(lon)) { avisar('Las coordenadas ingresadas no son válidas.', 'warn'); return; }
+
+        const btn = capa.querySelector('#btn-guardar-compuerta-manual');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+        const { error } = await db.from('compuertas').insert({
+            nombre: nombre, administracion: admin, estado: 'cerrada', lat: lat, lon: lon
+        });
+
+        if (error) {
+            avisar('No se pudo crear: ' + error.message, 'warn');
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
+        } else {
+            avisar('Compuerta creada y ubicada.', 'ok');
+            cerrarPanelMapa(false);
+            cargarCompuertasMapa(); // Refresca el mapa
+        }
+    });
+}
+function setColorPunto(color) {
+    colorPunto = color;
+    document.querySelectorAll('#paleta-punto .pc-color').forEach(b => {
+        b.classList.toggle('activo', b.dataset.color === color);
+    });
 }
 /* Muestra u oculta el selector de unidad, para no cargar la barra */
 function alternarUnidad() {
@@ -2212,23 +2351,37 @@ async function clickEditor(latlng) {
     if (!editorActivo || !modoEditor || !puedeEditarMapa()) return;
 
     if (modoEditor === 'punto' || modoEditor === 'retro' || modoEditor === 'excavadora') {
-        const { data, error } = await db.from('mapa_puntos').insert({
-            lat: latlng.lat, lon: latlng.lng, orden: 0,
+        
+        const datos = {
+            lat: latlng.lat, 
+            lon: latlng.lng, 
+            orden: 0,
             tipo: modoEditor === 'punto' ? 'punto' : modoEditor
-        }).select().limit(1);
+        };
+
+        // Si es un punto normal, le agregamos el color elegido en la barra
+        if (modoEditor === 'punto') {
+            datos.color = colorPunto;
+        }
+
+        const { data, error } = await db.from('mapa_puntos').insert(datos).select().limit(1);
+        
         if (error) {
             console.warn('punto', error);
             avisar('No se pudo crear el punto: ' + error.message, 'warn');
             return;
         }
         cargarVectores();
+        
         if (data && data[0]) {
-            setTimeout(() => abrirFichaPunto(data[0]), 500);
+            // Guardamos el ID del punto recién creado en una variable global
+            window.puntoNuevoTemporal = data[0].id;
+            // Lo abrimos directamente en modo edición
+            setTimeout(() => abrirFichaPunto(data[0], true), 500);
         }
         return;
     }
 
-    // LLAMAMOS AL MODAL BONITO EN VEZ DEL PROMPT
     if (modoEditor === 'compuerta') {
         abrirModalCompuerta(latlng.lat, latlng.lng);
         return;
@@ -2319,7 +2472,8 @@ async function guardarNuevaCompuerta() {
     } else {
         avisar('Compuerta creada y ubicada.', 'ok');
         cerrarPanelMapa(); // Cierra el modal bonito
-        cargarCompuertasMapa(); // Refresca la capa del mapa para que aparezca de inmediato
+        cargarCompuertasMapa();
+         setModoEditor(null); // Refresca la capa del mapa para que aparezca de inmediato
     }
 }
 
@@ -2709,14 +2863,13 @@ async function cargarCompuertasMapa() {
         const abierta = esCompuertaAbierta(c);
 
         const marca = L.marker([Number(c.lat), Number(c.lon)], {
-    icon: L.divIcon({
-        className: '',
-        // Usamos una etiqueta <img> en vez del svgCompuerta()
-        html: '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abierta ? 'abierta' : 'cerrada') + '">',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
-    })
-}).addTo(capaCompuertasMapa);
+            icon: L.divIcon({
+                className: '',
+                html: '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abierta ? 'abierta' : 'cerrada') + '">',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            })
+        }).addTo(capaCompuertasMapa);
 
         marca.bindTooltip(
             '<b>' + (c.nombre || 'Compuerta') + '</b><br>' +
@@ -2724,10 +2877,9 @@ async function cargarCompuertasMapa() {
             { direction: 'top', className: 'tip-compuerta', opacity: 1 }
         );
 
-                marca.on('click', () => {
-                if (editorActivo) return;
-            // Si el editor global está activo abre directo en modo edición. Si no, en modo lectura con botón "Editar".
-            abrirFichaCompuerta(c, editorActivo);
+        marca.on('click', () => {
+            // CORRECCIÓN: Siempre abre en modo visualización/lectura
+            abrirFichaCompuerta(c, false);
         });
     });
 }
@@ -2771,15 +2923,28 @@ function panelMapa(titulo, cuerpoHtml, botones) {
         (botones ? '<div class="panel-mapa-pie">' + botones + '</div>' : '') +
         '</div>';
     document.body.appendChild(capa);
-    capa.addEventListener('click', (ev) => { if (ev.target === capa) cerrarPanelMapa(); });
-    capa.querySelector('.panel-mapa-x').addEventListener('click', cerrarPanelMapa);
+    
+    // Al hacer clic fuera o en la X, se pasa "true" para cancelar la creación
+    capa.addEventListener('click', (ev) => { if (ev.target === capa) cerrarPanelMapa(true); });
+    capa.querySelector('.panel-mapa-x').addEventListener('click', () => cerrarPanelMapa(true));
     return capa;
 }
 
-function cerrarPanelMapa() {
+async function cerrarPanelMapa(cancelarCreacion = false) {
     panelFichaEnEdicion = false;
     const p = document.getElementById('panel-mapa');
     if (p) p.remove();
+
+    // Si se estaba creando un punto nuevo y se cancela, lo borramos para que no quede huérfano
+    if (cancelarCreacion && window.puntoNuevoTemporal) {
+        try {
+            await db.from('mapa_puntos').delete().eq('id', window.puntoNuevoTemporal);
+        } catch (e) {
+            console.warn('Error al borrar punto temporal:', e);
+        }
+        window.puntoNuevoTemporal = null;
+        if (typeof cargarVectores === 'function') cargarVectores();
+    }
 }
 
 async function fotosDe(destino) {
@@ -2997,19 +3162,45 @@ async function abrirGaleriaFotos(destino) {
 }
 
 function abrirFichaPunto(p, esEdicion = false) {
-    // Gerencia de Campo y Seguridad Industrial editan la ficha sin pasar por
-    // el modo edición del mapa.
-    const editar = esEdicion || puedeEditarPunto();
+    const editar = esEdicion;
     panelFichaEnEdicion = editar;
     const numero = Number(p.orden) > 0 ? String(p.orden) : '';
     
-    // Si NO hay permiso, bloqueamos los inputs
     const dis = editar ? '' : 'readonly';
     const disStyle = editar ? '' : 'style="background:#f8fafc; color:#64748b; cursor:default;"';
+
+    // --- SELECTOR DE COLORES PREDETERMINADOS ---
+    const coloresPunto = [
+        { hex: '#1d4ed8', nombre: 'Azul' },
+        { hex: '#dc2626', nombre: 'Rojo' },
+        { hex: '#eab308', nombre: 'Amarillo' },
+        { hex: '#16a34a', nombre: 'Verde' }
+    ];
+    const colorActual = (p.color || '#1d4ed8').toLowerCase();
+
+    let htmlColores = '';
+    coloresPunto.forEach(c => {
+        const activo = colorActual === c.hex.toLowerCase();
+        htmlColores += `
+            <div onclick="if(${editar}) { 
+                document.getElementById('ficha-color').value='${c.hex}'; 
+                this.parentNode.querySelectorAll('.opcion-color').forEach(el => el.style.boxShadow='0 0 0 1px #cbd5e1'); 
+                this.style.boxShadow='0 0 0 3px #0f172a'; 
+            }" 
+            style="width: 32px; height: 32px; border-radius: 50%; background-color: ${c.hex}; cursor: ${editar ? 'pointer' : 'default'}; box-shadow: ${activo ? '0 0 0 3px #0f172a' : '0 0 0 1px #cbd5e1'}; transition: all 0.2s;" 
+            class="opcion-color" title="${c.nombre}"></div>`;
+    });
+    // -------------------------------------------------
 
     const cuerpo =
         '<div class="panel-campo"><label>Número del punto</label>' +
         '<input id="ficha-numero" type="number" min="0" step="1" value="' + escaparHtml(numero) + '" placeholder="Ej. 12" ' + dis + ' ' + disStyle + '></div>' +
+        
+        // SELECTOR VISUAL
+        '<div class="panel-campo"><label>Color del punto</label>' +
+        '<input type="hidden" id="ficha-color" value="' + (p.color || '#1d4ed8') + '">' +
+        '<div style="display: flex; gap: 12px; padding: 4px 0; align-items: center;">' + htmlColores + '</div></div>' +
+
         '<div class="panel-campo"><label>Responsable</label>' +
         '<input id="ficha-responsable" type="text" value="' + escaparHtml(p.responsable || '') +
         '" placeholder="Quién responde por este punto" ' + dis + ' ' + disStyle + '></div>' +
@@ -3028,35 +3219,37 @@ function abrirFichaPunto(p, esEdicion = false) {
         botones = '<button type="button" class="panel-btn principal" id="ficha-guardar">Guardar</button>' +
                   '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
     } else {
-        botones = (puedeEditarMapa() ? '<button type="button" class="panel-btn principal" id="ficha-editar"><i class="fas fa-pen"></i> Editar</button>' : '') +
+        botones = (puedeEditarPunto() ? '<button type="button" class="panel-btn principal" id="ficha-editar"><i class="fas fa-pen"></i> Editar</button>' : '') +
                   '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
     }
 
     const capa = panelMapa(titulo, cuerpo, botones);
 
-    capa.querySelector('#ficha-cerrar').addEventListener('click', cerrarPanelMapa);
+    capa.querySelector('#ficha-cerrar').addEventListener('click', () => cerrarPanelMapa(true));
 
-    // Botón Editar: cierra y vuelve a abrir la misma ficha pero en modo edición
     const btnEditar = capa.querySelector('#ficha-editar');
     if (btnEditar) {
         btnEditar.addEventListener('click', () => {
-            cerrarPanelMapa();
+            cerrarPanelMapa(false);
             abrirFichaPunto(p, true);
         });
     }
 
-    // Botón Guardar: solo se crea si la ficha se abrió editable
     const btnGuardar = capa.querySelector('#ficha-guardar');
     if (btnGuardar) {
         btnGuardar.addEventListener('click', async () => {
             if (!puedeEditarPunto()) { avisar('No tienes permiso para editar este punto', 'warn'); return; }
+            
             const num = parseInt(capa.querySelector('#ficha-numero').value, 10);
+            const colorVal = capa.querySelector('#ficha-color').value;
             const responsable = capa.querySelector('#ficha-responsable').value.trim();
             const equipos = capa.querySelector('#ficha-equipos').value.trim();
+            
             const { error } = await db.from('mapa_puntos').update({
                 orden: isFinite(num) && num > 0 ? num : 0,
                 responsable: responsable || null,
-                equipos: equipos || null
+                equipos: equipos || null,
+                color: colorVal
             }).eq('id', p.id);
             
             if (error) {
@@ -3064,13 +3257,15 @@ function abrirFichaPunto(p, esEdicion = false) {
                 return;
             }
             
-            // Actualizamos la caché local para que no quede desactualizado
             p.orden = isFinite(num) && num > 0 ? num : 0;
             p.responsable = responsable || null;
             p.equipos = equipos || null;
+            p.color = colorVal;
+
+            window.puntoNuevoTemporal = null;
 
             avisar('Punto guardado', 'ok');
-            cerrarPanelMapa();
+            cerrarPanelMapa(false);
             cargarVectores();
         });
     }
@@ -3078,21 +3273,23 @@ function abrirFichaPunto(p, esEdicion = false) {
     Promise.all([fotosDe({ tipo: 'punto', id: p.id })]).then(([fotos]) => {
         const caja = capa.querySelector('#ficha-fotos');
         if (!caja) return;
-        caja.innerHTML = htmlGaleria(fotos, editar, { tipo: 'punto', id: p.id },
-            editar || puedeEditarPunto());
+        // CORRECCIÓN AQUÍ: Se pasa 'editar' como último parámetro en lugar de 'editar || puedeEditarPunto()'
+        caja.innerHTML = htmlGaleria(fotos, editar, { tipo: 'punto', id: p.id }, editar);
     });
 }
 
 async function abrirFichaCompuerta(c, esEdicion = false) {
-    panelFichaEnEdicion = esEdicion;
+    const editar = esEdicion; 
+    panelFichaEnEdicion = editar;
     const abierta = esCompuertaAbierta(c);
+    
     const cuerpo = '<p class="panel-mapa-nota">Estado actual: <b>' + (abierta ? 'abierta' : 'cerrada') +
         '</b> · ' + escaparHtml(c.administracion || '') + '</p>' +
         '<p class="panel-mapa-nota">El estado se declara en el panel de Compuertas. Aquí solo se agregan las fotos.</p>' +
         '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div>';
 
     let botones = '';
-    if (esEdicion) {
+    if (editar) {
         botones = '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
     } else {
         botones = (puedeEditarMapa() ? '<button type="button" class="panel-btn principal" id="ficha-editar"><i class="fas fa-pen"></i> Editar</button>' : '') +
@@ -3100,20 +3297,20 @@ async function abrirFichaCompuerta(c, esEdicion = false) {
     }
 
     const capa = panelMapa(c.nombre || 'Compuerta', cuerpo, botones);
-    capa.querySelector('#ficha-cerrar').addEventListener('click', cerrarPanelMapa);
+    capa.querySelector('#ficha-cerrar').addEventListener('click', () => cerrarPanelMapa(false));
 
-    // Botón Editar local
     const btnEditar = capa.querySelector('#ficha-editar');
     if (btnEditar) {
         btnEditar.addEventListener('click', () => {
-            cerrarPanelMapa();
-            abrirFichaCompuerta(c, true);
+            cerrarPanelMapa(false);
+            abrirFichaCompuerta(c, true); 
         });
     }
 
     const fotos = await fotosDe({ tipo: 'compuerta', id: c.id });
     const caja = capa.querySelector('#ficha-fotos');
-    if (caja) caja.innerHTML = htmlGaleria(fotos, esEdicion, { tipo: 'compuerta', id: c.id });
+    // CORRECCIÓN AQUÍ: Aseguramos pasar 'editar' como cuarto parámetro si es necesario
+    if (caja) caja.innerHTML = htmlGaleria(fotos, editar, { tipo: 'compuerta', id: c.id }, editar);
 }
 
 /* Subir y borrar fotos (una sola ruta para puntos y compuertas) */
@@ -3281,7 +3478,16 @@ function volverAlOrigen(e) {
     iniciarMapa();
 })();
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && editorActivo) {
-        alternarEditor(); 
+    if (e.key === 'Escape') {
+        // Si hay una ventana de detalles abierta, la cerramos (y cancelamos creación)
+        const panel = document.getElementById('panel-mapa');
+        if (panel) {
+            cerrarPanelMapa(true);
+            return; 
+        }
+        // Si no hay ventanas, cerramos el editor del mapa
+        if (editorActivo) {
+            alternarEditor(); 
+        }
     }
 });
