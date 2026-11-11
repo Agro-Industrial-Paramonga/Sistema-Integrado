@@ -3132,3 +3132,90 @@ body.modo-presentacion .btn-alarma-fila {
         border-bottom: none !important;
     }
 }
+/* ============================================================
+   CORRECCIONES FINALES DE DISEÑO MÓVIL (PEGAR AL FINAL)
+   ============================================================ */
+@media (max-width: 768px) {
+    /* 1. Arreglar el desbordamiento horizontal (El causante del zoom) */
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+    }
+    
+    /* 2. Quitar el margen de 45px que empujaba las tarjetas a la derecha */
+    .data-table tr:not(.fila-segmento) {
+        margin-left: 0 !important; 
+        padding: 14px !important;
+    }
+
+    /* 3. Ajustar el encabezado superior (Header) para que no se aplaste */
+    .top-bar {
+        flex-wrap: wrap !important;
+        height: auto !important;
+        padding: 10px !important;
+        gap: 10px !important;
+        justify-content: center !important;
+    }
+    .logo-area { margin-bottom: 5px; justify-content: center; width: 100%; }
+    .header-right { width: 100%; justify-content: center; }
+
+    /* 4. Arreglar la barra verde de los segmentos (GERENCIA DE CAMPO) */
+    .fila-segmento .seg-cabecera {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+    }
+    .fila-segmento .seg-nombre {
+        width: 100% !important;
+        font-size: 0.8rem !important;
+        line-height: 1.3 !important;
+        text-align: left !important;
+    }
+    .fila-segmento .seg-acciones {
+        width: 100% !important;
+        justify-content: flex-end !important;
+    }
+
+    /* 5. Arreglar los filtros y la barra de progreso */
+    .filters-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    .filters-left {
+        display: flex !important;
+        overflow-x: auto !important; /* Scroll horizontal para los filtros */
+        padding-bottom: 4px !important;
+        width: 100% !important;
+    }
+    .filter-btn { flex-shrink: 0 !important; }
+    .filters-right {
+        width: 100% !important;
+        flex-wrap: wrap !important;
+        justify-content: space-between !important;
+    }
+    .filters-right select, .filters-right button {
+        flex: 1 1 45% !important;
+        font-size: 0.75rem !important;
+    }
+
+    /* 6. Arreglar las tarjetas de medidas (Actividad, Costos, etc.) */
+    .data-table td::before {
+        min-width: 75px !important; /* Reducir espacio del label */
+        font-size: 0.65rem !important;
+    }
+    .data-table td[data-label="Actividad"] {
+        padding-left: 15px !important; /* Ajustar el espacio del punto de color */
+    }
+    .input-costo {
+        width: 100% !important; /* El input de costo ocupa todo el ancho en móvil */
+        max-width: 110px !important;
+        text-align: right;
+    }
+    
+    /* Ajustar botones de acción para que no se salgan */
+    .btn-editar-fila, .btn-alarma-fila, .btn-fotos {
+        padding: 6px 10px !important;
+        font-size: 0.75rem !important;
+    }
+}
