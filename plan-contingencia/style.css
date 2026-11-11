@@ -2713,161 +2713,173 @@ body.modo-presentacion .btn-alarma-fila {
 }
 
 /* ============================================================
-   CORRECCIÓN MÓVIL DEFINITIVA (iOS y Android)
+   REDISEÑO MÓVIL COMPLETO (Estilo App - iOS/Android)
    ============================================================ */
 @media (max-width: 768px) {
-    /* 0. Evitar desbordamiento global */
-    html, body { 
-        overflow-x: hidden !important; 
-        width: 100% !important; 
-    }
+    /* 1. Reglas Globales */
+    html, body { overflow-x: hidden !important; width: 100% !important; }
+    
+    /* Ocultar elementos exclusivos de PC */
+    .desktop-only { display: none !important; }
+    .mobile-only { display: flex !important; }
 
-    /* 1. HEADER (Simetría perfecta) */
+    /* 2. HEADER COMPACTO (Estilo App) */
     .top-bar {
-        height: auto !important;
-        flex-direction: column !important;
-        padding: 10px !important;
-        gap: 12px !important;
+        height: 60px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 0 16px !important;
+        background: var(--white) !important;
     }
-    .logo-area { 
-        justify-content: center; 
-        width: 100%; 
-        gap: 10px; 
-    }
-    .logo-img { height: 32px !important; }
     
-    .header-right { 
-        width: 100%; 
-        justify-content: center; 
-        flex-wrap: wrap; 
-        gap: 12px; 
-    }
-    .modo-toggle { margin-right: 0 !important; gap: 10px !important; }
-    .modo-toggle button { width: 36px !important; height: 36px !important; }
-    .btn-perfil-movil { width: 36px !important; height: 36px !important; font-size: 18px !important; }
+    .logo-area { gap: 8px; }
+    .logo-img { height: 28px !important; }
+    .logo-text span { font-size: 0.45rem !important; }
+    .logo-text strong { font-size: 0.8rem !important; }
 
-    /* 2. HOME (Ajuste de bordes y tarjeta) */
-    .home-container { 
-        padding: 30px 16px 50px !important; /* Margen simétrico */
-    }
-    .home-hero h1 { 
-        font-size: 32px !important; 
-        letter-spacing: -1px !important;
-    }
-    .plans-grid { 
-        grid-template-columns: 1fr !important; /* Una sola columna */
-    }
-    .plan-card {
-        width: 100% !important;
-        max-width: 100% !important; 
-        margin: 0 auto !important;
-        box-sizing: border-box !important;
-    }
-    .plan-card-media {
-        height: 180px !important;
-        width: 100% !important;
+    /* Botón Hamburguesa */
+    .btn-hamburguesa {
+        background: transparent; border: none; font-size: 22px; color: var(--gray-700);
+        padding: 8px; cursor: pointer; outline: none;
     }
 
-    /* 3. CONTENIDO PRINCIPAL Y MENÚ (Arreglando los márgenes) */
-    .main-content { 
-        padding: 20px 16px 40px !important; /* Margen uniforme */
+    /* Menú Desplegable Lateral */
+    .menu-lateral-movil {
+        display: none;
+        position: absolute; top: 60px; left: 0; right: 0;
+        background: #fff; border-bottom: 1px solid var(--border);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        flex-direction: column; z-index: 9999;
     }
-    .section-view h1 { 
-        font-size: 1.6rem !important; 
-        margin: 10px 0 12px !important; 
+    .menu-lateral-movil.active { display: flex; }
+    .menu-item-btn {
+        padding: 16px 20px; border: none; background: transparent; border-bottom: 1px solid var(--gray-100);
+        text-align: left; font-size: 0.95rem; font-weight: 600; color: var(--gray-700);
+        display: flex; align-items: center; gap: 12px;
     }
-    .section-back { font-size: 0.85rem !important; }
+    .menu-item-btn i { color: var(--primary); font-size: 1.1rem; width: 24px; text-align: center; }
+    .menu-item-btn.btn-peligro { color: var(--red-600); border-bottom: none; }
+    .menu-item-btn.btn-peligro i { color: var(--red-600); }
+
+    /* 3. HOME (Feed Limpio) */
+    .home-container { padding: 24px 16px 60px !important; }
+    .home-hero { margin-bottom: 24px !important; text-align: left !important; }
+    .home-hero h1 { font-size: 28px !important; text-align: left; line-height: 1.2 !important; }
+    .home-hero p { font-size: 14px !important; }
+    .home-hero-badge { margin-bottom: 12px !important; }
     
-    /* Tarjetas del menú (Imagen 2) */
+    .plans-grid { grid-template-columns: 1fr !important; }
+    .plan-card { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important; border-radius: 16px !important; }
+    .plan-card-media { height: 180px !important; }
+
+    /* 4. MENÚ DE SECCIONES (Listas Compactas) */
+    .main-content { padding: 20px 16px 60px !important; }
+    .section-header h1 { font-size: 1.5rem !important; margin: 10px 0 !important; }
+    
+    .menu-grid { gap: 12px !important; }
     .menu-card {
-        padding: 20px !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        padding: 16px !important;
+        gap: 16px !important;
+        border-top: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+        box-shadow: none !important;
+        background: #fff !important;
     }
-    .menu-card h3 { font-size: 16px !important; }
+    .menu-card:hover { transform: none !important; }
+    .menu-icon-img { width: 40px !important; height: 40px !important; margin-bottom: 0 !important; }
+    .menu-card h3 { font-size: 14px !important; margin-bottom: 2px !important; }
+    .menu-card p { font-size: 12px !important; }
+    .menu-arrow { position: static !important; font-size: 14px !important; color: var(--gray-400) !important; }
+
+    /* 5. MEDIDAS (Eliminando el Sticky y optimizando espacio) */
     
-    /* 4. FILTROS Y PROGRESO (Imagen 3) */
-    .filters-bar { 
-        flex-direction: column !important; 
-        align-items: stretch !important; 
-        gap: 12px !important; 
-        margin-bottom: 16px; 
-    }
-    .filters-left { 
-        display: flex !important; 
-        overflow-x: auto !important; 
-        flex-wrap: nowrap !important; 
-        padding-bottom: 8px; 
-        width: 100%; 
-        -webkit-overflow-scrolling: touch; 
-    }
-    .filter-btn { flex-shrink: 0 !important; }
-    
-    .filters-right { 
-        display: flex; 
-        flex-wrap: wrap; 
-        width: 100%; 
-        gap: 8px; 
-    }
-    .filters-right select, .filters-right button { 
-        flex: 1 1 100% !important; /* Ocupan todo el ancho en móvil para mejor tacto */
-        font-size: 0.8rem !important; 
+    /* ELIMINAMOS EL STICKY EN MÓVIL */
+    .sticky-header-block {
+        position: relative !important;
+        padding: 0 !important;
+        margin-bottom: 16px !important;
+        background: transparent !important;
     }
 
-    /* 5. TABLAS EN TARJETAS (Arreglando el vacío del medio) */
-    .data-table { border: none !important; background: transparent !important; }
-    .data-table thead { display: none !important; }
+    /* Filtros en Carrusel (Swipe horizontal) */
+    .filters-bar {
+        flex-direction: column !important;
+        gap: 12px !important;
+        padding: 0 !important;
+    }
+    
+    .filters-left {
+        display: flex !important;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        gap: 8px !important;
+        padding-bottom: 4px !important;
+        width: 100% !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .filters-left::-webkit-scrollbar { display: none; }
+    .filter-btn {
+        flex-shrink: 0 !important;
+        padding: 8px 14px !important;
+        font-size: 0.75rem !important;
+        border-radius: 20px !important;
+    }
+
+    /* Botones de Acción Compactos (Agregar y Nuevo Segmento) */
+    .filters-right {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+    .filters-right select, .filters-right button {
+        flex: 1 1 45% !important;
+        font-size: 0.75rem !important;
+        padding: 8px 10px !important;
+        justify-content: center !important;
+    }
+
+    /* 6. TARJETAS DE MEDIDAS (Estilo Facebook / Twitter) */
+    .table-wrapper { background: transparent !important; border: none !important; box-shadow: none !important; }
     .data-table, .data-table tbody, .data-table tr, .data-table td { display: block !important; width: 100% !important; }
 
     .data-table tr:not(.fila-segmento) {
         background: #fff;
         border: 1px solid var(--border);
         border-radius: 12px;
+        margin-bottom: 12px;
         padding: 16px !important;
-        margin-bottom: 14px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
 
-    /* Títulos de la actividad */
+    /* Título de la tarjeta */
     .data-table td[data-label="Actividad"] {
         display: block !important;
-        text-align: left !important;
-        font-size: 1rem !important;
+        font-size: 0.95rem !important;
         font-weight: 600;
-        border-bottom: 1px solid var(--border) !important;
-        padding-bottom: 12px !important;
-        margin-bottom: 10px;
-        padding-left: 20px !important;
-        position: relative;
+        border-bottom: 1px solid var(--gray-100) !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 10px !important;
         line-height: 1.4;
+        text-align: left !important;
     }
     .data-table td[data-label="Actividad"]::before { display: none; }
-    
-    /* Puntito de color */
-    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 6px;
-        width: 10px;
-        height: 10px;
-        background-color: var(--dot-color, #cbd5e1);
-        border-radius: 50%;
-    }
+    .data-table td[data-label="Actividad"] .actividad-celda { display: block; }
+    .acciones-orden { display: none !important; } /* Ocultar flechas de orden en móvil para limpiar */
 
-    /* Filas de datos (PERIODO, AREA, COSTO, etc.) */
+    /* Filas de información dentro de la tarjeta */
     .data-table td {
         display: flex !important;
-        justify-content: space-between; /* Etiqueta a la izq, valor a la der */
+        justify-content: space-between;
         align-items: center;
-        gap: 10px;
-        padding: 8px 0 !important;
-        border-bottom: 1px dashed var(--gray-100) !important;
-        text-align: right;
-        font-size: 0.85rem !important;
+        padding: 6px 0 !important;
+        border: none !important;
+        font-size: 0.8rem !important;
+        text-align: right !important;
     }
-    .data-table td:last-child { border-bottom: none !important; padding-bottom: 0 !important; }
-
     .data-table td::before {
         content: attr(data-label);
         color: var(--gray-500);
@@ -2875,58 +2887,52 @@ body.modo-presentacion .btn-alarma-fila {
         font-weight: 700;
         text-transform: uppercase;
         text-align: left;
-        flex-shrink: 0;
+        margin-right: auto;
     }
 
-    /* 6. BARRA VERDE DE SEGMENTO */
-    .data-table tr.fila-segmento {
-        background: #047857 !important;
-        border-radius: 10px !important;
-        padding: 10px 14px !important;
-        margin: 8px 0 !important;
+    /* Puntito de color */
+    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
+        position: relative;
+        padding-left: 16px !important;
     }
-    .data-table tr.fila-segmento td { padding: 0 !important; border: none !important; }
+    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::after {
+        content: ''; position: absolute; left: 0; top: 8px;
+        width: 8px; height: 8px; background-color: var(--dot-color, #cbd5e1); border-radius: 50%;
+    }
+
+    /* Botones de acción (Fotos, Editar) */
+    .data-table td.fotos-cell, .data-table td.acciones-cell {
+        border-top: 1px solid var(--gray-100) !important;
+        margin-top: 8px !important;
+        padding-top: 10px !important;
+        justify-content: flex-end !important;
+        gap: 10px !important;
+    }
+    .data-table td.fotos-cell::before, .data-table td.acciones-cell::before { display: none; }
+
+    /* 7. BARRA VERDE DE SEGMENTOS */
+    .data-table tr.fila-segmento {
+        background: var(--green-700) !important;
+        border-radius: 8px !important;
+        margin: 16px 0 12px 0 !important;
+        padding: 0 !important;
+    }
+    .data-table tr.fila-segmento td { padding: 12px 16px !important; border: none !important; }
     .fila-segmento td::before { display: none !important; }
     
-    .fila-segmento .seg-cabecera {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        gap: 12px !important;
-    }
-    .fila-segmento .seg-nombre { 
-        font-size: 0.9rem !important; 
-        width: 100% !important; 
-    }
-    .fila-segmento .seg-acciones { 
-        width: 100% !important; 
-        justify-content: flex-end !important; 
-        gap: 8px !important;
-    }
+    .fila-segmento .seg-cabecera { flex-direction: row !important; justify-content: space-between !important; align-items: center !important; }
+    .fila-segmento .seg-nombre { font-size: 0.85rem !important; color: #fff !important; }
+    
+    /* Botones del segmento */
+    .fila-segmento .seg-acciones { gap: 8px !important; }
     .fila-segmento .seg-flecha { 
-        width: 32px !important; height: 32px !important; 
-        font-size: .8rem !important; 
+        width: 28px !important; height: 28px !important; font-size: 0.75rem !important; 
+        background: rgba(255,255,255,0.2) !important; border-color: transparent !important;
     }
-    
-    /* Botón contraer de la barra verde */
-    .btn-contraer { width: 32px !important; height: 32px !important; }
+    .btn-contraer { width: 28px !important; height: 28px !important; background: rgba(255,255,255,0.2) !important; border-color: transparent !important; }
 
-    /* 7. AJUSTES FINOS DE BOTONES */
-    .badge-estado { font-size: .8rem !important; padding: 6px 10px !important; }
-    .input-costo { width: 100% !important; max-width: 110px !important; text-align: right; }
-    .btn-fotos { padding: 6px 10px !important; font-size: .8rem !important; }
-    .btn-alarma-fila, .btn-editar-fila { width: 38px !important; height: 38px !important; font-size: 15px !important; }
-    
-    .total-panel { flex-direction: column; align-items: flex-start; gap: 16px; padding: 16px !important; }
-    .total-panel-right { align-items: flex-start; width: 100%; padding-top: 12px; border-top: 1px solid #DCFCE7; }
+    /* 8. MODALES (Ajustes finales) */
+    .modal-box { border-radius: 20px 20px 0 0 !important; position: fixed; bottom: 0; left: 0; right: 0; max-width: 100% !important; margin: 0 !important; }
+    .modal-overlay { align-items: flex-end !important; padding: 0 !important; }
+    .modal-footer { padding-bottom: 24px !important; } /* Safe area para iPhone */
 }
-
-/* 3. Pantallas muy pequeñas */
-@media (max-width: 560px) {
-    .section-header h1 { font-size: 22px; }
-    .plan-hero-text h1 { font-size: 26px; }
-}
-
-/* ============================================================
-   FIN DEL ARCHIVO
-   ============================================================ */

@@ -19,8 +19,15 @@
 </head>
 <body>
 
-    <!-- ============ HEADER ============ -->
+        <!-- ============ HEADER ============ -->
     <header class="top-bar" id="main-header" style="display:none">
+        
+        <!-- NUEVO: Botón Hamburguesa (Solo celular) -->
+        <button class="btn-hamburguesa mobile-only" onclick="toggleMenuLateral(event)">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Logo -->
         <div class="logo-area">
             <img src="assets/logo.png" alt="Logo" class="logo-img">
             <div class="logo-text">
@@ -28,7 +35,9 @@
                 <strong>Plan de Contingencia</strong>
             </div>
         </div>
-        <div class="header-right">
+
+        <!-- Acciones de PC (Se ocultan en celular) -->
+        <div class="header-right desktop-only">
             <a id="btn-mapa-plan" href="mapa.html" onclick="guardarEstadoYIrAlMapa(event)" title="Mapa de canales y unidades"
                style="display:none;border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:38px;height:38px;align-items:center;justify-content:center;color:#475569;text-decoration:none;margin-right:8px;">
                 <i class="fas fa-map-location-dot"></i>
@@ -39,38 +48,34 @@
                 <button type="button" id="btn-modo-editar" onclick="cambiarModo('edicion')" title="Modo edición"
                         style="border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:38px;height:38px;cursor:pointer;color:#475569;">&#9998;</button>
             </div>
-            <div class="user-profile-container">
-    <!-- VISTA PC (Igual a la que ya tienes) -->
-    <div class="user-pill desktop-only" id="user-pill">
-        <i class="fas fa-user-circle"></i>
-        <span id="user-name">—</span>
-        <button class="logout-btn" onclick="abrirModalPassword()" title="Cambiar contraseña">
-            <i class="fas fa-key"></i>
-        </button>
-        <button class="logout-btn" onclick="cerrarSesion()" title="Cerrar sesión">
-            <i class="fas fa-sign-out-alt"></i>
-        </button>
-    </div>
+            <div class="user-pill" id="user-pill">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-name">—</span>
+                <button class="logout-btn" onclick="abrirModalPassword()" title="Cambiar contraseña">
+                    <i class="fas fa-key"></i>
+                </button>
+                <button class="logout-btn" onclick="cerrarSesion()" title="Cerrar sesión">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
 
-    <!-- VISTA CELULAR (Botón redondo) -->
-    <button class="btn-perfil-movil mobile-only" onclick="toggleMenuPerfil(event)">
-        <i class="fas fa-user-circle"></i>
-    </button>
-    
-    <!-- MENÚ DESPLEGABLE (Oculto por defecto) -->
-    <div class="menu-perfil-dropdown" id="menu-perfil">
-        <div class="menu-perfil-header">
-            <strong>Mi Cuenta</strong> <!-- Puedes cambiar esto por el nombre si actualizas tu script.js -->
+        <!-- NUEVO: Menú desplegable móvil (Oculto por defecto) -->
+        <div id="menu-lateral-movil" class="menu-lateral-movil mobile-only">
+            <button onclick="cambiarModo('lectura'); toggleMenuLateral();" class="menu-item-btn">
+                <i class="fas fa-eye"></i> Modo Lectura
+            </button>
+            <button onclick="cambiarModo('edicion'); toggleMenuLateral();" class="menu-item-btn">
+                <i class="fas fa-pen"></i> Modo Edición
+            </button>
+            <button onclick="abrirModalPassword(); toggleMenuLateral();" class="menu-item-btn">
+                <i class="fas fa-key"></i> Cambiar contraseña
+            </button>
+            <button onclick="cerrarSesion(); toggleMenuLateral();" class="menu-item-btn btn-peligro">
+                <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+            </button>
         </div>
-        <button class="menu-perfil-btn" onclick="abrirModalPassword(); toggleMenuPerfil();">
-            <i class="fas fa-key"></i> Cambiar contraseña
-        </button>
-        <button class="menu-perfil-btn btn-rojo" onclick="cerrarSesion();">
-            <i class="fas fa-sign-out-alt"></i> Cerrar sesión
-        </button>
-    </div>
-</div>
-        </div>
+
     </header>
 
     <!-- ============ PANTALLA: LOGIN ============ -->
@@ -972,17 +977,19 @@
     });
 </script>
     <script>
-    function toggleMenuPerfil(event) {
+        // ===== NUEVO MENÚ LATERAL MÓVIL =====
+    function toggleMenuLateral(event) {
         if (event) event.stopPropagation();
-        const menu = document.getElementById('menu-perfil');
+        const menu = document.getElementById('menu-lateral-movil');
         if (menu) menu.classList.toggle('active');
     }
 
-    // Cerrar el menú automáticamente si tocas fuera de él
+    // Cerrar el menú si se hace clic fuera
     document.addEventListener('click', (event) => {
-        const menu = document.getElementById('menu-perfil');
+        const menu = document.getElementById('menu-lateral-movil');
+        const btn = document.querySelector('.btn-hamburguesa');
         if (menu && menu.classList.contains('active')) {
-            if (!menu.contains(event.target) && !event.target.closest('.btn-perfil-movil')) {
+            if (!menu.contains(event.target) && !btn.contains(event.target)) {
                 menu.classList.remove('active');
             }
         }
