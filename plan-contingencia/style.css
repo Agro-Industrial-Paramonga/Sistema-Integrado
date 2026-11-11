@@ -1215,6 +1215,49 @@ body {
 }
 
 /* ============================================================
+   ACCIONES JUNTO AL SEMÁFORO (usuarios / alarmas)
+   La barra inferior de secciones solo existe en celular (movil.css)
+   ============================================================ */
+/* El grupo del semáforo y el botón de usuarios quedan juntos a la
+   izquierda; lo demás del encabezado se va a la derecha. */
+.top-bar { justify-content: flex-start; }
+.header-right { margin-left: auto; }
+
+.acciones-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    margin-left: 4px;
+}
+.btn-cabecera-accion {
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 10px;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-cabecera-accion:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+/* El menú lateral es solo del celular: en la web no debe verse */
+.menu-lateral-movil { display: none; }
+.btn-hamburguesa { display: none; }
+
+/* Barra inferior del celular: oculta en la web */
+.tabbar-plan { display: none; }
+
+/* ============================================================
    USER PILL
    ============================================================ */
 .header-right { display: flex; align-items: center; gap: 16px; }

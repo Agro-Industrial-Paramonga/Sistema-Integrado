@@ -913,6 +913,8 @@ function mostrarPantalla(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
+    /* La barra inferior solo vive dentro del plan (nunca en el login) */
+    if (window.movilMostrar) window.movilMostrar(id === 'screen-plan');
 }
 
 
@@ -937,9 +939,11 @@ function mostrarBotonMapa() {
     
     if (!u || esSoloCompuertas()) {  // <--- NUEVO
         b.style.display = 'none'; 
-        return; 
+    } else {
+        b.style.display = puedeVerMapa(u) ? 'flex' : 'none';
     }
-    b.style.display = puedeVerMapa(u) ? 'flex' : 'none';
+    /* La pestaña Mapa de la barra inferior depende del mismo permiso */
+    if (window.movilActualizar) window.movilActualizar();
 }
 
 function aplicarVisibilidadGerente() {
@@ -1384,7 +1388,20 @@ function actualizarContadoresFiltros(tabla, medidasVisibles) {
    ============================================================ */
 
 /* ===== NAVEGACION CON HISTORIAL (atras por pestaña) ===== */
-function _verPlan() {
+
+/* En el celular no se pasa por el menú de 4 tarjetas: se entra directo
+   a las medidas y se cambia de sección con la barra inferior. */
+function esVistaCelular() {
+    try { return window.matchMedia('(max-width: 768px)').matches; }
+    catch (e) { return window.innerWidth <= 768; }
+}
+
+function _verPlan(forzarMenu) {
+    /* Si es celular, el "plan" es directamente Medidas antes */
+    if (esVistaCelular() && !forzarMenu) {
+        _verSeccion('antes');
+        return;
+    }
     mostrarModoBotones(false);
     document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('active'));
     document.getElementById('screen-plan').classList.add('active');
@@ -1393,16 +1410,20 @@ function _verPlan() {
     const bc = document.getElementById('breadcrumb-menu');
     if (bc) bc.style.display = 'block';
     window.scrollTo(0, 0);
+    if (window.movilMostrar) window.movilMostrar(false);
 }
 
 function _verSeccion(nombre) {
-    _verPlan();
+    _verPlan(true);
     mostrarModoBotones(true);
     document.querySelectorAll('.section-view').forEach(v => v.classList.remove('active'));
     document.getElementById('section-' + nombre).classList.add('active');
     const bc = document.getElementById('breadcrumb-menu');
     if (bc) bc.style.display = 'none';
     window.scrollTo(0, 0);
+    /* La barra inferior marca la sección y se muestra */
+    if (window.movilSeccionActiva) window.movilSeccionActiva(nombre);
+    if (window.movilMostrar) window.movilMostrar(true);
 }
 
 function _verInicio() {
@@ -1410,6 +1431,7 @@ function _verInicio() {
     document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('active'));
     document.getElementById('screen-home').classList.add('active');
     window.scrollTo(0, 0);
+    if (window.movilMostrar) window.movilMostrar(false);
 }
 
 window.addEventListener('popstate', (e) => {
@@ -1431,8 +1453,12 @@ function abrirPlan() {
         // Si está en ROJO, salta directo a Medidas Durante
         _verSeccion('durante');
         try { history.pushState({ v: 'seccion', s: 'durante' }, ''); } catch (e) {}
+    } else if (esVistaCelular()) {
+        // Celular: directo a Medidas antes (sin menú intermedio)
+        _verSeccion('antes');
+        try { history.pushState({ v: 'seccion', s: 'antes' }, ''); } catch (e) {}
     } else {
-        // Si está en verde o amarillo, va al menú normal
+        // Escritorio: menú de secciones como siempre
         _verPlan();
         try { history.pushState({ v: 'plan' }, ''); } catch (e) {}
     }
@@ -1451,6 +1477,12 @@ function irASeccion(nombre) {
 }
 
 function volverAlMenuPlan() {
+    // En celular no hay menú intermedio: "Atrás" siempre sale del plan
+    if (esVistaCelular()) {
+        _verInicio();
+        try { history.pushState({ v: 'home' }, ''); } catch (e) {}
+        return;
+    }
     const st = history.state || {};
     if (st.v === 'seccion') { history.back(); return; }
     _verPlan();

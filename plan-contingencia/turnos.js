@@ -498,19 +498,30 @@
 
     function crearBoton() {
         if (!puedeVer()) return;
-        if (document.getElementById('btn-turnos')) return;
-        var ancla = document.getElementById('btn-mapa-plan');
+
+        /* Va en el hueco que está a la derecha del semáforo, junto al
+           logo. Si esa caja no existiera, se usa el botón del mapa como
+           ancla para no dejar la función sin botón. */
+        var caja = document.getElementById('acciones-cabecera');
+        var ancla = caja || document.getElementById('btn-mapa-plan');
         if (!ancla || !ancla.parentNode) return;
 
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.id = 'btn-turnos';
-        b.title = 'Turnos y sesiones abiertas';
-        b.style.cssText = 'border:1px solid #e2e8f0;background:#fff;border-radius:10px;width:38px;height:38px;' +
-            'display:inline-flex;align-items:center;justify-content:center;color:#475569;cursor:pointer;margin-right:8px;';
-        b.innerHTML = '<i class="fas fa-users"></i>';
-        b.addEventListener('click', abrir);
-        ancla.parentNode.insertBefore(b, ancla);
+        var b = document.getElementById('btn-turnos');
+        if (!b) {
+            b = document.createElement('button');
+            b.type = 'button';
+            b.id = 'btn-turnos';
+            b.className = 'btn-cabecera-accion';
+            b.title = 'Turnos y alarmas por persona';
+            b.setAttribute('aria-label', 'Turnos y alarmas por persona');
+            b.innerHTML = '<i class="fas fa-users"></i>';
+            b.addEventListener('click', abrir);
+        }
+
+        if (b.parentNode !== ancla) {
+            if (caja) caja.appendChild(b);
+            else ancla.parentNode.insertBefore(b, ancla);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

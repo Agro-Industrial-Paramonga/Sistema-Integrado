@@ -1,0 +1,555 @@
+/* ============================================================
+   MOVIL.CSS — Vista de celular del portal (Plan de Contingencia)
+   ------------------------------------------------------------
+   Todo vive dentro de @media (max-width: 768px).
+   La vista de escritorio NO se toca: style.css sigue siendo la
+   base de la web y este archivo solo se aplica en el celular.
+
+   Contenido:
+     0. Base y arreglo del zoom de iPhone
+     1. Cabecera compacta (semáforo + botón de usuarios)
+     2. Barra inferior de secciones (tipo Facebook)
+     3. Medidas: tarjetas limpias, sin encabezado de tabla
+     4. Paneles como hoja inferior
+     5. Detalles varios (botones, avisos, totales)
+   ============================================================ */
+
+@media (max-width: 768px) {
+
+    /* ============================================================
+       0. BASE
+       ============================================================ */
+
+    html {
+        /* iOS: no agrandar el texto solo */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    /* Safari en iPhone hace zoom automático cuando el campo enfocado
+       tiene menos de 16 px, y al cerrar el teclado la pantalla queda
+       agrandada. Con 16 px ya no hace zoom. */
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="search"],
+    input[type="date"],
+    textarea,
+    select {
+        font-size: 16px !important;
+    }
+
+    body {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ============================================================
+       1. CABECERA
+       ============================================================ */
+
+    .top-bar {
+        height: auto !important;
+        min-height: 56px;
+        padding: calc(env(safe-area-inset-top, 0px) + 6px) 10px 6px !important;
+        gap: 8px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+
+    .btn-hamburguesa {
+        flex: 0 0 auto;
+        width: 36px;
+        height: 36px;
+        padding: 0 !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px !important;
+        border-radius: 10px;
+    }
+
+    /* El bloque del logo ocupa el espacio libre: así el semáforo queda
+       pegado a la derecha y el botón de usuarios justo al lado. */
+    .logo-area {
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: 8px;
+    }
+    .logo-text { min-width: 0; overflow: hidden; }
+    .logo-text span {
+        font-size: 0.42rem !important;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+    .logo-text strong {
+        font-size: 0.72rem !important;
+        white-space: nowrap;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    #sem-grupo {
+        margin-left: auto;
+        flex: 0 0 auto;
+    }
+    /* "SEMÁFORO" ocupa medio ancho de la cabecera: los focos hablan solos */
+    #sem-grupo .sem-cap { display: none !important; }
+    #sem-grupo .sem-wrap { gap: 0 !important; }
+    #sem-grupo #sem-luces { transform: scale(0.92); }
+
+    /* Botón de usuarios (turnos y alarmas) a la derecha del semáforo */
+    .acciones-cabecera {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+        margin-left: 2px;
+    }
+    .btn-cabecera-accion,
+    #btn-turnos {
+        width: 38px !important;
+        height: 38px !important;
+        margin-right: 0 !important;
+        border-radius: 11px !important;
+        font-size: 16px;
+    }
+
+    /* ============================================================
+       2. BARRA INFERIOR DE SECCIONES
+       ============================================================ */
+
+    .tabbar-plan {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 3000;
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        background: rgba(255, 255, 255, 0.97);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+        backdrop-filter: saturate(180%) blur(12px);
+        border-top: 1px solid var(--border, #E6EAE6);
+        padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 6px);
+        box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.07);
+        transform: translateY(0);
+        transition: transform 0.22s ease;
+    }
+    .tabbar-plan[hidden] { display: none !important; }
+    /* El atributo hidden no basta cuando la clase fija display:flex */
+    .tabbar-plan .tabbar-item[hidden] { display: none !important; }
+
+    .tabbar-item {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        padding: 5px 2px 3px;
+        border: none;
+        background: none;
+        color: #8A9490;
+        font-family: inherit;
+        font-size: 10.5px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        text-decoration: none;
+        border-radius: 12px;
+        -webkit-tap-highlight-color: transparent;
+        transition: color 0.15s ease, transform 0.15s ease;
+    }
+    .tabbar-item i {
+        font-size: 19px;
+        line-height: 1;
+        transition: transform 0.18s ease;
+    }
+    .tabbar-item span {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        letter-spacing: 0.01em;
+    }
+    .tabbar-item:active { transform: scale(0.94); }
+
+    .tabbar-item.activo {
+        color: #0B6B44;
+    }
+    .tabbar-item.activo i {
+        transform: translateY(-1px);
+    }
+    .tabbar-item.activo span {
+        font-weight: 700;
+    }
+
+    /* El mapa es otro destino: se separa con una línea y va en verde */
+    .tabbar-mapa {
+        border-left: 1px solid var(--gray-100, #EDF0ED);
+        color: #0F7A50;
+    }
+    .tabbar-mapa i { color: #10A35E; }
+    .tabbar-mapa.activo { color: #0B6B44; }
+
+    /* Espacio para que la barra no tape el final del contenido */
+    body.con-tabbar .main-content {
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px) !important;
+    }
+    body.con-tabbar .total-panel {
+        margin-bottom: 8px;
+    }
+
+    /* "Atrás" ya no lleva a un menú intermedio: vuelve al inicio */
+    .section-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748B;
+        padding: 6px 10px 6px 4px;
+        border-radius: 10px;
+        margin-bottom: 2px !important;
+    }
+
+    /* Título de la sección: más contenido, menos cabecera */
+    .section-header h1 {
+        font-size: 1.42rem !important;
+        line-height: 1.15 !important;
+        letter-spacing: -0.02em;
+        margin: 2px 0 10px !important;
+    }
+    .section-header { margin-bottom: 4px; }
+
+    /* ============================================================
+       3. MEDIDAS — TARJETAS SIN ENCABEZADO DE TABLA
+       ============================================================ */
+
+    /* La fila ACTIVIDAD / PERIODO / ÁREA / COSTO ya no existe en celular */
+    .data-table thead {
+        display: none !important;
+    }
+    .table-wrapper {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+    }
+    .data-table { font-size: 14px; }
+
+    /* Tarjeta */
+    .data-table tr:not(.fila-segmento) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: 8px;
+        background: #fff !important;
+        border: 1px solid #E8ECE8 !important;
+        border-radius: 16px !important;
+        margin: 0 0 10px 0 !important;
+        padding: 14px !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+    }
+
+    /* Título de la actividad */
+    .data-table td[data-label="Actividad"] {
+        grid-column: 1 / -1;
+        font-size: 14.5px !important;
+        font-weight: 650 !important;
+        line-height: 1.35 !important;
+        color: #0F172A !important;
+        padding: 0 0 10px 14px !important;
+        margin: 0 0 8px 0 !important;
+        border-bottom: 1px solid #F1F4F1 !important;
+        text-align: left !important;
+    }
+
+    /* Punto de color del estado a la izquierda del título */
+    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::after {
+        left: 0 !important;
+        top: 5px !important;
+        width: 8px !important;
+        height: 8px !important;
+        box-shadow: none !important;
+    }
+
+    /* El punto toma el color del estado (si el navegador soporta :has) */
+    .data-table tr:has(.badge-no-iniciado) td[data-label="Actividad"]::after { background-color: #F59E0B !important; }
+    .data-table tr:has(.badge-en-ejecucion) td[data-label="Actividad"]::after { background-color: #3B82F6 !important; }
+    .data-table tr:has(.badge-finalizado) td[data-label="Actividad"]::after { background-color: #10B981 !important; }
+    .data-table tr:has(.badge-bloqueado) td[data-label="Actividad"]::after { background-color: #94A3B8 !important; }
+
+    /* Filas de datos dentro de la tarjeta */
+    .data-table td[data-label="Período"],
+    .data-table td[data-label="Área"],
+    .data-table td[data-label="Costo"],
+    .data-table td[data-label="Estado"] {
+        grid-column: 1 / -1;
+    }
+    .data-table td {
+        padding: 5px 0 !important;
+        font-size: 13px !important;
+        color: #334155 !important;
+        align-items: center !important;
+        gap: 10px;
+    }
+    .data-table td::before {
+        font-size: 10px !important;
+        letter-spacing: 0.06em !important;
+        color: #94A3B8 !important;
+        font-weight: 700 !important;
+        flex: 0 0 auto;
+        margin-right: auto;
+    }
+
+    /* El costo se lee como dato, no como campo editable */
+    .data-table td[data-label="Costo"] {
+        font-variant-numeric: tabular-nums;
+    }
+    .data-table .input-costo {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        width: auto !important;
+        max-width: 55%;
+        text-align: right;
+        font-size: 13px !important;
+        font-weight: 650 !important;
+        color: #0F172A !important;
+        font-variant-numeric: tabular-nums;
+    }
+    .data-table .input-costo:not([readonly]) {
+        border: 1px solid #E2E8F0 !important;
+        background: #F8FAFC !important;
+        border-radius: 8px;
+        padding: 6px 10px !important;
+    }
+
+    /* Estado como pastilla de color */
+    .data-table td[data-label="Estado"] .badge-estado,
+    .data-table .badge-estado {
+        border-radius: 999px !important;
+        padding: 5px 12px !important;
+        font-size: 11.5px !important;
+        font-weight: 700 !important;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    /* Fotos (izquierda) y acciones (derecha) en la misma línea, como un pie */
+    .data-table td.fotos-cell,
+    .data-table td.acciones-cell {
+        border-top: 1px solid #F1F4F1 !important;
+        margin-top: 8px !important;
+        padding: 8px 0 0 !important;
+        gap: 8px !important;
+        align-items: center !important;
+    }
+    .data-table td.fotos-cell {
+        grid-column: 1;
+        justify-self: start;
+        justify-content: flex-start !important;
+    }
+    .data-table td.acciones-cell {
+        grid-column: 2;
+        justify-self: end;
+        justify-content: flex-end !important;
+    }
+    .data-table td.fotos-cell::before,
+    .data-table td.acciones-cell::before {
+        display: none !important;
+    }
+    .data-table td.fotos-cell > *,
+    .data-table td.acciones-cell > * {
+        min-height: 34px;
+    }
+    /* Botones de acción con área cómoda para el dedo */
+    .data-table .btn-fotos,
+    .data-table .btn-alarma-fila,
+    .data-table .btn-editar-fila {
+        min-width: 38px;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 12.5px;
+    }
+
+    /* Cabecera de segmento (Gerencia de Campo): se queda pegada arriba */
+    .data-table tr.fila-segmento {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: block !important;
+        width: 100% !important;
+        box-sizing: border-box;
+        border-radius: 12px !important;
+        margin: 14px 0 10px 0 !important;
+        box-shadow: 0 4px 14px rgba(11, 107, 68, 0.18);
+    }
+    .data-table tr.fila-segmento > td {
+        display: flex !important;
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+    .data-table tr.fila-segmento:first-child { margin-top: 0 !important; }
+
+    /* El nombre del segmento en una línea y sus botones compactos */
+    .data-table tr.fila-segmento td { padding: 10px 12px !important; }
+    .fila-segmento .seg-cabecera {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        min-width: 0;
+        gap: 8px !important;
+        align-items: center !important;
+    }
+    .fila-segmento .seg-nombre {
+        display: block !important;
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: left !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.78rem !important;
+        line-height: 1.5 !important;
+    }
+    .fila-segmento .seg-nombre i { margin-right: 6px; }
+    .fila-segmento .seg-acciones {
+        flex: 0 0 auto;
+        gap: 5px !important;
+    }
+    .fila-segmento .seg-flecha,
+    .fila-segmento .btn-contraer {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        font-size: 0.66rem !important;
+        padding: 0 !important;
+        border-radius: 7px !important;
+    }
+
+    /* Fila de "cargando" y estados vacíos */
+    .loading-cell {
+        padding: 28px 12px !important;
+        font-size: 13px !important;
+    }
+
+    /* Progreso del plan */
+    .progress-panel { padding: 12px 14px !important; border-radius: 14px !important; }
+    .progress-info { margin-bottom: 6px !important; }
+    .progress-label { font-size: 10px !important; }
+    .progress-count { font-size: 11.5px !important; }
+
+    /* Filtros como pastillas deslizables */
+    .filters-left {
+        scroll-snap-type: x proximity;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .filter-btn {
+        border-radius: 999px !important;
+        scroll-snap-align: start;
+        background: #F1F5F4 !important;
+        padding: 8px 13px !important;
+    }
+    .filter-btn.active {
+        background: #0B6B44 !important;
+        color: #fff !important;
+    }
+    .filter-btn .badge {
+        background: #fff !important;
+        color: #334155 !important;
+        padding: 1px 7px !important;
+    }
+    .filter-btn.active .badge {
+        background: rgba(255, 255, 255, 0.22) !important;
+        color: #fff !important;
+    }
+
+    /* Los botones de acción del plan, en dos columnas parejas */
+    .filters-right {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+    .filters-right > * {
+        width: 100% !important;
+        justify-content: center !important;
+        flex: none !important;
+        margin-left: 0 !important;
+        white-space: nowrap;
+        font-size: 11.5px !important;
+        padding: 9px 6px !important;
+        gap: 5px !important;
+    }
+
+    /* Total de costos */
+    .total-panel { padding: 12px 14px !important; border-radius: 14px !important; }
+    .total-panel-label { font-size: 10px !important; }
+    .total-panel-sub { font-size: 11px !important; }
+    .total-panel-value { font-size: 17px !important; }
+
+    /* ============================================================
+       4. PANELES COMO HOJA INFERIOR
+       ============================================================ */
+
+    body #turnos-panel {
+        align-items: flex-end !important;
+        justify-content: center !important;
+        padding: 0 !important;
+    }
+    body #turnos-panel .turnos-caja {
+        max-width: 100% !important;
+        width: 100% !important;
+        max-height: 90dvh !important;
+        border-radius: 20px 20px 0 0 !important;
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+        animation: hojaSube 0.22s ease-out;
+    }
+
+    /* Las fichas de compuertas también suben desde abajo */
+    body #pc-panel {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    body #pc-panel > div {
+        max-width: 100% !important;
+        width: 100% !important;
+        max-height: 90dvh !important;
+        border-radius: 20px 20px 0 0 !important;
+    }
+
+    @keyframes hojaSube {
+        from { transform: translateY(24px); opacity: 0.6; }
+        to   { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Menú lateral: el desplegable baja justo debajo de la cabecera */
+    .menu-lateral-movil {
+        position: fixed !important;
+        top: calc(env(safe-area-inset-top, 0px) + 56px) !important;
+        border-radius: 0 0 16px 16px;
+        padding-bottom: 8px;
+    }
+
+    /* El acceso a "Licencias" no debe quedar encima de la barra */
+    body.con-tabbar a[href="licencias.html"] {
+        display: none !important;
+    }
+}
