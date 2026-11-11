@@ -75,7 +75,10 @@
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html, body { 
+    -webkit-font-smoothing: antialiased; 
+    -moz-osx-font-smoothing: grayscale; 
+}
 
 body {
     background-color: var(--bg);
@@ -272,12 +275,7 @@ body {
 .plan-card-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-        to bottom,
-        rgba(6, 28, 18, 0) 0%,
-        rgba(6, 28, 18, 0.1) 50%,
-        rgba(6, 28, 18, 0.55) 100%
-    );
+    background: linear-gradient(to bottom, rgba(6, 28, 18, 0) 0%, rgba(6, 28, 18, 0.1) 50%, rgba(6, 28, 18, 0.55) 100%);
     pointer-events: none;
 }
 
@@ -391,13 +389,6 @@ body {
     animation: pulse-dot-green 2s ease-in-out infinite;
 }
 
-@media (max-width: 700px) {
-    .home-container { padding: 40px 20px 56px; }
-    .home-hero h1 { font-size: 32px; letter-spacing: -1px; }
-    .plans-grid { grid-template-columns: 1fr; }
-    .plan-card-media { height: 180px; }
-}
-
 /* ============================================================
    LAYOUT PRINCIPAL
    ============================================================ */
@@ -407,9 +398,6 @@ body {
     overflow: hidden;
 }
 
-/* ============================================================
-   MAIN CONTENT
-   ============================================================ */
 .main-content {
     flex: 1;
     padding: 0 48px 40px;
@@ -542,18 +530,8 @@ body {
     right: -48px;
     z-index: 0;
     pointer-events: none;
-    -webkit-mask-image: linear-gradient(to right,
-        transparent 0%,
-        transparent 32%,
-        rgba(0,0,0,0.35) 50%,
-        black 72%,
-        black 100%);
-    mask-image: linear-gradient(to right,
-        transparent 0%,
-        transparent 32%,
-        rgba(0,0,0,0.35) 50%,
-        black 72%,
-        black 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 32%, rgba(0,0,0,0.35) 50%, black 72%, black 100%);
+    mask-image: linear-gradient(to right, transparent 0%, transparent 32%, rgba(0,0,0,0.35) 50%, black 72%, black 100%);
 }
 
 .plan-hero-image img {
@@ -686,7 +664,7 @@ body {
     width: 1650px;
     height: 850px;
     pointer-events: none;
-    z-index: 1;
+    z-index: 3 !important;
 }
 
 .node {
@@ -698,7 +676,7 @@ body {
     align-items: center;
     gap: 10px;
     box-shadow: var(--shadow-sm);
-    z-index: 2;
+    z-index: 2 !important;
     border: 1px solid var(--border);
     transition: transform 0.15s, box-shadow 0.15s;
 }
@@ -779,12 +757,12 @@ body {
     height: 140px;
     background: var(--white);
     border: 1.5px solid var(--red-600);
-    border-radius: var(--r-md);
+    border-radius: 2px !important;
     transform: rotate(45deg);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2;
+    z-index: 2 !important;
     box-shadow: var(--shadow-sm);
 }
 
@@ -805,7 +783,7 @@ body {
     position: absolute;
     background: var(--gray-100);
     border-radius: var(--r-lg);
-    z-index: 0;
+    z-index: 2 !important;
     opacity: 1;
     border: 1px dashed var(--gray-200);
 }
@@ -819,6 +797,17 @@ body {
 }
 .flowchart-wrapper::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
 
+.swipe-hint {
+    display: none;
+}
+
+.flowchart-wrapper .node,
+.flowchart-wrapper .diamond-wrapper,
+.flowchart-wrapper .node *,
+.flowchart-wrapper .diamond-wrapper *,
+.flowchart-wrapper .connectors {
+    touch-action: manipulation;
+}
 /* ============================================================
    PROGRESO
    ============================================================ */
@@ -890,27 +879,50 @@ body {
 .filters-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 .filter-btn {
-    background: var(--white);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    padding: 7px 14px;
-    border-radius: var(--r-full);
-    font-size: 12px;
-    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9; /* Fondo gris claro */
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #334155;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
     font-family: inherit;
 }
 .filter-btn:hover {
-    border-color: #BBF7D0;
-    color: var(--primary);
-    background: var(--green-50);
+    background: #e2e8f0;
 }
 .filter-btn.active {
-    background: var(--green-800);
-    color: var(--white);
-    border-color: var(--green-800);
-    box-shadow: var(--shadow-sm);
+    background: #0f172a; /* Fondo oscuro */
+    color: #ffffff;
+}
+
+/* Puntos de colores */
+.filter-btn .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Burbuja con el número */
+.filter-btn .badge {
+    background: #ffffff;
+    color: #334155;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+/* Ajuste de la burbuja cuando el botón está activo */
+.filter-btn.active .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
 }
 
 .btn-agregar {
@@ -1185,6 +1197,23 @@ body {
     line-height: 1.5;
 }
 
+/* Selector de gerencia en el login */
+#login-gerencia {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: var(--r-md, 10px);
+    background: #fff;
+    font-size: 0.95rem;
+    color: #0f172a;
+    margin-bottom: 18px;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 18px;
+}
+
 /* ============================================================
    USER PILL
    ============================================================ */
@@ -1213,6 +1242,109 @@ body {
     transition: all 0.15s;
 }
 .logout-btn:hover { background: var(--red-50); color: var(--red-600); }
+
+/* ============================================================
+   NUEVO PERFIL DE USUARIO MÓVIL (MENÚ DESPLEGABLE)
+   ============================================================ */
+.user-profile-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.mobile-only { display: none !important; }
+
+.btn-perfil-movil {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--white);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s;
+}
+
+.btn-perfil-movil:active {
+    transform: scale(0.95);
+    background: var(--gray-50);
+}
+
+.menu-perfil-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 220px;
+    background: var(--white);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    z-index: 3000;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.menu-perfil-dropdown.active {
+    display: flex;
+}
+
+.menu-perfil-header {
+    padding: 12px 16px;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+}
+
+.menu-perfil-header strong {
+    font-size: 13px;
+    color: var(--text-strong);
+}
+
+.menu-perfil-btn {
+    padding: 14px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--gray-100);
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.menu-perfil-btn i {
+    width: 16px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.menu-perfil-btn:hover {
+    background: var(--gray-50);
+}
+
+.menu-perfil-btn.btn-rojo {
+    color: var(--red-600);
+    border-bottom: none;
+}
+
+.menu-perfil-btn.btn-rojo i {
+    color: var(--red-600);
+}
+
+.menu-perfil-btn.btn-rojo:hover {
+    background: var(--red-50);
+}
 
 /* ============================================================
    MODALES
@@ -1384,24 +1516,6 @@ body {
 .section-back i { font-size: 11px; }
 
 /* ============================================================
-   RESPONSIVE
-   ============================================================ */
-@media (max-width: 900px) {
-    .plan-hero { min-height: 160px; }
-    .plan-hero-image { left: 55%; }
-    .plan-hero-text h1 { font-size: 30px; }
-}
-
-@media (max-width: 560px) {
-    .top-bar { padding: 0 16px; height: 64px; }
-    .user-pill span { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .filters-bar { flex-direction: column; align-items: stretch; }
-    .main-content { padding: 20px; }
-    .section-header h1 { font-size: 26px; }
-    .plan-hero-text h1 { font-size: 28px; }
-}
-
-/* ============================================================
    CUSTOM SELECT
    ============================================================ */
 .custom-select { position: relative; width: 100%; }
@@ -1430,7 +1544,6 @@ body {
     box-shadow: var(--shadow-glow);
 }
 
-/* Estilos para el input real que reemplaza al span */
 #custom-select-input {
     flex: 1;
     width: 100%;
@@ -1438,29 +1551,23 @@ body {
     outline: none;
     background: transparent;
     font-family: inherit;
-    font-size: 14px; /* Mismo tamaño que el resto del login */
+    font-size: 14px;
     color: var(--gray-400);
     padding: 0;
     cursor: text;
 }
 
-/* Cambia el color del texto cuando ya se seleccionó un usuario */
 .custom-select.has-value #custom-select-input {
     color: var(--text-strong);
 }
 
-/* Ajusta el placeholder para que se vea igual que antes */
 #custom-select-input::placeholder {
     color: var(--gray-400);
     opacity: 1;
 }
 
-/* Aseguramos que la flechita no estorbe al hacer clic en el texto */
 .custom-select-arrow {
     pointer-events: none;
-}
-
-.custom-select-arrow {
     font-size: 11px;
     color: var(--gray-400);
     transition: transform 0.2s;
@@ -1852,11 +1959,6 @@ body {
     font-weight: 600;
 }
 
-@media (max-width: 700px) {
-    .filter-area-select { min-width: 0; width: 100%; }
-    .area-extra-row { flex-wrap: wrap; }
-}
-
 /* ============================================================
    COLUMNA ACCIONES Y BOTÓN EDITAR
    ============================================================ */
@@ -1929,10 +2031,9 @@ body {
     width: 100%;
 }
 
-/* --- LADO IZQUIERDO (Icono + Textos) --- */
 .total-panel-left {
     display: flex;
-    flex-direction: row; /* Asegura que el icono y el texto estén uno al lado del otro */
+    flex-direction: row;
     align-items: center;
     gap: 14px;
 }
@@ -1954,7 +2055,7 @@ body {
 
 .total-panel-text {
     display: flex;
-    flex-direction: column; /* Textos uno debajo del otro */
+    flex-direction: column;
     justify-content: center;
 }
 
@@ -1975,11 +2076,10 @@ body {
     line-height: 1.2;
 }
 
-/* --- LADO DERECHO (Monto + Moneda) --- */
 .total-panel-right {
     display: flex;
-    flex-direction: column; /* ⬅️ ESTO es lo que pone "Soles peruanos" abajo */
-    align-items: flex-end;  /* ⬅️ Alinea todo a la derecha */
+    flex-direction: column;
+    align-items: flex-end;
     justify-content: center;
 }
 
@@ -1999,21 +2099,6 @@ body {
     font-weight: 400;
 }
 
-/* Ajuste para móviles */
-@media (max-width: 640px) {
-    .total-panel {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-        padding: 16px;
-    }
-    .total-panel-right {
-        align-items: flex-start;
-        width: 100%;
-        padding-top: 12px;
-        border-top: 1px solid #DCFCE7;
-    }
-}
 /* ============================================================
    BLOQUE STICKY POR SECCIÓN
    ============================================================ */
@@ -2025,14 +2110,6 @@ body {
     padding-top: 6px;
     padding-bottom: 0;
     margin-bottom: 6px;
-}
-
-@media (max-width: 640px) {
-    .sticky-header-block {
-        position: static;
-        padding-bottom: 0;
-        margin-bottom: 0;
-    }
 }
 
 /* ============================================================
@@ -2111,7 +2188,6 @@ body {
     box-shadow: var(--shadow-md);
 }
 
-/* Tres formas de elegir la foto: cámara, galería o archivos */
 .foto-opciones {
     display: flex;
     align-items: center;
@@ -2216,211 +2292,8 @@ body {
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
 }
 /* ============================================================
-   AJUSTES FINALES PARA EL FLUJO Y MÓVIL
+   TELÉFONOS LLAMABLES EN FLUJO
    ============================================================ */
-
-/* El SVG va por encima de los nodos para que las flechas no se corten */
-.connectors {
-    z-index: 3 !important;
-}
-
-/* Los nodos y el rombo van por debajo del SVG */
-.node, .diamond-wrapper, .grey-box {
-    z-index: 2 !important;
-}
-
-/* Puntas del rombo casi rectas para que la flecha las toque perfectamente */
-.diamond-wrapper {
-    border-radius: 2px !important;
-}
-
-/* Indicador de deslizar en móvil */
-.swipe-hint {
-    display: none;
-}
-
-@media (max-width: 900px) {
-    .swipe-hint {
-        display: flex;
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: rgba(11, 107, 68, 0.9);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-        align-items: center;
-        gap: 8px;
-        z-index: 10;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        pointer-events: none;
-    }
-
-    /* Arreglar superposición del encabezado en móvil */
-    .plan-hero {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 20px 0;
-        min-height: auto;
-    }
-    .plan-hero .breadcrumb {
-        position: static;
-        margin-bottom: 20px;
-        display: block;
-    }
-    .plan-hero-text {
-        max-width: 100%;
-    }
-    .plan-hero-image {
-        display: none; /* Ocultar imagen de fondo en móvil para evitar que tape el texto */
-    }
-}
-/* El scroll horizontal y el zoom con dos dedos pasan a traves de los nodos */
-.flowchart-wrapper .node,
-.flowchart-wrapper .diamond-wrapper,
-.flowchart-wrapper .node *,
-.flowchart-wrapper .diamond-wrapper *,
-.flowchart-wrapper .connectors {
-    touch-action: manipulation;
-}
-/* ============================================================
-   TOOLTIPS PERSONALIZADOS EN FILTROS
-   ============================================================ */
-.filter-btn[data-tooltip] {
-    position: relative;
-}
-
-.filter-btn[data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    background: #FFFFFF;
-    color: var(--gray-900);
-    font-weight: 700;
-    font-size: 12px;
-    padding: 8px 14px;
-    border-radius: var(--r-md);
-    box-shadow: 0 10px 30px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.08);
-    border: 1px solid var(--border);
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
-    z-index: 100;
-    letter-spacing: 0;
-    line-height: 1.4;
-    text-transform: none;
-}
-
-.filter-btn[data-tooltip]:hover::after {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
-}
-
-/* Flechita del tooltip */
-.filter-btn[data-tooltip]::before {
-    content: '';
-    position: absolute;
-    bottom: calc(100% + 4px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    border: 6px solid transparent;
-    border-top-color: #FFFFFF;
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
-    z-index: 100;
-    filter: drop-shadow(0 2px 2px rgba(15,23,42,0.08));
-}
-
-.filter-btn[data-tooltip]:hover::before {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
-}
-/* ============================================================
-   TABLAS RESPONSIVE - TARJETAS EN MÓVIL
-   ============================================================ */
-@media (max-width: 700px) {
-    /* Ocultar el encabezado de la tabla */
-    .data-table thead {
-        display: none;
-    }
-
-    /* Cada fila se convierte en tarjeta */
-    .data-table,
-    .data-table tbody,
-    .data-table tr,
-    .data-table td {
-        display: block;
-        width: 100%;
-    }
-
-    .data-table tr {
-        background: var(--white);
-        border: 1px solid var(--border);
-        border-radius: var(--r-lg);
-        margin-bottom: 14px;
-        padding: 14px 16px;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .data-table td {
-        padding: 8px 0 !important;
-        border-bottom: 1px dashed var(--gray-100);
-        text-align: left !important;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 12px;
-        font-size: 13px;
-    }
-
-    .data-table td:last-child {
-        border-bottom: none;
-        padding-bottom: 0 !important;
-    }
-
-    /* Título de cada campo (viene del data-label) */
-    .data-table td::before {
-        content: attr(data-label);
-        font-weight: 700;
-        color: var(--text-muted);
-        font-size: 10.5px;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        flex-shrink: 0;
-        padding-top: 3px;
-        min-width: 100px;
-    }
-
-    /* Ajustes específicos */
-    .data-table td.input-costo,
-    .data-table td .input-costo {
-        width: 100% !important;
-    }
-
-    .data-table .fotos-cell,
-    .data-table .acciones-cell {
-        text-align: right !important;
-        justify-content: space-between;
-    }
-
-    /* Ocultar la celda de acciones si está vacía */
-    .data-table td.acciones-cell:empty {
-        display: none;
-    }
-}
-
-
-/* Numero de celular tocable dentro del diagrama de flujo */
 .tel-link {
     color: inherit;
     font-weight: 700;
@@ -2431,25 +2304,6 @@ body {
 }
 .tel-link:hover { text-decoration-color: #059669; }
 .tel-link::after { content: ' \260E'; font-size: .85em; opacity: .7; }
-
-
-/* Selector de gerencia en el login */
-#login-gerencia {
-    width: 100%;
-    padding: 14px 16px;
-    border: 1px solid var(--border, #e2e8f0);
-    border-radius: var(--r-md, 10px);
-    background: #fff;
-    font-size: 0.95rem;
-    color: #0f172a;
-    margin-bottom: 18px;
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 14px center;
-    background-size: 18px;
-}
-
 
 /* ============================================================
    MODAL CAMBIAR CONTRASEÑA
@@ -2542,13 +2396,15 @@ body {
 #modal-password button:disabled { opacity: .6; cursor: not-allowed; }
 #pass-error { margin-top: 14px !important; color: #dc2626 !important; font-size: .8rem !important; }
 
-/* ===== SEGMENTOS (Diseño Mejorado) ===== */
+/* ============================================================
+   SEGMENTOS (Diseño)
+   ============================================================ */
 .fila-segmento td { 
-    background: #047857 !important; /* Verde oscuro y sólido */
-    padding: 6px 16px !important;   /* Reducimos el alto para que sea compacto */
+    background: #047857 !important;
+    padding: 6px 16px !important;
     border: none !important;
-    border-radius: 6px 6px 0 0;     /* Borde superior sutil */
-    box-shadow: none !important;    /* Quitamos la sombra brillante */
+    border-radius: 6px 6px 0 0;
+    box-shadow: none !important;
 }
 
 .seg-cabecera { 
@@ -2560,7 +2416,7 @@ body {
 
 .seg-nombre { 
     font-weight: 700; 
-    font-size: 0.8rem;              /* Letra un poco más pequeña */
+    font-size: 0.8rem;
     letter-spacing: 0.05em; 
     text-transform: uppercase; 
     color: #ffffff; 
@@ -2573,7 +2429,6 @@ body {
     gap: 6px; 
 }
 
-/* Botones de las flechas adaptados al fondo oscuro */
 .seg-flecha { 
     border: 1px solid rgba(255, 255, 255, 0.4); 
     background: rgba(255, 255, 255, 0.15); 
@@ -2616,146 +2471,166 @@ body.modo-lectura .btn-remove-area,
 body.modo-lectura .btn-add-area { display: none !important; }
 body.modo-lectura .input-costo { pointer-events: none; background: transparent; border-color: transparent; }
 
-
-/* ===== AJUSTES MOVIL ===== */
-@media (max-width: 768px) {
-    .fila-segmento td { text-align: left !important; padding: 10px 14px !important; }
-    .seg-nombre { font-size: .72rem; line-height: 1.35; display: block; }
-    .data-table td.acciones-cell:not(:has(button)) { display: none !important; }
-    .btn-alarma-fila { width: 40px; height: 40px; font-size: 15px; }
-    .btn-editar-fila { width: 40px; height: 40px; font-size: 15px; }
-    .section-back { font-size: .85rem; }
-    #section-antes h1, #section-durante h1, #section-despues h1 { font-size: 1.6rem !important; }
-    .progreso-panel, .avance-panel { padding: 12px 14px !important; }
+/* ============================================================
+   BOTÓN DE MODO PRESENTACIÓN
+   ============================================================ */
+.btn-expandir {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
 }
 
-
-/* ===== MOVIL COMPACTO ===== */
-@media (max-width: 768px) {
-    .top-bar { padding: 6px 10px !important; gap: 8px !important; }
-    .logo-img { height: 26px !important; }
-    .logo-text span { font-size: .48rem !important; letter-spacing: .04em !important; }
-    .logo-text strong { font-size: .8rem !important; }
-    .modo-toggle button { width: 32px !important; height: 32px !important; }
-    .user-pill { padding: 4px 8px !important; font-size: .76rem !important; gap: 6px !important; }
-    #user-name { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .user-pill .logout-btn { width: 22px !important; height: 22px !important; font-size: .75rem !important; }
-
-    .section-view h1 { font-size: 1.35rem !important; margin: 4px 0 8px !important; }
-    .section-back { font-size: .8rem !important; }
-
-    .data-table { border: none !important; background: transparent !important; }
-    .data-table thead { display: none !important; }
-    .data-table, .data-table tbody, .data-table tr, .data-table td { display: block !important; width: 100% !important; }
-
-    .data-table tr:not(.fila-segmento) {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 10px 12px !important;
-        margin-bottom: 10px;
-    }
-
-    .data-table td {
-        display: flex !important;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-        padding: 3px 0 !important;
-        border: none !important;
-        font-size: .82rem !important;
-        text-align: right;
-        min-height: 22px;
-    }
-    .data-table td::before {
-        content: attr(data-label);
-        color: #94a3b8;
-        font-size: .65rem;
-        font-weight: 700;
-        letter-spacing: .05em;
-        text-align: left;
-        flex: 0 0 auto;
-    }
-    .data-table td[data-label="Actividad"] {
-        display: block !important;
-        text-align: left !important;
-        font-size: .88rem !important;
-        font-weight: 600;
-        padding-bottom: 6px !important;
-        border-bottom: 1px dashed #e2e8f0 !important;
-        margin-bottom: 4px;
-    }
-    .data-table td[data-label="Actividad"]::before { display: none; }
-    .data-table td.acciones-cell:not(:has(button)) { display: none !important; }
-    .data-table td.fotos-cell { display: flex !important; }
-
-    .fila-segmento td {
-        background: #ecfdf5 !important;
-        border: 1px solid #bbf7d0 !important;
-        border-radius: 12px !important;
-        text-align: left !important;
-        padding: 8px 12px !important;
-        margin: 4px 0 8px;
-        font-size: .74rem !important;
-    }
-    .seg-cabecera { align-items: center; }
-    .seg-nombre { font-size: .72rem !important; line-height: 1.3; }
-
-    .badge-estado { font-size: .72rem !important; padding: 4px 8px !important; }
-    .input-costo { width: 92px !important; font-size: .82rem !important; padding: 4px 6px !important; }
-    .btn-fotos { padding: 4px 8px !important; font-size: .74rem !important; }
-    .btn-alarma-fila, .btn-editar-fila { width: 34px !important; height: 34px !important; font-size: 13px !important; }
+.btn-expandir:hover {
+    background: var(--green-50);
+    color: var(--primary);
+    border-color: var(--primary);
 }
 
-
-/* ===== MOVIL: ENCABEZADO DE SEGMENTO ===== */
-@media (max-width: 768px) {
-    .data-table tr.fila-segmento {
-        background: #047857 !important; /* Verde oscuro sólido también en móvil */
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 0 !important;
-        margin: 6px 0 8px !important;
-        box-shadow: none !important;
-    }
-    .data-table tr.fila-segmento td {
-        display: block !important;
-        text-align: left !important;
-        padding: 6px 14px !important; /* Más compacto */
-        margin: 0 !important;
-        border: none !important;
-        background: transparent !important;
-    }
-    /* ... (deja el resto igual) ... */
-    .fila-segmento td::before { display: none !important; }
-    .fila-segmento .seg-cabecera {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        gap: 8px !important;
-        width: 100% !important;
-    }
-    .fila-segmento .seg-nombre {
-        flex: 1 1 auto !important;
-        text-align: left !important;
-        font-size: .8rem !important;
-        color: #ffffff !important;
-        line-height: 1.25 !important;
-        white-space: normal !important;
-        margin: 0 !important;
-    }
-    .fila-segmento .seg-acciones { flex: 0 0 auto !important; display: flex; gap: 6px; }
-    .fila-segmento .seg-flecha { 
-        width: 28px !important; height: 28px !important; 
-        font-size: .7rem !important; 
-        background: rgba(255, 255, 255, 0.2) !important;
-        color: #ffffff !important;
-        border-color: rgba(255, 255, 255, 0.4) !important;
-    }
+/* --- MODO PRESENTACIÓN --- */
+body.modo-presentacion .top-bar,
+body.modo-presentacion #sem-banda, 
+body.modo-presentacion .breadcrumb,
+body.modo-presentacion .section-back,
+body.modo-presentacion .sticky-header-block {
+    display: none !important;
 }
 
+body.modo-presentacion .main-content {
+    padding: 15px !important;
+    background: #fff;
+}
 
-/* ===== MODAL MODERNO ===== */
+body.modo-presentacion .table-wrapper {
+    margin-top: 0 !important;
+    border: none;
+    box-shadow: none;
+}
+
+body.modo-presentacion .data-table thead th {
+    background: #fff;
+    border-bottom: 2px solid var(--border);
+}
+
+body.modo-presentacion .btn-alarma-fila {
+    display: none !important;
+}
+
+/* ===== PUNTOS DE COLORES SEGÚN EL ESTADO ===== */
+.data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
+    position: relative;
+    padding-left: 24px !important;
+}
+
+.data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: var(--dot-color, #cbd5e1); 
+    border-radius: 50%;
+}
+
+/* ===== BOTÓN DE CONTRAER/EXPANDIR (Flecha) ===== */
+.btn-contraer {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.btn-contraer:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.btn-contraer i {
+    transition: transform 0.3s ease;
+}
+
+.btn-contraer.contraido i {
+    transform: rotate(-180deg);
+}
+
+/* ============================================================
+   TOOLTIPS PERSONALIZADOS EN FILTROS
+   ============================================================ */
+.filter-btn[data-tooltip] {
+    position: relative;
+}
+
+.filter-btn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #FFFFFF;
+    color: var(--gray-900);
+    font-weight: 700;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: var(--r-md);
+    box-shadow: 0 10px 30px rgba(15,23,42,0.18), 0 2px 6px rgba(15,23,42,0.08);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+    z-index: 100;
+    letter-spacing: 0;
+    line-height: 1.4;
+    text-transform: none;
+}
+
+.filter-btn[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.filter-btn[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    border: 6px solid transparent;
+    border-top-color: #FFFFFF;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+    z-index: 100;
+    filter: drop-shadow(0 2px 2px rgba(15,23,42,0.08));
+}
+
+.filter-btn[data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================================
+   MODAL AGREGAR - ESTILOS MODERNOS
+   ============================================================ */
 #modal-agregar .modal-body label {
     font-size: .68rem;
     font-weight: 700;
@@ -2803,419 +2678,214 @@ body.modo-lectura .input-costo { pointer-events: none; background: transparent; 
 }
 
 #modal-agregar select:disabled { background-color: #f8fafc; color: #94a3b8; }
-
 #modal-agregar .areas-responsable-container select { margin-bottom: 8px; }
 #modal-agregar .btn-add-area { margin-bottom: 4px; }
 #modal-agregar .btn-add-area + label { margin-top: 18px; }
+
 /* ============================================================
-   BOTÓN DE MODO PRESENTACIÓN Y ESTILOS
+   RESPONSIVE (LIMPIEZA Y CORRECCIÓN RAÍZ)
    ============================================================ */
-.btn-expandir {
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: var(--r-sm);
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-}
 
-.btn-expandir:hover {
-    background: var(--green-50);
-    color: var(--primary);
-    border-color: var(--primary);
-}
-
-/* --- MODO PRESENTACIÓN --- */
-body.modo-presentacion .top-bar,
-body.modo-presentacion #sem-banda, 
-body.modo-presentacion .breadcrumb,
-body.modo-presentacion .section-back,
-body.modo-presentacion .sticky-header-block {
-    display: none !important;
-}
-
-body.modo-presentacion .main-content {
-    padding: 15px !important;
-    background: #fff;
-}
-
-body.modo-presentacion .table-wrapper {
-    margin-top: 0 !important;
-    border: none;
-    box-shadow: none;
-}
-
-body.modo-presentacion .data-table thead th {
-    background: #fff;
-    border-bottom: 2px solid var(--border);
-}
-/* ===== PUNTOS DE COLORES SEGÚN EL ESTADO ===== */
-.data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
-    position: relative;
-    padding-left: 24px !important;
-}
-
-.data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::before {
-    content: '';
-    position: absolute;
-    left: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 8px;
-    /* Usamos una variable. Si no tiene color, se pone gris por defecto */
-    background-color: var(--dot-color, #cbd5e1); 
-    border-radius: 50%;
-}
-
-@media (max-width: 768px) {
-    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"] {
-        padding-left: 20px !important;
-    }
-    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::before {
-        top: 12px;
-        transform: none;
-    }
-}
-
-/* ===== BOTÓN DE CONTRAER/EXPANDIR (Flecha) ===== */
-.btn-contraer {
-    background: rgba(255, 255, 255, 0.15); /* Fondo semitransparente para que resalte */
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #ffffff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 6px;
-    transition: all 0.2s;
-}
-
-.btn-contraer:hover {
-    background: rgba(255, 255, 255, 0.35);
-}
-
-.btn-contraer i {
-    transition: transform 0.3s ease;
-}
-
-/* Cuando la flecha está contraída, gira hacia abajo */
-.btn-contraer.contraido i {
-    transform: rotate(-180deg);
-}
-/* ============================================================
-   OCULTAR BOTÓN DE ALARMA EN MODO PRESENTACIÓN
-   ============================================================ */
-body.modo-presentacion .btn-alarma-fila {
-    display: none !important;
-}
-/* Estilos para los botones de filtro */
-.filter-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: #f1f5f9; /* Fondo gris claro */
-    border: 1px solid transparent;
-    border-radius: 12px;
-    padding: 8px 14px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #334155;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.filter-btn:hover {
-    background: #e2e8f0;
-}
-
-/* Cuando el botón está seleccionado (Activo) */
-.filter-btn.active {
-    background: #0f172a; /* Fondo oscuro */
-    color: #ffffff;
-}
-
-/* Puntos de colores */
-.filter-btn .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-/* Burbuja con el número */
-.filter-btn .badge {
-    background: #ffffff;
-    color: #334155;
-    padding: 2px 7px;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 800;
-}
-
-/* Ajuste de la burbuja cuando el botón está activo */
-.filter-btn.active .badge {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
-}
-/* ============================================================
-   NUEVO PERFIL DE USUARIO MÓVIL (MENÚ DESPLEGABLE)
-   ============================================================ */
-.user-profile-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-/* Ocultar/Mostrar según el dispositivo */
-.mobile-only { display: none !important; }
-@media (max-width: 768px) {
-    .desktop-only { display: none !important; }
-    .mobile-only { display: flex !important; }
-}
-
-/* Botón redondo para celular */
-.btn-perfil-movil {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: var(--white);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.2s;
-}
-
-.btn-perfil-movil:active {
-    transform: scale(0.95);
-    background: var(--gray-50);
-}
-
-/* Menú desplegable */
-.menu-perfil-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    width: 220px;
-    background: var(--white);
-    border-radius: var(--r-md);
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--border);
-    z-index: 3000;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.menu-perfil-dropdown.active {
-    display: flex;
-}
-
-/* Cabecera del menú */
-.menu-perfil-header {
-    padding: 12px 16px;
-    background: var(--gray-50);
-    border-bottom: 1px solid var(--border);
-    text-align: center;
-}
-
-.menu-perfil-header strong {
-    font-size: 13px;
-    color: var(--text-strong);
-}
-
-/* Botones dentro del menú */
-.menu-perfil-btn {
-    padding: 14px 16px;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--gray-100);
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: background 0.15s;
-}
-
-.menu-perfil-btn i {
-    width: 16px;
-    text-align: center;
-    color: var(--text-muted);
-}
-
-.menu-perfil-btn:hover {
-    background: var(--gray-50);
-}
-
-/* Botón de cerrar sesión */
-.menu-perfil-btn.btn-rojo {
-    color: var(--red-600);
-    border-bottom: none;
-}
-
-.menu-perfil-btn.btn-rojo i {
-    color: var(--red-600);
-}
-
-.menu-perfil-btn.btn-rojo:hover {
-    background: var(--red-50);
-}
-/* ============================================================
-   CORRECCIÓN MÓVIL: TARJETAS DE MEDIDAS Y MENÚ FLOTANTE
-   ============================================================ */
-@media (max-width: 768px) {
-    /* 1. Convertir la fila de la tabla en una tarjeta vertical */
-    .data-table tr:not(.fila-segmento) {
-        display: flex !important;
-        flex-direction: column !important; /* Apila todo hacia abajo */
-        padding: 16px !important;
-        border-radius: 14px !important;
-        background: #ffffff !important;
-        border: 1px solid #e2e8f0 !important;
-        margin-bottom: 14px !important;
-        box-shadow: 0 2px 8px rgba(15,23,42,0.04) !important;
-        margin-left: 45px; /* Deja espacio para el menú flotante verde */
-    }
-
-    /* 2. El texto de la actividad ocupa todo el ancho */
-    .data-table td[data-label="Actividad"] {
-        display: block !important;
-        padding: 0 0 10px 0 !important;
-        border-bottom: 1px dashed #e2e8f0 !important;
-        margin-bottom: 10px !important;
-        font-size: 0.9rem !important;
-        line-height: 1.45 !important;
-        text-align: left !important;
-    }
-
-    /* 3. Las etiquetas de Área bajan y se acomodan una debajo de otra */
-    .data-table td[data-label="Área"] {
-        display: block !important; /* Esto evita que se aplasten a la derecha */
-        text-align: left !important;
-        padding: 4px 0 !important;
-        border: none !important;
-    }
+/* 1. Tablets */
+@media (max-width: 900px) {
+    .plan-hero { min-height: auto; padding: 20px 0; flex-direction: column; align-items: flex-start; }
+    .plan-hero-image { display: none; }
+    .plan-hero-text { max-width: 100%; }
+    .plan-hero-text h1 { font-size: 32px; }
     
-    /* Ocultamos el texto "ÁREA" para que se vea más limpio */
-    .data-table td[data-label="Área"]::before {
-        display: none !important;
-    }
-
-    /* 4. Los demás campos se alinean a la izquierda */
-    .data-table td:not([data-label="Actividad"]) {
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        padding: 6px 0 !important;
-        border-bottom: 1px solid #f1f5f9 !important;
-        font-size: 0.8rem !important;
-    }
-    
-    .data-table td:last-child {
-        border-bottom: none !important;
+    .swipe-hint {
+        display: flex;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(11, 107, 68, 0.9);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        align-items: center;
+        gap: 8px;
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        pointer-events: none;
     }
 }
-/* ============================================================
-   CORRECCIONES FINALES DE DISEÑO MÓVIL (PEGAR AL FINAL)
-   ============================================================ */
+
+/* 2. Celulares (iOS y Android) */
 @media (max-width: 768px) {
-    /* 1. Arreglar el desbordamiento horizontal (El causante del zoom) */
-    html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-    }
-    
-    /* 2. Quitar el margen de 45px que empujaba las tarjetas a la derecha */
-    .data-table tr:not(.fila-segmento) {
-        margin-left: 0 !important; 
-        padding: 14px !important;
+    /* Forzar que nada se salga del ancho de la pantalla */
+    html, body { 
+        overflow-x: hidden !important; 
+        width: 100% !important; 
     }
 
-    /* 3. Ajustar el encabezado superior (Header) para que no se aplaste */
+    /* --- HEADER --- */
     .top-bar {
-        flex-wrap: wrap !important;
         height: auto !important;
+        flex-direction: column !important;
         padding: 10px !important;
         gap: 10px !important;
-        justify-content: center !important;
     }
-    .logo-area { margin-bottom: 5px; justify-content: center; width: 100%; }
-    .header-right { width: 100%; justify-content: center; }
+    .logo-area { justify-content: center; width: 100%; gap: 8px; }
+    .logo-img { height: 30px !important; }
+    .logo-text span { font-size: .48rem !important; letter-spacing: .04em !important; }
+    .logo-text strong { font-size: .8rem !important; }
+    
+    .header-right { width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px; }
+    .modo-toggle button { width: 32px !important; height: 32px !important; }
+    
+    /* Perfil móvil */
+    .desktop-only { display: none !important; }
+    .mobile-only { display: flex !important; }
+    .user-pill { padding: 4px 8px !important; font-size: .76rem !important; gap: 6px !important; }
+    #user-name { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-pill .logout-btn { width: 22px !important; height: 22px !important; font-size: .75rem !important; }
 
-    /* 4. Arreglar la barra verde de los segmentos (GERENCIA DE CAMPO) */
+    /* --- CONTENIDO PRINCIPAL --- */
+    .main-content { padding: 16px 12px 40px; }
+    .section-view h1 { font-size: 1.35rem !important; margin: 4px 0 8px !important; }
+    .section-back { font-size: .8rem !important; }
+    #section-antes h1, #section-durante h1, #section-despues h1 { font-size: 1.6rem !important; }
+
+    /* --- FILTROS --- */
+    .filters-bar { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; margin-bottom: 16px; }
+    .filters-left { display: flex !important; overflow-x: auto !important; flex-wrap: nowrap !important; padding-bottom: 6px; width: 100%; -webkit-overflow-scrolling: touch; }
+    .filter-btn { flex-shrink: 0 !important; }
+    
+    .filters-right { display: flex; flex-wrap: wrap; width: 100%; gap: 8px; }
+    .filters-right select, .filters-right button { flex: 1 1 45%; font-size: 0.75rem !important; }
+
+    /* --- TABLAS EN TARJETAS --- */
+    .data-table { border: none !important; background: transparent !important; }
+    .data-table thead { display: none !important; }
+    .data-table, .data-table tbody, .data-table tr, .data-table td { display: block !important; width: 100% !important; }
+
+    .data-table tr:not(.fila-segmento) {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px !important;
+        margin-bottom: 12px;
+        margin-left: 0 !important; /* AQUÍ SE ELIMINÓ EL MARGIN-LEFT: 45px */
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .data-table td {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 6px 0 !important;
+        border-bottom: 1px dashed var(--gray-100) !important;
+        text-align: right;
+        font-size: 0.85rem !important;
+    }
+    .data-table td:last-child { border-bottom: none !important; padding-bottom: 0 !important; }
+
+    .data-table td::before {
+        content: attr(data-label);
+        color: var(--gray-500);
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        text-align: left;
+        flex-shrink: 0;
+        padding-top: 2px;
+    }
+
+    .data-table td[data-label="Actividad"] {
+        display: block !important;
+        text-align: left !important;
+        font-size: 0.95rem !important;
+        font-weight: 600;
+        border-bottom: 1px solid var(--border) !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 6px;
+        padding-left: 18px !important;
+        position: relative;
+    }
+    .data-table td[data-label="Actividad"]::before { display: none; }
+    
+    .data-table tbody tr:not(.fila-segmento) td[data-label="Actividad"]::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 9px;
+        width: 8px;
+        height: 8px;
+        background-color: var(--dot-color, #cbd5e1);
+        border-radius: 50%;
+    }
+
+    /* --- BARRA VERDE DE LOS SEGMENTOS --- */
+    .data-table tr.fila-segmento {
+        background: #047857 !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0 !important;
+        margin: 6px 0 8px !important;
+        box-shadow: none !important;
+    }
+    .data-table tr.fila-segmento td {
+        display: block !important;
+        text-align: left !important;
+        padding: 10px 14px !important;
+        margin: 0 !important;
+        border: none !important;
+        background: transparent !important;
+    }
+    .fila-segmento td::before { display: none !important; }
+    
     .fila-segmento .seg-cabecera {
+        display: flex !important;
         flex-direction: column !important;
         align-items: flex-start !important;
+        justify-content: space-between !important;
         gap: 10px !important;
+        width: 100% !important;
     }
     .fila-segmento .seg-nombre {
-        width: 100% !important;
-        font-size: 0.8rem !important;
-        line-height: 1.3 !important;
+        flex: 1 1 auto !important;
         text-align: left !important;
+        font-size: .85rem !important;
+        color: #ffffff !important;
+        line-height: 1.3 !important;
+        white-space: normal !important;
+        margin: 0 !important;
+        width: 100% !important;
     }
-    .fila-segmento .seg-acciones {
+    .fila-segmento .seg-acciones { 
+        flex: 0 0 auto !important; 
+        display: flex; 
+        gap: 6px; 
         width: 100% !important;
         justify-content: flex-end !important;
     }
-
-    /* 5. Arreglar los filtros y la barra de progreso */
-    .filters-bar {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 12px !important;
-    }
-    .filters-left {
-        display: flex !important;
-        overflow-x: auto !important; /* Scroll horizontal para los filtros */
-        padding-bottom: 4px !important;
-        width: 100% !important;
-    }
-    .filter-btn { flex-shrink: 0 !important; }
-    .filters-right {
-        width: 100% !important;
-        flex-wrap: wrap !important;
-        justify-content: space-between !important;
-    }
-    .filters-right select, .filters-right button {
-        flex: 1 1 45% !important;
-        font-size: 0.75rem !important;
+    .fila-segmento .seg-flecha { 
+        width: 28px !important; height: 28px !important; 
+        font-size: .7rem !important; 
+        background: rgba(255, 255, 255, 0.2) !important;
+        color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.4) !important;
     }
 
-    /* 6. Arreglar las tarjetas de medidas (Actividad, Costos, etc.) */
-    .data-table td::before {
-        min-width: 75px !important; /* Reducir espacio del label */
-        font-size: 0.65rem !important;
-    }
-    .data-table td[data-label="Actividad"] {
-        padding-left: 15px !important; /* Ajustar el espacio del punto de color */
-    }
-    .input-costo {
-        width: 100% !important; /* El input de costo ocupa todo el ancho en móvil */
-        max-width: 110px !important;
-        text-align: right;
-    }
+    /* --- AJUSTES FINOS --- */
+    .badge-estado { font-size: .72rem !important; padding: 4px 8px !important; }
+    .input-costo { width: 100% !important; max-width: 100px !important; text-align: right; }
+    .btn-fotos { padding: 4px 8px !important; font-size: .74rem !important; }
+    .btn-alarma-fila, .btn-editar-fila { width: 34px !important; height: 34px !important; font-size: 13px !important; }
     
-    /* Ajustar botones de acción para que no se salgan */
-    .btn-editar-fila, .btn-alarma-fila, .btn-fotos {
-        padding: 6px 10px !important;
-        font-size: 0.75rem !important;
-    }
+    .total-panel { flex-direction: column; align-items: flex-start; gap: 16px; padding: 16px; }
+    .total-panel-right { align-items: flex-start; width: 100%; padding-top: 12px; border-top: 1px solid #DCFCE7; }
 }
+
+/* 3. Pantallas muy pequeñas */
+@media (max-width: 560px) {
+    .section-header h1 { font-size: 22px; }
+    .plan-hero-text h1 { font-size: 26px; }
+}
+
+/* ============================================================
+   FIN DEL ARCHIVO
+   ============================================================ */
