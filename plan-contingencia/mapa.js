@@ -144,12 +144,33 @@ function normalizar(v) {
 /* Quién ve el mapa: toda la Gerencia de Campo, el gerente directo de cada
    gerencia y César Chunga (el único que lo edita). Nadie más. */
 
+/* Permisos de visibilidad por persona (los pone el panel «Personas»).
+   Si la sesión viene de una versión anterior sin los campos, se usa el
+   criterio viejo para no dejar a nadie afuera. */
+function permisosMapa(u) {
+    if (!u) return { medidas: false, mapa: false, compuertas: false };
+    if (typeof u.puede_medidas !== 'boolean' && typeof u.puede_mapa !== 'boolean') {
+        const mapa = ['gerente_general', 'gerencial_legal', 'gdo', 'gerente_campo'].indexOf(u.rol) !== -1
+                  || normalizar(u.gerencia_key || '').indexOf('gerencia de campo') === 0
+                  || normalizar((u.seccion || '') + ' ' + (u.area || '')).indexOf('seguridad industrial') !== -1
+                  || normalizar(u.area || '').indexOf('chunga') !== -1;
+        const soloCompuertas = String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO'
+                            && String(u.rol || '').trim().toLowerCase() === 'area';
+        return { medidas: !soloCompuertas, mapa: mapa && !soloCompuertas, compuertas: mapa || soloCompuertas };
+    }
+    return {
+        medidas: u.puede_medidas === true,
+        mapa: u.puede_mapa === true,
+        compuertas: u.puede_compuertas === true || u.puede_mapa === true
+    };
+}
+
 function accesoPermitido() {
     if (sesionConductor()) return true;
     const u = usuarioPlan();
     if (!u) return false;
-    if (['gerente_general', 'gerencial_legal', 'gdo', 'gerente_campo'].indexOf(u.rol) !== -1) return true;
-    if (normalizar(u.gerencia_key || '').indexOf('gerencia de campo') === 0) return true;
+    const p = permisosMapa(u);
+    if (p.mapa || p.compuertas) return true;
     return puedeEditarMapa();
 }
 
@@ -3325,11 +3346,12 @@ function volverAlOrigen(e) {
 }
 (async () => {
     const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
-    
-    // Solo el rol 'area' de Gerencia de Campo se queda sin mapa (ve compuertas)
-    if (u && String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO' && String(u.rol || '').trim().toLowerCase() === 'area') {
-        console.log("Rol area de campo detectado. Omitiendo carga del mapa.");
-        return; // Detenemos la ejecución para que no se dibuje el mapa
+
+    // Quien solo tiene compuertas no dibuja el mapa: su pantalla es el
+    // panel de compuertas (lo abre mapa.html).
+    if (u && permisosMapa(u).compuertas && !permisosMapa(u).mapa) {
+        console.log('Permiso solo compuertas. Omitiendo carga del mapa.');
+        return;
     }
 
     await cargarSesionConductor();

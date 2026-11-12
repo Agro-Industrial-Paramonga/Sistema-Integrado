@@ -481,6 +481,81 @@ casilla que persiste, formulario) y las RPC; el envío real no se disparó para 
 las 6 unidades en turno silenciadas (quedaron así de las pruebas del mediodía). Con eso, la
 alarma de semáforo no llega a nadie hasta que se vuelvan a poner en verde.
 
+---
+
+## 18. Permisos por persona y arreglo del reparto de alarmas (12-nov, tarde)
+
+### El fallo que se reportó
+
+«Apago el semáforo a una persona y le sigue llegando». La casilla se guardaba bien
+(`app_log` lo prueba): el problema era **a quién se le atribuía el celular**.
+
+`push_subscriptions` tenía **80 filas** y el mismo token a nombre de 2 o 3 personas
+(`cbOoDZc…` estaba en AGUILA CHINCHAY, ASENCIOS SANCHEZ y VILLAFRANCA). La función
+`destinatarios_push` emparejaba la suscripción con la sesión **solo por token**
+(`s.token_push = ps.token`), así que la fila de cualquiera de esos tres pasaba el filtro.
+Después se aplicaba la casilla **de esa fila**, y `distinct on (token)` devolvía una al azar.
+Bastaba que uno de los tres tuviera el semáforo prendido para que el teléfono sonara.
+
+El cliente además registraba el celular **por sección** (`guardarTokenPush` usaba
+`user.seccion`), no por persona, y `cerrar_sesion_panel` no borraba la suscripción.
+
+### Cómo queda
+
+| Regla | Detalle |
+|---|---|
+| Un equipo, un dueño | `registrar_token_persona()` guarda el token a nombre de la persona de la sesión. Si el token ya estaba a nombre de otro, **borra esas filas** |
+| El dueño manda | `destinatarios_push` resuelve primero **de quién es el celular** (persona de la sesión viva más reciente con ese token) y después aplica maestro y casilla |
+| Sin rastro al salir | `cerrar_sesion_panel` borra la suscripción de ese token (las `ios-` con webhook no se tocan) |
+| Orden de filtros | switch maestro (`alarmas_silenciadas`) → casilla (`suscripciones_alarma`) → enviar. Sin reglas por rol |
+| Limpieza | cada token quedó con **una** fila: de 80 a 31 |
+
+### Permisos de visibilidad (nuevos)
+
+Columnas en `usuarios`: `puede_medidas`, `puede_mapa`, `puede_compuertas`.
+
+- `mapa` implica `compuertas`; `compuertas` sola es válida; `medidas` es independiente.
+- **Semáforo**: lo ven quienes tengan `medidas` o `mapa`. El de solo compuertas no.
+- `rol` y `gerencia_key` quedan como dato de registro: **no dan visibilidad ni alarmas**.
+- Migración: a los 53 usuarios se les puso lo que ya veían (8 quedaron solo compuertas).
+
+### Paneles
+
+| Panel | Qué hace |
+|---|---|
+| **Usuarios y alarmas** (`alarmas_panel.js?v=2`) | Las 53 personas, estén o no logueadas. Interruptor **Todas** + casillas semáforo / compuertas / medida. Ya **no** da de alta |
+| **＋ Personas** (`personas_panel.js?v=1`) | Alta y edición: nombre, sección, contraseña, rol y gerencia (solo registro) y los tres permisos. Las casillas de alarma del usuario nuevo **arrancan apagadas** |
+
+Los dos son solo de Seguridad Industrial y comparten `alarmas_personas_lista()`.
+
+### SQL aplicado
+
+`plan-contingencia/sql/permisos_usuario.sql` (idempotente). Recrea `mi_perfil`,
+`crear_usuario_panel`, `editar_usuario_panel`, `alarmas_personas_lista`,
+`destinatarios_push`, `cerrar_sesion_panel`, `adjuntar_token_dispositivo` y agrega
+`registrar_token_persona` y `permisos_por_defecto`.
+
+Es compatible con el cliente anterior: la app publicada sigue registrando por sección y
+`destinatarios_push` igual resuelve el dueño por la sesión.
+
+### Verificado en local (sin disparar alarmas)
+
+- Panel de alarmas: 53 filas, 5 columnas, 53 maestros, 159 casillas, sin botón de alta.
+- Panel de personas: 53 filas; al marcar **Mapa** se marca y bloquea **Compuertas**.
+- Reparto: casilla encendida → entra; apagada → no entra; maestro en rojo → no entra.
+- Regresión del bug: con el mismo token a nombre de dos personas, decide la casilla del
+  **dueño de la sesión**, no la del otro.
+- Solo compuertas: `mapa.html` abre el panel, sin mapa y sin semáforo.
+
+### Versiones
+
+`script.js?v=72`, `semaforo.js?v=14` (index) / `?v=12` (mapa), `mapa.js?v=68`,
+`compuertas.js?v=11`, `alarmas_panel.js?v=2`, `personas_panel.js?v=1`.
+
+El APK carga la web publicada (`capacitor.config.json` → `server.url`), así que toma estos
+cambios al publicar; no hace falta recompilar.
+
+
 
 
 

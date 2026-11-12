@@ -742,6 +742,10 @@
         }
         .sem-contacto-tel:hover { background: #cffafe; }
         .sem-vacio { text-align: center; color: #64748b; font-size: .8rem; padding: 20px; }
+        /* Quien solo tiene compuertas no ve el semáforo (permiso por persona) */
+        body.sin-semaforo #sem-banda,
+        body.sin-semaforo #sem-luces,
+        body.sin-semaforo #sem-panel { display: none !important; }
         `;
         document.head.appendChild(css);
     }

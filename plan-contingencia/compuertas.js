@@ -53,7 +53,10 @@ function pcPuedeVer() {
     try {
         const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
         if (!u) return false;
-        
+
+        // Permiso por persona (panel «Personas»); el rol ya no decide.
+        if (u.puede_compuertas === true || u.puede_mapa === true) return true;
+
         // Damos acceso total al Gerente General y a Melgar Belmont
         if (u.rol === 'gerente_general' || String(u.nombre || '').toLowerCase().includes('melgar')) return true;
 
@@ -154,13 +157,19 @@ async function pcCerrar() {
     pcCerrarDetalle();
     pcBloquearFondo(false);
 
-    // Solo el rol 'area' de Gerencia de Campo sale al login al cerrar:
-    // su unica pantalla son las compuertas. Jefes y supervisores cierran el
-    // panel y siguen en el mapa, con su sesion intacta.
-    // Hay que cerrar tambien la sesion en la base: si solo borramos la copia
+    // Quien solo tiene compuertas sale al login al cerrar: su única pantalla
+    // son las compuertas. Jefes y supervisores cierran el panel y siguen en el
+    // mapa, con su sesión intacta.
+    // Hay que cerrar también la sesión en la base: si solo borramos la copia
     // local, index.html la recupera por equipo y devuelve al panel (rebote).
     const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
-    if (u && String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO' && String(u.rol || '').trim().toLowerCase() === 'area') {
+    const soloCompuertas = !!u && (
+        typeof u.puede_mapa === 'boolean'
+            ? (u.puede_compuertas === true && u.puede_mapa !== true && u.puede_medidas !== true)
+            : (String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO'
+               && String(u.rol || '').trim().toLowerCase() === 'area')
+    );
+    if (soloCompuertas) {
         try {
             const clave = localStorage.getItem('pc_sesion_clave') || null;
             const disp = localStorage.getItem('pc_dispositivo') || null;

@@ -919,18 +919,51 @@ function mostrarPantalla(id) {
 }
 
 
-/* Quién ve el mapa: toda la Gerencia de Campo, el gerente directo de cada
-   gerencia y César Chunga (el único que lo edita). Nadie más. */
+/* ------------------------------------------------------------
+   PERMISOS DE VISIBILIDAD (por persona, no por rol)
+   ------------------------------------------------------------
+   Se guardan en `usuarios` y llegan en el perfil:
+     puede_medidas    -> antes / durante / después + flujo
+     puede_mapa       -> mapa completo (incluye compuertas)
+     puede_compuertas -> compuertas solas
+   El rol solo manda dentro del plan (qué medidas edita).
+   ------------------------------------------------------------ */
 const ROLES_JEFE_MAPA = ['gerente_general', 'gerencial_legal', 'gdo', 'gerente_campo'];
 
+/* Compatibilidad: una sesión guardada por una versión anterior no trae
+   los campos; ahí se cae al criterio viejo para no dejar a nadie afuera. */
+function permisosLegacy(u) {
+    if (!u) return { medidas: false, mapa: false, compuertas: false };
+    const mapa = ROLES_JEFE_MAPA.indexOf(u.rol) !== -1
+              || claveArea(u.gerencia_key || '').indexOf('gerencia de campo') === 0
+              || claveArea((u.seccion || '') + ' ' + (u.area || '')).indexOf('seguridad industrial') !== -1
+              || claveArea(u.area || '').indexOf('chunga') !== -1;
+    const soloCompuertas = String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO'
+                        && String(u.rol || '').trim().toLowerCase() === 'area';
+    return { medidas: !soloCompuertas, mapa: mapa && !soloCompuertas, compuertas: mapa || soloCompuertas };
+}
+
+function permisosDe(u) {
+    if (!u) return { medidas: false, mapa: false, compuertas: false };
+    if (typeof u.puede_medidas !== 'boolean' && typeof u.puede_mapa !== 'boolean') {
+        return permisosLegacy(u);
+    }
+    return {
+        medidas: u.puede_medidas === true,
+        mapa: u.puede_mapa === true,
+        compuertas: u.puede_compuertas === true || u.puede_mapa === true
+    };
+}
+
 function puedeVerMapa(u) {
-    if (!u) return false;
-    if (ROLES_JEFE_MAPA.indexOf(u.rol) !== -1) return true;
-    if (claveArea(u.gerencia_key || '').indexOf('gerencia de campo') === 0) return true;
-    
-    // Permitimos a toda la sección de Seguridad Industrial y mantenemos a Chunga
-    const texto = claveArea((u.seccion || '') + ' ' + (u.area || ''));
-    return texto.indexOf('seguridad industrial') !== -1 || texto.indexOf('chunga') !== -1;
+    return permisosDe(u).mapa;
+}
+
+/* El semáforo lo ven quienes tienen medidas o mapa. El de solo
+   compuertas no lo ve. */
+function puedeVerSemaforo(u) {
+    const p = permisosDe(u);
+    return p.medidas || p.mapa;
 }
 
 function mostrarBotonMapa() {
@@ -978,7 +1011,7 @@ async function entrarApp() {
     const u = obtenerSesion();
     if (!u) return;
 
-    // Refrescar seccion/rol/gerencia desde la base (por si cambiaron)
+    // Refrescar seccion/rol/gerencia y permisos desde la base (por si cambiaron)
     try {
         const { data } = await db.rpc('mi_perfil', { p_area: u.area });
 
@@ -987,14 +1020,18 @@ async function entrarApp() {
                 ...u,
                 rol: data.rol || u.rol,
                 gerencia_key: data.gerencia_key || u.gerencia_key,
-                seccion: data.seccion || u.seccion
+                seccion: data.seccion || u.seccion,
+                puede_medidas: data.puede_medidas === true,
+                puede_mapa: data.puede_mapa === true,
+                puede_compuertas: data.puede_compuertas === true
             };
             guardarSesion(actualizada);
+            Object.assign(u, actualizada);
         }
     } catch (e) {
         console.warn('No se pudo refrescar la sesión:', e);
     }
-    if (esSoloCompuertas()) {
+    if (!u.puede_medidas && (u.puede_mapa || u.puede_compuertas)) {
         /* Antes de irse a compuertas hay que registrar el celular igual que
            cualquier otro rol: sin token no recibe ni el aviso de semaforo.
            Se espera a que el token quede guardado para no perderlo al navegar. */
@@ -1015,6 +1052,9 @@ async function entrarApp() {
     }
 
     document.getElementById('main-header').style.display = 'flex';
+    /* El semáforo es de medidas y mapa; el de solo compuertas no lo ve */
+    if (!puedeVerSemaforo(u)) document.body.classList.add('sin-semaforo');
+    else document.body.classList.remove('sin-semaforo');
     mostrarMenuLogin(false);
     document.getElementById('user-name').textContent = u.area;
      const nombreMovil = document.querySelector('.menu-perfil-header strong');
@@ -1169,15 +1209,9 @@ function esGerenteCampo() {
 function esSoloCompuertas() {
     const u = obtenerSesion();
     if (!u) return false;
-    
-    // El Gerente de Campo NO se restringe
-    if (esGerenteCampo() || esAdminGlobal()) return false;
 
-    /* Solo el rol 'area' de Gerencia de Campo queda en compuertas.
-       Jefes (jefe_area) y supervisores (sup_area) ven medidas y mapa. */
-    const miGerencia = String(u.gerencia_key || '').trim().toUpperCase();
-    const miRol = String(u.rol || '').trim().toLowerCase();
-    return miGerencia === 'GERENCIA DE CAMPO' && miRol === 'area';
+    const p = permisosDe(u);
+    return p.compuertas && !p.mapa && !p.medidas;
 }
 
 function medidaEsDeCampo(medida) {
@@ -2525,24 +2559,22 @@ async function activarNotificacionesPush() {
         console.log('[FCM] Token obtenido:', token.slice(0, 20) + '...');
 
         // 4-5. Guardar token en Supabase
-        // Siempre registrar por SECCION (nunca por el nombre de la persona)
-        let clave = (user.seccion || '').trim();
+        // El celular se registra a nombre de la PERSONA, no de la sección:
+        // un equipo tiene un solo dueño (el de la última sesión iniciada).
+        let persona = String(user.area || '').trim();
 
-        if (!clave) {
+        if (!persona) {
             const { data } = await db.rpc('mi_perfil', { p_area: user.area });
-            clave = (data && data.seccion ? data.seccion : '').trim();
-            if (clave) {
-                guardarSesion({ ...user, seccion: clave });
-                user.seccion = clave;
-            }
+            persona = String(user.area || '').trim();
+            if (data && data.rol) guardarSesion({ ...user, rol: data.rol });
         }
 
-        if (!clave) {
-            console.warn('[FCM] El usuario no tiene seccion asignada; no se registra el celular.');
+        if (!persona) {
+            console.warn('[FCM] El usuario no tiene nombre; no se registra el celular.');
             return;
         }
 
-        await guardarTokenPush(clave, token, user.rol);
+        await guardarTokenPush(persona, token, user.rol);
     } catch (err) {
         console.error('[FCM] Error al activar notificaciones:', err);
     }
@@ -2551,46 +2583,34 @@ async function activarNotificacionesPush() {
 /* ------------------------------------------------------------
    Guarda el token FCM en Supabase.
    Lo usan tanto la web como la app nativa (es la misma tabla).
+   El dueño del celular es la PERSONA de la sesión abierta; la base
+   borra las filas del mismo token que estén a nombre de otra gente,
+   así un equipo nunca tiene dos dueños.
    ------------------------------------------------------------ */
 async function guardarTokenPush(userId, token, rol) {
     try {
         try { localStorage.setItem('pc_push_token', token); } catch (e) {}
 
-        const { data: existente } = await db
-            .from('push_subscriptions')
-            .select('id, tipo, rol')
-            .eq('user_id', userId)
-            .eq('token', token)
-            .maybeSingle();
+        let clave = '';
+        try { clave = localStorage.getItem('pc_sesion_clave') || ''; } catch (e) {}
 
-        if (existente) {
-            console.log('[FCM] Token ya registrado para este usuario.');
-            const cambios = {};
-            if (existente.tipo !== 'jefe') cambios.tipo = 'jefe';
-            if (rol && existente.rol !== rol) cambios.rol = rol;
-            if (Object.keys(cambios).length) {
-                await db.from('push_subscriptions')
-                    .update(cambios)
-                    .eq('id', existente.id);
-            }
-            await adjuntarTokenSesion(token);
-            return;
-        }
-
-        const { error } = await db.from('push_subscriptions').insert({
-            user_id: userId,
-            token: token,
-            tipo: 'jefe',
-            rol: rol || null
+        const { data, error } = await db.rpc('registrar_token_persona', {
+            p_dispositivo: dispositivoActual(),
+            p_token: token,
+            p_rol: rol || null,
+            p_clave: clave || null
         });
 
         if (error) {
             console.error('[FCM] Error al guardar token:', error);
-        } else {
-            console.log('[FCM] Token guardado en Supabase.');
+            return;
+        }
+        if (!data || data.ok !== true) {
+            console.warn('[FCM] El token no se registró:', data && data.motivo);
+            return;
         }
 
-        await adjuntarTokenSesion(token);
+        console.log('[FCM] Celular registrado a nombre de', data.user_id);
     } catch (err) {
         console.error('[FCM] Error al guardar token:', err);
     }
@@ -2616,11 +2636,26 @@ async function sesionDesdeBase() {
     try {
         const { data, error } = await db.rpc('sesion_panel_por_dispositivo', { p_dispositivo: disp });
         if (error || !data || !data.ok) return null;
+
+        // Los permisos de visibilidad viajan aparte: son de la persona.
+        let permisos = {};
+        try {
+            const { data: perfil } = await db.rpc('mi_perfil', { p_area: data.user_id });
+            if (perfil) {
+                permisos = {
+                    puede_medidas: perfil.puede_medidas === true,
+                    puede_mapa: perfil.puede_mapa === true,
+                    puede_compuertas: perfil.puede_compuertas === true
+                };
+            }
+        } catch (e) {}
+
         const u = {
             area: data.user_id,
             rol: data.rol,
             gerencia_key: data.gerencia_key || null,
-            seccion: data.seccion || null
+            seccion: data.seccion || null,
+            ...permisos
         };
         guardarSesion(u);   // copia para la interfaz, no es la fuente de verdad
         // Copia de la clave para el semáforo; si se pierde, se vuelve a pedir aquí.
