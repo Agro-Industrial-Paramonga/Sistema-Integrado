@@ -393,6 +393,95 @@ Antes de este arreglo quedó una fila `ios-` a nombre de VILLAFRANCA ROMERO EDIN
 ALEXANDER con una URL que no es suya: hay que quitarla con el botón *Quitar* de su fila y
 volver a cargar la URL en la persona correcta.
 
+---
+
+## 17. Alarmas por persona, alarma de compuertas y evacuación única (12-nov)
+
+Cambio de modelo: **lo que suena en el celular ya no lo decide el rol, lo decide una casilla
+por persona**. El rol sigue mandando en los permisos del portal y en los valores iniciales.
+
+### Catálogo y casillas
+
+| Clave | Alarma | Quién la recibe (punto de partida) | En el panel |
+|---|---|---|---|
+| `semaforo` | Cambio de semáforo | Todos menos rol `area` (45) | sí |
+| `compuertas` | Rojo → abrir/cerrar compuertas | 16: rol `area` + `sup_area` de *Administradores de campo* | sí |
+| `medida` | Alarma de una medida | Todos menos rol `area` (45) | sí |
+| `evac_auto` | Evacuación en rojo, a todas las unidades | Conductores (lo gobierna el switch verde/rojo) | no |
+| `evac_manual` | Evacuación puntual desde el mapa | El conductor de esa unidad | no |
+| `actos` | Actos inseguros (Hallazgos) | Jefe de sección | no |
+
+- Tablas nuevas: `alarmas_catalogo` y `suscripciones_alarma` (RLS sin políticas: solo entra
+  el service_role y las funciones `security definer`).
+- `alarmas_por_defecto(rol, seccion)` devuelve las casillas iniciales.
+- **La casilla manda sobre el rol**: si a un jefe se le marca `compuertas`, le llega.
+- El switch verde/rojo (`alarmas_silenciadas`) sigue siendo el maestro: en rojo no llega
+  nada, aunque la casilla esté marcada.
+- SQL: `plan-contingencia/sql/alarmas_por_persona.sql` (idempotente, ya aplicado).
+
+### Reparto (`destinatarios_push`)
+
+Nuevo parámetro `p_alarma`. Filtra por la casilla **solo para alarmas del panel**
+(`en_panel = true`); las de conductor siguen gobernadas por el switch. Se quitó la exclusión
+fija de rol `area` que estaba en la función edge. La función se revocó para `anon` y
+`authenticated`: solo la llama la edge con service_role.
+
+Migración incluida: las suscripciones que estaban a nombre de una **sección**
+(`Seguridad Industrial`, `Ingeniería Agrícola`, etc.) se reasignaron a la persona de su
+sesión abierta. Sin eso, 7 celulares habrían dejado de recibir todo.
+
+### Alarma nueva de compuertas y evacuación única
+
+`alarmar_rojo()` (`sql/alarma_rojo.sql`), llamada desde `declarar_semaforo` y por el cron de
+cada minuto (`evacuar_rojo`, que ahora es un envoltorio). Estado por declaración en
+`alarmas_estado` (marcas `evac_auto` y `compuertas`) — no repite dentro del mismo rojo.
+
+- **Evacuación**: a **todas** las unidades en `sesiones_unidad`, sin mirar campos ni 300 m.
+  Texto igual al de antes. `evac_auto.js` **se eliminó** (el script del celular nunca
+  funcionó desde el 29-oct: leía `localStorage['conductor']`, que ya nadie escribe, y solo
+  se cargaba en `conductor.html`).
+- **Compuertas**: un aviso, título `ALERTA ROJA · COMPUERTAS`, texto
+  «José Mariano Melgar Belmont declaró el estado de alerta rojo. Proceder a abrir las
+  compuertas y cerrar compuertas de acuerdo al plan de emergencia.»
+
+### Se retiró
+
+- Alerta al asignar una máquina a un punto crítico (`alertarMaquina`), y el cálculo de
+  polígonos de evacuación en `mapa.js` (los campos se siguen pintando de rojo).
+- Alarma diaria de medidas vencidas: `scripts/alarma-medidas-antes.mjs` y su workflow.
+
+### Panel «Usuarios y alarmas»
+
+`plan-contingencia/alarmas_panel.js` + `sql/usuarios_panel.sql`. Solo Seguridad Industrial
+(`puedeVer()` + validación de servidor en cada RPC).
+
+- Lista las 53 personas con tres casillas; buscador por nombre (sin tildes/mayúsculas),
+  filtro por sección y «solo activos».
+- **+ Agregar persona**: nombre, sección, rol, gerencia y contraseña. Si se deja vacía, la
+  calcula `apellido_password()` = primer apellido + 2026 (`DE LA CRUZ` → `delacruz2026`,
+  `MUÑOZ` → `munoz2026`). La persona aparece sola en el buscador del login.
+- ✎ permite cambiar sección, rol, gerencia, contraseña y dar de alta/baja.
+- La contraseña recién creada se muestra una sola vez en el panel.
+
+### Versiones
+
+`script.js?v=71`, `semaforo.js?v=13` (index) / `?v=11` (mapa), `mapa.js?v=67`,
+`alarmas_panel.js?v=1`. Edge `send-push-notification` **v26** (acepta `alarma`; mientras un
+equipo tenga abierta la versión vieja del portal, sin `alarma`, mantiene la regla antigua de
+no mandar la medida a los de rol `area`).
+
+### Pendiente de probar en un celular real
+
+Declarar rojo y confirmar que: (a) las unidades en turno suenan, (b) los administradores de
+campo reciben solo compuertas, (c) los jefes reciben solo el semáforo, (d) con el switch en
+rojo no llega nada. En el navegador headless se verificó el panel (53 filas, buscador,
+casilla que persiste, formulario) y las RPC; el envío real no se disparó para no alarmar.
+
+**Ojo operativo:** al 12-nov hay **24 de 27 sesiones de portal con las alarmas en rojo** y
+las 6 unidades en turno silenciadas (quedaron así de las pruebas del mediodía). Con eso, la
+alarma de semáforo no llega a nadie hasta que se vuelvan a poner en verde.
+
+
 
 
 

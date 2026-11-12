@@ -366,7 +366,8 @@ async function enviarAlarmaMedidaManual(tabla, medidaId, boton) {
                     body: `MELGAR BELMONT JOSE MARIANO solicita atención para esta medida:\n\n${medida.actividad}\n\nPeríodo: ${medida.periodo || 'Sin período'}\nEstado: ${ETIQUETAS[medida.estado] || medida.estado || 'Sin estado'}`,
                     
                     userId: area,
-                    tipo: 'jefe'
+                    tipo: 'jefe',
+                    alarma: 'medida'
                 })
             });
             const resultado = await response.json().catch(() => ({}));

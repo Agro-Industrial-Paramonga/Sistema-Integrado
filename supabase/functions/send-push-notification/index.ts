@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { title, body, userId, token, excluir, tipo, webhook, probar, soloCuerpo } = await req.json();
+    const { title, body, userId, token, excluir, tipo, webhook, probar, soloCuerpo, alarma } = await req.json();
 
     // ============================================================
     // 0. Prueba suelta de una URL de NotiAlarm (boton "Probar" del panel).
@@ -146,17 +146,19 @@ Deno.serve(async (req) => {
     // 1. Obtener tokens del destinatario + webhooks globales de iPhone
     //
     // Quien recibe lo decide la base, no este archivo: la funcion
-    // destinatarios_push() solo devuelve jefes con sesion abierta y
-    // deja fuera a quien tenga las alarmas apagadas en el panel.
+    // destinatarios_push() solo devuelve jefes con sesion abierta,
+    // deja fuera a quien tenga el switch verde/rojo en rojo, y —si el
+    // envio trae "alarma"— solo a quien tenga ESA casilla encendida.
     //  - con "tipo" explicito  -> solo ese canal
     //  - sin "tipo" ni userId  -> jefes (alarma general)
     //  - con userId            -> ese usuario, del canal que sea
+    //  - con "alarma"          -> solo los suscritos a esa alarma
     // ============================================================
     const canal = (tipo === 'jefe' || tipo === 'conductor')
       ? tipo
       : (userId ? null : 'jefe');
 
-    const todos = await rpc('destinatarios_push', { p_tipo: canal });
+    const todos = await rpc('destinatarios_push', { p_tipo: canal, p_alarma: alarma || null });
 
     // Comparacion sin importar mayusculas, tildes ni espacios sobrantes
     const norm = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -241,14 +243,20 @@ Deno.serve(async (req) => {
 
     const subsFiltrados = (todos || []).filter((s: any) => !excluir || s.token !== excluir);
 
-    // Rol 'area' (administradores de campo): SOLO recibe el aviso de semaforo.
-    // La alarma de una medida apunta a un area concreta y es para jefes y
-    // supervisores de esa area, nunca para los de rol 'area'.
+    // El rol ya NO decide quien recibe: eso lo resuelve la casilla de cada
+    // persona en suscripciones_alarma, dentro de destinatarios_push().
+    // Aqui solo queda el filtro por area destinataria cuando el envio
+    // lleva userId (alarma de una medida).
+    //
+    // Compatibilidad: mientras algun equipo tenga abierta una version vieja
+    // del portal (que no manda "alarma"), se mantiene la regla antigua de no
+    // enviar la medida a los de rol 'area'. En cuanto la version nueva este
+    // publicada, todos mandan "alarma" y esa regla deja de aplicarse.
     const esRolArea = (s: any) => norm(s.rol) === 'area';
 
     const subs = userId
       ? subsFiltrados.filter((s: any) => {
-          if (esRolArea(s)) return false;
+          if (!alarma && esRolArea(s)) return false;
           const buscado = norm(userId);
           const claves = clavesDe(s);
           return claves.includes(buscado) || claves.includes('__global__');

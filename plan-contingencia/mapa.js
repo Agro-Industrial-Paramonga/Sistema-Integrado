@@ -1070,14 +1070,12 @@ async function cargarCampos() {
 }
 
 /* ============================================================
-   ROJO = EVACUACIÓN: campos en rojo y aviso a las unidades
-   dentro o cerca de ellos. Un aviso por unidad y una sola vez
-   por cada declaración de rojo.
+   ROJO: los campos se pintan de rojo. La evacuación a las
+   unidades la manda el servidor (alarmar_rojo) al declarar rojo;
+   acá ya no se calcula quién está dentro o cerca.
    ============================================================ */
-const RADIO_EVAC_M = 300;             // "cerca" del campo
 const COLOR_CAMPO = '#06b6d4';        // turquesa normal
 const COLOR_CAMPO_ROJO = '#dc2626';
-const LS_EVAC = 'evac_rojo_ts_v3';
 
 let semaforoActual = { nivel: 'verde', vigente_desde: null };
 
@@ -1091,64 +1089,6 @@ function capasDeCampos() {
     return salida;
 }
 
-/* Los 33 campos vienen como MultiPolygon: getLatLngs devuelve varios niveles.
-   Se recorre hasta juntar anillos de vértices reales. */
-function anillosDesdeNiveles(niveles, salida) {
-    if (!Array.isArray(niveles) || !niveles.length) return salida;
-    const primero = niveles[0];
-    if (primero && typeof primero.lat === 'number') {
-        const anillo = niveles
-            .filter(function (p) { return p && typeof p.lat === 'number'; })
-            .map(function (p) { return [p.lat, p.lng]; });
-        if (anillo.length >= 3) salida.push(anillo);
-        return salida;
-    }
-    niveles.forEach(function (hijo) { anillosDesdeNiveles(hijo, salida); });
-    return salida;
-}
-
-/* Anillos de todos los campos, en orden [lat, lng] */
-function anillosDeCampos() {
-    const salida = [];
-    capasDeCampos().forEach(function (capa) {
-        const anillos = anillosDesdeNiveles(capa.getLatLngs(), []);
-        if (!anillos.length) return;
-        salida.push({ anillo: anillos[0], anillos: anillos, capa: capa });
-    });
-    return salida;
-}
-
-/* Ray casting: ¿el punto está dentro del anillo? */
-function puntoEnAnillo(lat, lon, anillo) {
-    let dentro = false;
-    for (let i = 0, j = anillo.length - 1; i < anillo.length; j = i++) {
-        const yi = anillo[i][0], xi = anillo[i][1];
-        const yj = anillo[j][0], xj = anillo[j][1];
-        const cruza = ((yi > lat) !== (yj > lat)) &&
-            (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
-        if (cruza) dentro = !dentro;
-    }
-    return dentro;
-}
-
-/* Distancia mínima del punto al borde del anillo (metros) */
-function distanciaAAnillo(lat, lon, anillo) {
-    let menor = Infinity;
-    for (let i = 0; i < anillo.length; i++) {
-        const a = anillo[i], b = anillo[(i + 1) % anillo.length];
-        const dy = (b[0] - a[0]) * 111320;
-        const dx = (b[1] - a[1]) * 111320 * Math.cos(lat * Math.PI / 180);
-        const py = (lat - a[0]) * 111320;
-        const px = (lon - a[1]) * 111320 * Math.cos(lat * Math.PI / 180);
-        const len2 = dx * dx + dy * dy;
-        let t = len2 ? (px * dx + py * dy) / len2 : 0;
-        t = Math.max(0, Math.min(1, t));
-        const ddx = px - dx * t, ddy = py - dy * t;
-        menor = Math.min(menor, Math.sqrt(ddx * ddx + ddy * ddy));
-    }
-    return menor;
-}
-
 /* Pinta los campos de rojo (evacuación) o los devuelve a su color normal */
 function aplicarSemaforoEnCampos() {
     const rojo = semaforoActual.nivel === 'rojo';
@@ -1160,17 +1100,9 @@ function aplicarSemaforoEnCampos() {
     });
 }
 
-/* Aviso de evacuación con el mismo texto que ya usa el sistema */
-async function evacuarUnidad(fila) {
-    /* La alerta de evacuación la dispara el propio celular del conductor
-       (evac_auto.js) para que salga a pantalla completa. El mapa sólo registra
-       que la unidad estaba en zona roja. */
-    const unidad = fila.unidad || fila.user_id || '';
-    await registrarAlerta(unidad, fila.user_id, null, 'zona_roja', 'unidad dentro o cerca del campo');
-    return false;
-}
-
-/* Revisa el semáforo: pinta campos y, si es rojo, avisa una sola vez */
+/* Revisa el semáforo y pinta los campos de rojo cuando corresponde.
+   La evacuación ya NO se calcula acá: al declarar rojo, el servidor manda
+   la alarma a todas las unidades en turno (función alarmar_rojo). */
 async function revisarEvacuacion() {
     /* Si el semáforo todavía no emitió su nivel, se usa la copia del equipo */
     if (!semaforoActual.vigente_desde) {
@@ -1183,39 +1115,6 @@ async function revisarEvacuacion() {
     }
 
     aplicarSemaforoEnCampos();
-    if (semaforoActual.nivel !== 'rojo') return;
-
-    const marca = String(semaforoActual.vigente_desde || 'sin-fecha');
-    let yaHecho = null;
-    try { yaHecho = localStorage.getItem(LS_EVAC); } catch (e) {}
-    if (yaHecho === marca) return;
-
-    const anillos = anillosDeCampos();
-    if (!anillos.length) return;   // todavía no cargaron los campos: se reintenta
-
-    const { data } = await db.from('ubicaciones').select('user_id, unidad, lat, lon, token');
-    let avisadas = 0;
-    for (const fila of (data || [])) {
-        const lat = Number(fila.lat), lon = Number(fila.lon);
-        if (!isFinite(lat) || !isFinite(lon)) continue;
-        const afectada = anillos.some(function (c) {
-            return (c.anillos || [c.anillo]).some(function (a) {
-                return puntoEnAnillo(lat, lon, a) || distanciaAAnillo(lat, lon, a) <= RADIO_EVAC_M;
-            });
-        });
-        if (!afectada) continue;
-        await evacuarUnidad(fila);
-        avisadas++;
-    }
-
-    /* Se marca la declaración como procesada para no repetir el registro
-       cada minuto; la alarma la dispara el celular del conductor. */
-    if (avisadas > 0) {
-        try { localStorage.setItem(LS_EVAC, marca); } catch (e) {}
-    }
-
-    const est = document.getElementById('estado');
-    if (est && avisadas) est.textContent = 'Rojo: evacuación avisada a ' + avisadas + ' unidad(es)';
 }
 
 /* El semáforo avisa cada vez que se pinta */
@@ -1449,23 +1348,18 @@ async function cargarMaquinas() {
                 return;
             }
 
-            // Animacion de choque + alerta a la unidad
+            // Animacion de choque (la alarma al punto critico se retiro:
+            // las alertas automaticas ahora las manda el servidor en rojo)
             if (div) {
                 div.classList.add('choque');
                 const quitar = () => { try { div.classList.remove('choque'); } catch (e) {} };
                 setTimeout(quitar, 2500);
             }
 
-            const envio = await alertarMaquina(m.unidad, punto);
             avisar(
                 '🚨 ' + m.unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '') +
-                ' (' + Math.round(punto.dist) + ' m) · ' +
-                (envio.enviados > 0
-                    ? 'alerta enviada a ' + envio.enviados + ' de ' + envio.total + ' celular(es)'
-                    : (envio.total > 0
-                        ? 'no se pudo entregar a ningún celular (' + envio.total + ' registrados)'
-                        : 'SIN celular conectado: la alerta no se envió')),
-                envio.enviados > 0 ? 'ok' : 'warn'
+                ' (' + Math.round(punto.dist) + ' m)',
+                'ok'
             );
         });
     });
@@ -1507,38 +1401,9 @@ async function registrarAlerta(unidad, user_id, token, resultado, detalle) {
     } catch (e) { console.warn('alertas_log', e); }
 }
 
-/* Avisa a TODOS los conductores de esa maquina. Devuelve cuantos celulares recibieron */
-async function alertarMaquina(unidad, punto) {
-    try {
-        const { tokens, conductores } = await tokensDeUnidad(unidad);
-        if (!tokens.length) return { enviados: 0, total: 0, conductores };
-
-        let enviados = 0;
-        for (const token of tokens) {
-            const resp = await fetch(FUNC_PUSH, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: 'Dirígete al punto ' + punto.orden + ' – ' + (punto.nombre || ''),
-                    body: 'Se te asignó este punto crítico. Dirígete de inmediato.',
-                    userId: null,
-                    token: token
-                })
-            });
-            const datos = await resp.json().catch(() => ({}));
-            if ((datos.fcm_enviados ?? 0) > 0) enviados++;
-        }
-
-        await registrarAlerta(unidad, conductores[0], tokens[0],
-            enviados > 0 ? 'enviada' : 'sin_entrega',
-            'punto ' + (punto.orden || '') + ' · ' + tokens.length + ' celular(es)');
-
-        return { enviados, total: tokens.length, conductores };
-    } catch (e) {
-        console.warn('alerta maquina', e);
-        return { enviados: 0, total: 0, conductores: [] };
-    }
-}
+/* (La alerta al asignar una máquina a un punto crítico se retiró: era una
+   alarma del sistema anterior. Las evacuaciones ahora las manda el servidor
+   cuando el semáforo pasa a rojo.) */
 
 async function eliminarMaquina(id, unidad) {
     if (!confirm('¿Eliminar ' + unidad + ' del mapa?')) return;
@@ -1572,12 +1437,7 @@ async function colocarMaquina(latlng) {
         return;
     }
 
-    const envio = await alertarMaquina(unidad, punto);
-    avisar('🚨 ' + unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || '') +
-        ' · ' + (envio.enviados > 0
-            ? 'alerta enviada a ' + envio.enviados + ' de ' + envio.total + ' celular(es)'
-            : (envio.total > 0 ? 'no se pudo entregar a ningún celular' : 'SIN celular conectado: alerta no enviada')),
-        envio.enviados > 0 ? 'ok' : 'warn');
+    avisar('🚨 ' + unidad + ' asignada al punto ' + punto.orden + ' – ' + (punto.nombre || ''), 'ok');
 }
 
 async function cambiarTamanoMaquinas(valor) {
@@ -2096,10 +1956,8 @@ async function guardarEdicion() {
             actualizado_en: new Date().toISOString()
         }).eq('id', m.id);
         
-        if (m.punto_orden && m.punto_orden !== antes) {
-            const punto = { orden: m.punto_orden, nombre: '' };
-            await alertarMaquina(m.unidad, punto);
-        }
+        // (Asignar a un punto crítico ya no dispara alarma: eso lo hace el
+        // servidor cuando el semáforo pasa a rojo.)
         m.__dirty = false;
         cambios++;
     }
