@@ -12,6 +12,8 @@
     var URL_FN = 'https://bfhfnldqwsrcpsdqpyat.supabase.co/functions/v1/send-push-notification';
     var CLAVE_PUBLICA = 'sb_publishable_z-jW4WrGLq7wEhCI_CW3Ig_vQZwtOMh';
     var MAPA_SESIONES = {};
+    var CACHE_SESIONES = []; // <-- Nueva variable para guardar las sesiones en memoria
+    var FILTRO_AREA = '';    // <-- Nueva variable para recordar el área seleccionada
     var WH_FILA = null;
 
     function esc(t) {
@@ -77,6 +79,13 @@
             'cursor:pointer;font-size:.9rem}',
             '.turnos-tit{margin:18px 0 4px;font-size:.88rem;color:#0f172a;display:flex;align-items:center;gap:7px}',
             '.turnos-sub{margin:0 0 8px;font-size:.72rem;color:#64748b;line-height:1.35}',
+            
+            /* Estilos del filtro de áreas */
+            '.turnos-filtro{margin: 0 0 10px;}',
+            '.turnos-filtro select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;',
+            'border-radius:8px;font-size:.75rem;font-family:inherit;color:#334155;background:#f8fafc;outline:none;cursor:pointer}',
+            '.turnos-filtro select:focus{border-color:#94a3b8}',
+
             '.turnos-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;',
             'border-bottom:1px solid #f1f5f9}',
             '.turnos-nombre{font-size:.82rem;font-weight:700;color:#0f172a}',
@@ -143,12 +152,11 @@
         if (c) c.textContent = texto || '';
     }
 
-        async function pintar() {
+    async function pintar() {
         var unidades = document.getElementById('turnos-unidades');
         var sesiones = document.getElementById('turnos-sesiones');
         if (!unidades || !sesiones) return;
 
-        // --- 1. GUARDAR POSICIÓN DEL SCROLL ---
         var caja = document.querySelector('.turnos-caja');
         var scrollPos = caja ? caja.scrollTop : 0;
 
@@ -160,17 +168,14 @@
         }
 
         MAPA_SESIONES = {};
-
         unidades.innerHTML = '<p class="turnos-sub">Cargando…</p>';
         sesiones.innerHTML = '';
 
         try {
             var r = await db.rpc('unidades_en_turno', { p_clave_quien: clave });
             var filas = (!r.error && r.data) ? r.data : [];
+            
             unidades.innerHTML = '<h3 class="turnos-tit"><i class="fas fa-truck-moving"></i> Unidades en turno</h3>' +
-                '<p class="turnos-sub">Cada turno lo cierra su conductor. Si el celular se perdió o no cierra, ' +
-                'libéralo acá: deja de enviar ubicación y el cierre queda en el historial. ' +
-                'El interruptor verde recibe alarmas; en rojo, ese celular no recibe ninguna.</p>' +
                 (filas.length ? filas.map(function (u) {
                     var equipo = u.dispositivo ? 'equipo ' + esc(String(u.dispositivo).slice(0, 8)) : 'sin equipo registrado';
                     return '<div class="turnos-fila"><div><div class="turnos-nombre">' + esc(u.unidad) + ' · ' + esc(u.user_id) + '</div>' +
@@ -191,48 +196,96 @@
 
         try {
             var s2 = await db.rpc('sesiones_panel_lista', { p_clave_quien: clave });
-            var lista = (!s2.error && s2.data) ? s2.data : [];
-            var puedeWebhook = !!(lista.length && lista[0].puede_webhook);
-            sesiones.innerHTML = '<h3 class="turnos-tit"><i class="fas fa-user-clock"></i> Sesiones abiertas</h3>' +
-                '<p class="turnos-sub">Mientras la sesión exista, ese equipo recibe las alarmas. Al liberarla deja de ' +
-                'recibirlas en el acto y el cierre queda en el historial. ' +
-                'El interruptor verde recibe alarmas; en rojo, ese equipo no recibe ninguna.' +
-                (puedeWebhook ? ' El botón <b>Webhook</b> carga la alarma del iPhone de esa persona.' : '') + '</p>' +
-                (lista.length ? lista.map(function (s, i) {
-                    MAPA_SESIONES[i] = s;
-                    var equipo = s.dispositivo ? 'equipo ' + esc(String(s.dispositivo).slice(0, 8)) : 'sin equipo registrado';
-                    return '<div class="turnos-fila"><div><div class="turnos-nombre">' + esc(s.user_id) + '</div>' +
-                        '<div class="turnos-meta">' + esc(s.seccion || 'sin sección') + ' · desde ' + esc(fechaHora(s.inicio)) +
-                        ' · ' + equipo + '</div></div>' +
-                        '<div class="turnos-acciones">' +
-                        (puedeWebhook ? botonWebhook(s, i) : '') +
-                        switchAlarma(s.user_id, 'jefe', s.alarma_off) +
-                        '<button type="button" class="turnos-lib" data-user="' + esc(s.user_id) +
-                        '" data-disp="' + esc(s.dispositivo || '') + '"><i class="fas fa-unlink"></i> Liberar</button></div></div>';
-                }).join('') : '<p class="turnos-sub">Ningún equipo tiene sesión abierta ahora mismo.</p>');
-            enlazarSwitches(sesiones);
-            sesiones.querySelectorAll('.turnos-wh').forEach(function (b) {
-                b.addEventListener('click', function () { abrirWebhook(Number(b.dataset.idx)); });
-            });
-            sesiones.querySelectorAll('.turnos-lib').forEach(function (b) {
-                b.addEventListener('click', function () { liberarSesion(b.dataset.user, b.dataset.disp || null); });
-            });
+            CACHE_SESIONES = (!s2.error && s2.data) ? s2.data : [];
+            
+            // Llamamos a la función que dibuja la lista con el filtro
+            renderSesiones();
+
         } catch (e) {
             sesiones.innerHTML = '<h3 class="turnos-tit"><i class="fas fa-user-clock"></i> Sesiones abiertas</h3>' +
                 '<p class="turnos-sub">No se pudo consultar.</p>';
         }
         aviso('');
 
-        // --- 2. RESTAURAR POSICIÓN DEL SCROLL ---
         if (caja) caja.scrollTop = scrollPos;
     }
 
-    /* El switch es la unica senal: verde recibe alarmas, rojo no le llega nada.
-       El estado queda guardado en la base hasta que se vuelva a poner verde. */
-        async function alternarAlarma(userId, tipo, apagar, boton) {
+    /* ---------------- NUEVA FUNCIÓN: Dibuja las sesiones con filtro ---------------- */
+    function renderSesiones() {
+        var sesiones = document.getElementById('turnos-sesiones');
+        if (!sesiones) return;
+
+        // Si el filtro actual ya no existe en la nueva data, lo reseteamos
+        if (FILTRO_AREA && !CACHE_SESIONES.some(function(s) { return s.seccion === FILTRO_AREA; })) {
+            FILTRO_AREA = '';
+        }
+
+        // Extraer áreas únicas
+        var areas = {};
+        CACHE_SESIONES.forEach(function (s) {
+            var sec = String(s.seccion || '').trim();
+            if (sec) areas[sec] = true;
+        });
+        
+        var opcionesArea = Object.keys(areas).sort().map(function (a) {
+            return '<option value="' + esc(a) + '"' + (FILTRO_AREA === a ? ' selected' : '') + '>' + esc(a) + '</option>';
+        }).join('');
+
+        var puedeWebhook = !!(CACHE_SESIONES.length && CACHE_SESIONES[0].puede_webhook);
+
+        // Generar el HTML (Título + Filtro)
+        var html = '<h3 class="turnos-tit"><i class="fas fa-user-clock"></i> Sesiones abiertas</h3>';
+        
+        if (Object.keys(areas).length > 0) {
+            html += '<div class="turnos-filtro">' +
+                    '<select id="turnos-select-area">' +
+                    '<option value="">Todas las áreas</option>' +
+                    opcionesArea +
+                    '</select></div>';
+        }
+
+        // Generar las filas (aplicando el filtro)
+        html += (CACHE_SESIONES.length ? CACHE_SESIONES.map(function (s, i) {
+            // Si hay filtro y no coincide, lo ocultamos
+            if (FILTRO_AREA && s.seccion !== FILTRO_AREA) return '';
+
+            MAPA_SESIONES[i] = s;
+            var equipo = s.dispositivo ? 'equipo ' + esc(String(s.dispositivo).slice(0, 8)) : 'sin equipo registrado';
+            return '<div class="turnos-fila"><div><div class="turnos-nombre">' + esc(s.user_id) + '</div>' +
+                '<div class="turnos-meta">' + esc(s.seccion || 'sin sección') + ' · desde ' + esc(fechaHora(s.inicio)) +
+                ' · ' + equipo + '</div></div>' +
+                '<div class="turnos-acciones">' +
+                (puedeWebhook ? botonWebhook(s, i) : '') +
+                switchAlarma(s.user_id, 'jefe', s.alarma_off) +
+                '<button type="button" class="turnos-lib" data-user="' + esc(s.user_id) +
+                '" data-disp="' + esc(s.dispositivo || '') + '"><i class="fas fa-unlink"></i> Liberar</button></div></div>';
+        }).join('') : '<p class="turnos-sub">Ningún equipo tiene sesión abierta ahora mismo.</p>');
+
+        sesiones.innerHTML = html;
+
+        // Enlazar el evento del selector de áreas
+        var selArea = document.getElementById('turnos-select-area');
+        if (selArea) {
+            selArea.addEventListener('change', function(e) {
+                FILTRO_AREA = e.target.value;
+                renderSesiones(); // Volvemos a dibujar sin consultar la BD
+            });
+        }
+
+        // Re-enlazar los botones generados
+        enlazarSwitches(sesiones);
+        sesiones.querySelectorAll('.turnos-wh').forEach(function (b) {
+            b.addEventListener('click', function () { abrirWebhook(Number(b.dataset.idx)); });
+        });
+        sesiones.querySelectorAll('.turnos-lib').forEach(function (b) {
+            b.addEventListener('click', function () { liberarSesion(b.dataset.user, b.dataset.disp || null); });
+        });
+    }
+
+    /* El switch es la unica senal: verde recibe alarmas, rojo no le llega nada. */
+    async function alternarAlarma(userId, tipo, apagar, boton) {
         if (boton) boton.disabled = true;
         try {
-            // La consulta a la base de datos se mantiene EXACTAMENTE IGUAL
             var r = await db.rpc('alternar_alarma', {
                 p_clave_quien: clavePortal(),
                 p_user_id: userId,
@@ -243,7 +296,6 @@
             var ok = !r.error && r.data && r.data.ok;
 
             if (ok) {
-                // SI LA BASE DE DATOS DICE "OK", cambiamos solo el botón
                 if (boton) {
                     if (apagar) {
                         boton.classList.add('apagada');
@@ -254,19 +306,15 @@
                         boton.setAttribute('aria-checked', 'true');
                         boton.title = 'Alarmas activas · pulsa para apagarlas';
                     }
-                    boton.disabled = false; // Volvemos a habilitar el botón
+                    boton.disabled = false;
                 }
-                aviso(String(userId).trim() + (apagar
-                    ? ': alarmas apagadas, no le llega nada'
-                    : ': alarmas activas'));
+                aviso(String(userId).trim() + (apagar ? ': alarmas apagadas, no le llega nada' : ': alarmas activas'));
             } else {
-                // SI FALLÓ, el botón nunca cambió visualmente, solo lo reactivamos
                 if (boton) boton.disabled = false;
                 aviso('No se pudo ' + (apagar ? 'silenciar' : 'activar') + ': ' +
                     ((r.error && r.error.message) || (r.data && r.data.motivo) || 'sin permiso'));
             }
         } catch (e) {
-            // SI HAY UN ERROR DE RED, reactivamos el botón sin recargar la lista
             if (boton) boton.disabled = false;
             aviso('No se pudo cambiar: ' + e.message);
         }
@@ -296,9 +344,6 @@
 
     /* ============================================================
        WEBHOOK DE NOTIALARM (iPhone)
-       La URL privada del NotiAlarm de una persona. Solo la carga
-       Seguridad Industrial. Suena mientras la sesión exista y el
-       interruptor esté en verde, igual que el celular Android.
        ============================================================ */
 
     function botonWebhook(s, i) {
@@ -359,8 +404,6 @@
         var s = MAPA_SESIONES[i];
         if (!s) return;
         cajaWebhook();
-        // Se guarda la fila entera, no el número: si la lista se repinta
-        // mientras la ventana está abierta, el número apuntaría a otra persona.
         WH_FILA = s;
         document.getElementById('wh-quien').textContent = s.user_id;
         document.getElementById('wh-url').value = s.webhook || '';
@@ -399,7 +442,6 @@
         b.disabled = true;
         estadoWebhook('Guardando…', '');
         try {
-            // p_user_id es la persona de la fila; p_clave solo acredita el permiso.
             var r = await db.rpc('registrar_webhook_notialarm', {
                 p_clave: clavePortal(),
                 p_user_id: s.user_id,
@@ -451,7 +493,6 @@
                     : 'El teléfono rechazó la dirección (código ' + d.estado + ').',
                     'malo');
             }
-            // Deja constancia si la URL probada es la que está guardada
             if (s.webhook_token && s.webhook && s.webhook === url) {
                 await db.rpc('marcar_webhook_probado', { p_token: s.webhook_token, p_ok: !!d.ok });
                 s.webhook_estado = d.ok ? 'ok' : 'error';
@@ -499,9 +540,6 @@
     function crearBoton() {
         if (!puedeVer()) return;
 
-        /* Va en el hueco que está a la derecha del semáforo, junto al
-           logo. Si esa caja no existiera, se usa el botón del mapa como
-           ancla para no dejar la función sin botón. */
         var caja = document.getElementById('acciones-cabecera');
         var ancla = caja || document.getElementById('btn-mapa-plan');
         if (!ancla || !ancla.parentNode) return;
@@ -524,9 +562,26 @@
         }
     }
 
+    /* ---------------- Tecla ESC ---------------- */
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            var whPanel = document.getElementById('wh-panel');
+            var turnosPanel = document.getElementById('turnos-panel');
+
+            if (whPanel && whPanel.classList.contains('abierto')) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrarWebhook();
+            } 
+            else if (turnosPanel && turnosPanel.classList.contains('abierto')) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrar();
+            }
+        }
+    });
+
     document.addEventListener('DOMContentLoaded', function () {
-        /* El encabezado aparece recién cuando termina de validar la sesión, así
-           que se reintenta un rato en vez de asumir que ya está. */
         var intentos = 0;
         crearBoton();
         var t = setInterval(function () {

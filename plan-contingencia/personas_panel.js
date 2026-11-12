@@ -1,29 +1,5 @@
 /* ------------------------------------------------------------
    PERSONAS — alta y edición de usuarios
-   ------------------------------------------------------------
-   Solo Seguridad Industrial. Aquí se crea la persona y se decide
-   QUÉ PUEDE VER, sin depender del rol:
-
-     · Medidas     -> antes / durante / después + flujo de respuesta
-     · Mapa        -> mapa completo (incluye compuertas)
-     · Compuertas  -> solo compuertas
-
-   Reglas:
-     mapa implica compuertas
-     compuertas sola es válida
-     medidas es independiente
-
-   El rol y la gerencia se guardan como dato de registro: no dan
-   visibilidad ni alarmas. El semáforo lo ven quienes tengan
-   medidas o mapa (el de solo compuertas no).
-
-   Las casillas de alarma NO se tocan aquí: se manejan en
-   «Usuarios y alarmas» y arrancan apagadas.
-
-   Datos:
-     alarmas_personas_lista(clave)   -> lista con permisos
-     crear_usuario_panel(...)        -> alta
-     editar_usuario_panel(...)       -> edición
    ------------------------------------------------------------ */
 (function () {
     'use strict';
@@ -93,29 +69,47 @@
             'font-size:.76rem;font-weight:800;cursor:pointer}',
             '.pe-cuenta{margin-left:auto;font-size:.72rem;color:#64748b;font-weight:700}',
             '.pe-tabla{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}',
-            '.pe-fila{display:grid;grid-template-columns:1fr 78px 62px 78px 44px;align-items:center;gap:6px;',
-            'padding:8px 11px;border-bottom:1px solid #f1f5f9}',
+            '.pe-fila{display:grid;grid-template-columns:1fr 78px 62px 78px;align-items:center;gap:6px;',
+            'padding:10px 11px;border-bottom:1px solid #f1f5f9;position:relative}',
             '.pe-fila:last-child{border-bottom:none}',
             '.pe-fila.cabecera{background:#f8fafc;font-size:.6rem;letter-spacing:.05em;color:#64748b;',
             'font-weight:800;text-transform:uppercase}',
             '.pe-fila.cabecera span{text-align:center}',
             '.pe-fila.cabecera span:first-child{text-align:left}',
-            '.pe-nombre{font-size:.79rem;font-weight:700;color:#0f172a;line-height:1.25}',
+            
+            /* Interacción del nombre */
+            '.pe-nombre{font-size:.79rem;font-weight:700;color:#0f172a;line-height:1.25;display:inline-block;',
+            'cursor:pointer;transition:color 0.15s ease}',
+            '.pe-nombre:hover{color:#10a35e}',
+            
             '.pe-meta{font-size:.66rem;color:#64748b;margin-top:2px}',
             '.pe-marca{text-align:center;font-size:.72rem;font-weight:800;color:#cbd5e1}',
             '.pe-marca.si{color:#10a35e}',
-            '.pe-editar{border:none;background:#f8fafc;color:#475569;border-radius:8px;width:26px;height:26px;',
-            'cursor:pointer;font-size:.72rem;justify-self:center}',
-            '.pe-form{display:none;border:1px solid #e2e8f0;border-radius:12px;padding:13px;margin-bottom:12px;',
-            'background:#f8fafc}',
-            '.pe-form.abierto{display:block}',
+            
+            /* Menú flotante (Opciones) */
+            '.pe-menu{position:fixed;z-index:5000;background:#fff;border:1px solid #e2e8f0;border-radius:8px;',
+            'box-shadow:0 4px 12px rgba(0,0,0,0.15);display:none;flex-direction:column;min-width:120px;overflow:hidden}',
+            '.pe-menu.abierto{display:flex}',
+            '.pe-menu button{border:none;background:transparent;padding:9px 12px;text-align:left;font-size:.76rem;',
+            'cursor:pointer;font-weight:600;color:#334155;font-family:inherit;transition:background 0.15s}',
+            '.pe-menu button:hover{background:#f8fafc}',
+            '.pe-menu button.pe-eliminar{color:#b91c1c}',
+            '.pe-menu button.pe-eliminar:hover{background:#fef2f2}',
+            
+            /* FORMULARIO COMO VENTANA EMERGENTE (MODAL) */
+            '.pe-form{position:fixed;inset:0;z-index:4500;display:none;align-items:center;justify-content:center;',
+            'padding:16px;background:rgba(15,23,42,.6)}',
+            '.pe-form.abierto{display:flex}',
+            '.pe-form-caja{background:#fff;border-radius:16px;width:100%;max-width:680px;padding:18px;',
+            'max-height:90vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.25);font-family:inherit}',
+            
             '.pe-form h3{margin:0 0 10px;font-size:.84rem;color:#0f172a}',
             '.pe-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}',
             '.pe-grid label{display:block;font-size:.68rem;color:#64748b;font-weight:700;margin-bottom:3px}',
             '.pe-grid input,.pe-grid select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;',
             'border-radius:9px;font-size:.78rem;font-family:inherit;background:#fff}',
             '.pe-campo-ancho{grid-column:1/-1}',
-            '.pe-permisos{border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-top:11px;background:#fff}',
+            '.pe-permisos{border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-top:11px;background:#f8fafc}',
             '.pe-permisos h4{margin:0 0 7px;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:#64748b}',
             '.pe-permisos label{display:flex;align-items:flex-start;gap:8px;font-size:.76rem;color:#334155;',
             'margin-bottom:7px;line-height:1.3}',
@@ -151,15 +145,42 @@
                     '<button type="button" class="pe-nuevo" id="pe-nuevo"><i class="fas fa-plus"></i> Nueva persona</button>' +
                     '<span class="pe-cuenta" id="pe-cuenta"></span>' +
                 '</div>' +
-                '<div class="pe-form" id="pe-form"></div>' +
                 '<div class="pe-tabla" id="pe-tabla"></div>' +
                 '<div class="pe-aviso" id="pe-aviso"></div>' +
+                '<div class="pe-form" id="pe-form"></div>' +
             '</div>';
         document.body.appendChild(panel);
+
+        // Menú flotante independiente (fuera del contenedor con scroll)
+        var menu = document.createElement('div');
+        menu.id = 'pe-menu-opciones';
+        menu.className = 'pe-menu';
+        menu.innerHTML =
+            '<button type="button" id="pe-btn-editar">✏️ Editar</button>' +
+            '<button type="button" class="pe-eliminar" id="pe-btn-eliminar">🗑️ Eliminar</button>';
+        document.body.appendChild(menu);
 
         document.getElementById('pe-cerrar').addEventListener('click', cerrar);
         document.getElementById('pe-buscar').addEventListener('input', pintarFilas);
         document.getElementById('pe-nuevo').addEventListener('click', function () { abrirForm(null); });
+        
+        // Ocultar menú si se hace clic fuera de él
+        document.addEventListener('click', function(e) {
+            var m = document.getElementById('pe-menu-opciones');
+            if (m && m.classList.contains('abierto')) {
+                if (!m.contains(e.target) && !e.target.classList.contains('pe-nombre')) {
+                    m.classList.remove('abierto');
+                }
+            }
+        });
+
+        // Ocultar menú si se hace scroll en el panel
+        panel.addEventListener('scroll', function() {
+            var m = document.getElementById('pe-menu-opciones');
+            if (m && m.classList.contains('abierto')) {
+                m.classList.remove('abierto');
+            }
+        });
     }
 
     function abrir() {
@@ -170,7 +191,6 @@
         cargar();
     }
 
-    /* Abre el panel directamente en la ficha de una persona */
     function abrirPersona(nombre) {
         if (!puedeVer()) return;
         css();
@@ -186,6 +206,7 @@
         var p = document.getElementById(PANEL);
         if (p) p.classList.remove('abierto');
         EDITANDO = null;
+        document.getElementById('pe-menu-opciones').classList.remove('abierto');
     }
 
     function aviso(texto, tipo) {
@@ -231,13 +252,13 @@
         }
 
         var out = ['<div class="pe-fila cabecera"><span>Persona</span><span>Medidas</span>' +
-                   '<span>Mapa</span><span>Compuertas</span><span></span></div>'];
+                   '<span>Mapa</span><span>Compuertas</span></div>'];
 
         lista.forEach(function (f) {
             var id = esc(f.nombre);
             out.push('<div class="pe-fila">' +
                 '<div>' +
-                    '<div class="pe-nombre">' + id +
+                    '<div class="pe-nombre" data-nombre="' + id + '">' + id +
                         (f.activo ? '' : ' <span style="color:#b91c1c;font-weight:700">(inactivo)</span>') +
                     '</div>' +
                     '<div class="pe-meta">' + esc(f.seccion || 'sin sección') + ' · ' + esc(f.rol || 'sin rol') + '</div>' +
@@ -245,18 +266,77 @@
                 marca(f.puede_medidas) +
                 marca(f.puede_mapa) +
                 marca(f.puede_compuertas) +
-                '<button type="button" class="pe-editar" data-editar="' + id + '" title="Editar">&#9998;</button>' +
             '</div>');
         });
 
         tabla.innerHTML = out.join('');
 
-        tabla.querySelectorAll('[data-editar]').forEach(function (b) {
-            b.addEventListener('click', function () {
-                var f = CACHE.find(function (x) { return x.nombre === b.dataset.editar; });
-                if (f) abrirForm(f);
+        tabla.querySelectorAll('.pe-nombre').forEach(function (el) {
+            el.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var nombre = el.dataset.nombre;
+                var f = CACHE.find(function (x) { return x.nombre === nombre; });
+                if (f) abrirMenuOpciones(e, f, el);
             });
         });
+    }
+
+    /* ---------------- Menú de opciones (Editar / Eliminar) ---------------- */
+    function abrirMenuOpciones(event, fila, elementoNombre) {
+        var menu = document.getElementById('pe-menu-opciones');
+        var btnEditar = document.getElementById('pe-btn-editar');
+        var btnEliminar = document.getElementById('pe-btn-eliminar');
+
+        // Posicionar el menú justo debajo del nombre clickeado
+        var rect = elementoNombre.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 4) + 'px';
+        menu.style.left = rect.left + 'px';
+        menu.classList.add('abierto');
+
+        // Remover listeners anteriores para no duplicar
+        var nuevoEditar = btnEditar.cloneNode(true);
+        var nuevoEliminar = btnEliminar.cloneNode(true);
+        btnEditar.parentNode.replaceChild(nuevoEditar, btnEditar);
+        btnEliminar.parentNode.replaceChild(nuevoEliminar, btnEliminar);
+
+        nuevoEditar.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.classList.remove('abierto');
+            abrirForm(fila);
+        });
+
+        nuevoEliminar.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.classList.remove('abierto');
+            confirmarEliminar(fila);
+        });
+    }
+
+       /* ---------------- Eliminar ---------------- */
+    async function confirmarEliminar(fila) {
+        if (!confirm('¿Estás seguro de que deseas eliminar a ' + fila.nombre + '?\n\nEsta acción no se puede deshacer.')) {
+            return;
+        }
+        
+        aviso('Eliminando a ' + fila.nombre + '...', '');
+        try {
+            var r = await rpc('eliminar_usuario_panel', {
+                p_clave_quien: clavePortal(),
+                p_user_id: fila.nombre
+            });
+            
+            if (!r || r.ok !== true) {
+                var errorMsg = 'No se pudo eliminar: ' + ((r && r.motivo) || 'error desconocido');
+                aviso(errorMsg, 'malo');
+                alert(errorMsg); // <-- Esto te mostrará una ventana con el error exacto
+                return;
+            }
+            aviso('Persona eliminada correctamente.', 'ok');
+            await cargar();
+        } catch (e) {
+            aviso('No se pudo eliminar: ' + e.message, 'malo');
+            alert('Error del sistema: ' + e.message); // <-- Alerta si falla la conexión
+        }
     }
 
     /* ---------------- Alta / edición ---------------- */
@@ -290,43 +370,51 @@
         };
 
         form.innerHTML =
-            '<h3>' + (esNuevo ? 'Nueva persona' : 'Editar: ' + esc(fila.nombre)) + '</h3>' +
-            '<div class="pe-grid">' +
-                (esNuevo
-                    ? '<div class="pe-campo-ancho"><label>Nombre completo (como figura en el sistema)</label>' +
-                      '<input type="text" id="pe-f-nombre" placeholder="APELLIDOS NOMBRES" autocomplete="off"></div>'
-                    : '') +
-                '<div><label>Sección / área</label>' +
-                    '<input type="text" id="pe-f-seccion" list="pe-f-secciones" value="' + esc(fila ? (fila.seccion || '') : '') + '" autocomplete="off">' +
-                    '<datalist id="pe-f-secciones">' + datos + '</datalist></div>' +
-                '<div><label>Rol <small style="font-weight:400">(solo registro)</small></label>' +
-                    '<select id="pe-f-rol">' + roles + '</select></div>' +
-                '<div><label>Gerencia <small style="font-weight:400">(solo registro)</small></label>' +
-                    '<select id="pe-f-gerencia"><option value="">(sin gerencia)</option>' + gers + '</select></div>' +
-                '<div><label>Contraseña ' + (esNuevo ? '(vacío = apellido + 2026)' : '(vacío = no cambiar)') + '</label>' +
-                    '<input type="text" id="pe-f-password" autocomplete="off"></div>' +
-            '</div>' +
-            '<div class="pe-permisos">' +
-                '<h4>Qué puede ver</h4>' +
-                '<label><input type="checkbox" id="pe-p-medidas"' + (p.medidas ? ' checked' : '') + '>' +
-                    '<span>Medidas <small>Antes / durante / después y el flujo de respuesta de emergencia</small></span></label>' +
-                '<label><input type="checkbox" id="pe-p-mapa"' + (p.mapa ? ' checked' : '') + '>' +
-                    '<span>Mapa <small>Mapa completo; incluye las compuertas y el semáforo</small></span></label>' +
-                '<label><input type="checkbox" id="pe-p-compuertas"' + (p.compuertas ? ' checked' : '') + '>' +
-                    '<span>Compuertas <small>Solo el panel de compuertas, sin mapa ni semáforo</small></span></label>' +
-            '</div>' +
-            (esNuevo ? '' : '<div class="pe-cheques"><label><input type="checkbox" id="pe-f-activo"' +
-                (fila.activo ? ' checked' : '') + '> Activo (puede iniciar sesión)</label></div>') +
-            '<div class="pe-botones">' +
-                '<button type="button" class="pe-guardar" id="pe-f-guardar">' +
-                    (esNuevo ? 'Crear persona' : 'Guardar cambios') + '</button>' +
-                '<button type="button" class="pe-cancelar" id="pe-f-cancelar">Cancelar</button>' +
-            '</div>' +
-            '<div class="pe-aviso" id="pe-f-aviso"></div>';
+            '<div class="pe-form-caja">' +
+                '<h3>' + (esNuevo ? 'Nueva persona' : 'Editar: ' + esc(fila.nombre)) + '</h3>' +
+                '<div class="pe-grid">' +
+                    (esNuevo
+                        ? '<div class="pe-campo-ancho"><label>Nombre completo (como figura en el sistema)</label>' +
+                          '<input type="text" id="pe-f-nombre" placeholder="APELLIDOS NOMBRES" autocomplete="off"></div>'
+                        : '') +
+                    '<div><label>Sección / área</label>' +
+                        '<input type="text" id="pe-f-seccion" list="pe-f-secciones" value="' + esc(fila ? (fila.seccion || '') : '') + '" autocomplete="off">' +
+                        '<datalist id="pe-f-secciones">' + datos + '</datalist></div>' +
+                    '<div><label>Rol <small style="font-weight:400">(solo registro)</small></label>' +
+                        '<select id="pe-f-rol">' + roles + '</select></div>' +
+                    '<div><label>Gerencia <small style="font-weight:400">(solo registro)</small></label>' +
+                        '<select id="pe-f-gerencia"><option value="">(sin gerencia)</option>' + gers + '</select></div>' +
+                    '<div><label>Contraseña ' + (esNuevo ? '(vacío = apellido + 2026)' : '(vacío = no cambiar)') + '</label>' +
+                        '<input type="text" id="pe-f-password" autocomplete="off"></div>' +
+                '</div>' +
+                '<div class="pe-permisos">' +
+                    '<h4>Qué puede ver</h4>' +
+                    '<label><input type="checkbox" id="pe-p-medidas"' + (p.medidas ? ' checked' : '') + '>' +
+                        '<span>Medidas <small>Antes / durante / después y el flujo de respuesta de emergencia</small></span></label>' +
+                    '<label><input type="checkbox" id="pe-p-mapa"' + (p.mapa ? ' checked' : '') + '>' +
+                        '<span>Mapa <small>Mapa completo; incluye las compuertas y el semáforo</small></span></label>' +
+                    '<label><input type="checkbox" id="pe-p-compuertas"' + (p.compuertas ? ' checked' : '') + '>' +
+                        '<span>Compuertas <small>Solo el panel de compuertas, sin mapa ni semáforo</small></span></label>' +
+                '</div>' +
+                (esNuevo ? '' : '<div class="pe-cheques"><label><input type="checkbox" id="pe-f-activo"' +
+                    (fila.activo ? ' checked' : '') + '> Activo (puede iniciar sesión)</label></div>') +
+                '<div class="pe-botones">' +
+                    '<button type="button" class="pe-guardar" id="pe-f-guardar">' +
+                        (esNuevo ? 'Crear persona' : 'Guardar cambios') + '</button>' +
+                    '<button type="button" class="pe-cancelar" id="pe-f-cancelar">Cancelar</button>' +
+                '</div>' +
+                '<div class="pe-aviso" id="pe-f-aviso"></div>' +
+            '</div>';
 
         form.classList.add('abierto');
 
-        /* mapa implica compuertas */
+        form.onclick = function(e) {
+            if (e.target === form) {
+                form.classList.remove('abierto');
+                EDITANDO = null;
+            }
+        };
+
         var cMapa = document.getElementById('pe-p-mapa');
         var cComp = document.getElementById('pe-p-compuertas');
         function sincronizarCompuertas() {
@@ -444,6 +532,30 @@
         }
     }
 
+    /* ---------------- Tecla ESC ---------------- */
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            var menu = document.getElementById('pe-menu-opciones');
+            var form = document.getElementById('pe-form');
+            var panel = document.getElementById(PANEL);
+
+            if (menu && menu.classList.contains('abierto')) {
+                e.preventDefault();
+                e.stopPropagation();
+                menu.classList.remove('abierto');
+            } else if (form && form.classList.contains('abierto')) {
+                e.preventDefault();
+                e.stopPropagation();
+                form.classList.remove('abierto');
+                EDITANDO = null;
+            } else if (panel && panel.classList.contains('abierto')) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrar();
+            }
+        }
+    });
+
     /* ---------------- Botón ＋ en la cabecera ---------------- */
     function crearBoton() {
         if (!puedeVer()) return;
@@ -464,8 +576,8 @@
             b.addEventListener('click', abrir);
         }
 
-        if (b.parentNode !== ancla) {
-            if (caja) caja.appendChild(b);
+               if (b.parentNode !== ancla) {
+            if (caja) caja.prepend(b); // <--- Cambiamos appendChild por prepend
             else ancla.parentNode.insertBefore(b, ancla);
         }
     }

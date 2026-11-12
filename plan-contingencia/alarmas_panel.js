@@ -83,21 +83,18 @@
             '.al-cuenta{margin-left:auto;font-size:.72rem;color:#64748b;font-weight:700}',
             '.al-tabla{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}',
             '.al-fila{display:grid;grid-template-columns:1fr 72px 78px 88px 72px;align-items:center;gap:6px;',
-            'padding:8px 11px;border-bottom:1px solid #f1f5f9}',
+            'padding:10px 11px;border-bottom:1px solid #f1f5f9}', /* Ajusté el padding un poco para que respire mejor sin el cargo */
             '.al-fila:last-child{border-bottom:none}',
             '.al-fila.cabecera{background:#f8fafc;font-size:.6rem;letter-spacing:.05em;color:#64748b;',
             'font-weight:800;text-transform:uppercase}',
             '.al-fila.cabecera span{text-align:center}',
             '.al-fila.cabecera span:first-child{text-align:left}',
             '.al-nombre{font-size:.79rem;font-weight:700;color:#0f172a;line-height:1.25}',
-            '.al-meta{font-size:.66rem;color:#64748b;margin-top:2px}',
             '.al-casilla{display:flex;justify-content:center}',
             '.al-casilla input{width:19px;height:19px;accent-color:#10a35e;cursor:pointer}',
             '.al-casilla input:disabled{opacity:.5;cursor:wait}',
             '.al-maestro input{accent-color:#dc2626}',
             '.al-fila.apagada .al-casilla input:not(:disabled){opacity:.45}',
-            '.al-acceso{border:none;background:#f8fafc;color:#475569;border-radius:8px;width:24px;height:24px;',
-            'cursor:pointer;margin-left:6px;font-size:.72rem}',
             '.al-aviso{margin-top:9px;font-size:.73rem;font-weight:700;min-height:15px}',
             '.al-aviso.ok{color:#047857}',
             '.al-aviso.malo{color:#b91c1c}',
@@ -210,13 +207,13 @@
         lista.forEach(function (f) {
             var id = esc(f.nombre);
             var apagada = f.alarma_off === true;
+            
+            // Aquí quitamos el <div class="al-meta">...</div>
             out.push('<div class="al-fila' + (apagada ? ' apagada' : '') + '">' +
                 '<div>' +
                     '<div class="al-nombre">' + id +
                         (f.activo ? '' : ' <span style="color:#b91c1c;font-weight:700">(inactivo)</span>') +
-                        '<button type="button" class="al-acceso" data-editar="' + id + '" title="Editar permisos">&#9998;</button>' +
                     '</div>' +
-                    '<div class="al-meta">' + esc(f.seccion || 'sin sección') + ' · ' + esc(f.rol || 'sin rol') + '</div>' +
                 '</div>' +
                 '<div class="al-casilla al-maestro"><input type="checkbox" data-maestro="' + id + '"' +
                     (apagada ? '' : ' checked') + ' aria-label="Todas las alarmas"></div>' +
@@ -237,11 +234,6 @@
         tabla.querySelectorAll('input[data-alarma]').forEach(function (c) {
             c.addEventListener('change', function () {
                 alternar(c.dataset.user, c.dataset.alarma, c.checked, c);
-            });
-        });
-        tabla.querySelectorAll('[data-editar]').forEach(function (b) {
-            b.addEventListener('click', function () {
-                if (window.abrirPersona) window.abrirPersona(b.dataset.editar);
             });
         });
     }
@@ -299,6 +291,18 @@
             casilla.disabled = false;
         }
     }
+
+    /* ---------------- Tecla ESC ---------------- */
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            var panel = document.getElementById(PANEL);
+            if (panel && panel.classList.contains('abierto')) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrar();
+            }
+        }
+    });
 
     /* ---------------- Botón en la cabecera ---------------- */
     function crearBoton() {
