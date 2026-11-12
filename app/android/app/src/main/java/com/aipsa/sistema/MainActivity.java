@@ -151,6 +151,9 @@ public class MainActivity extends BridgeActivity {
             if (nm != null && !nm.canUseFullScreenIntent()) return "pantalla_completa";
         }
 
+        // 5b) Mostrar sobre otras apps: la alarma entra con el celular en uso
+        if (!tieneSobreOtrasApps()) return "sobre_otras_apps";
+
         // 6) Exencion del ahorro de bateria
         try {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
@@ -203,6 +206,12 @@ public class MainActivity extends BridgeActivity {
                 mensaje = "Para que la alarma aparezca aunque la app esté cerrada o el teléfono bloqueado, activa \"Permitir pantalla completa\".";
                 boton = "Abrir ajustes";
                 break;
+            case "sobre_otras_apps":
+                titulo = "Mostrar sobre otras apps";
+                mensaje = "Para que la alarma te tape la pantalla aunque estés usando el celular.\n\n"
+                        + "Se abre el interruptor de esta app: actívalo y vuelve.";
+                boton = "Abrir interruptor";
+                break;
             default:
                 titulo = "Sin restricciones de batería";
                 mensaje = "Android puede cerrar la app y dejar de enviar la ubicación.\n\nElige \"Sin restricciones\" / \"No optimizar\".";
@@ -234,6 +243,14 @@ public class MainActivity extends BridgeActivity {
                             try {
                                 android.content.Intent i = new android.content.Intent(
                                         android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                                i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                                startActivity(i);
+                            } catch (Exception e) { abrirAjustesApp(); }
+                            break;
+                        case "sobre_otras_apps":
+                            try {
+                                android.content.Intent i = new android.content.Intent(
+                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
                                 i.setData(android.net.Uri.parse("package:" + getPackageName()));
                                 startActivity(i);
                             } catch (Exception e) { abrirAjustesApp(); }
@@ -390,15 +407,23 @@ public class MainActivity extends BridgeActivity {
 
     /* ============================================================
        PERMISOS OBLIGATORIOS DEL PORTAL
-       Notificaciones, pantalla completa, No molestar e instalar
-       apps. Se piden de a uno, en ese orden, y no se puede seguir
-       sin concederlos. Vale para jefes, gerentes, area y tambien
-       para el conductor: su porton de ubicacion es aparte, dentro
-       de "iniciar turno".
+       Notificaciones, pantalla completa, "sobre otras apps",
+       No molestar e instalar apps. Se piden de a uno, en ese orden,
+       y no se puede seguir sin concederlos. Vale para jefes,
+       gerentes, area y tambien para el conductor: su porton de
+       ubicacion es aparte, dentro de "iniciar turno".
+
+       Cada boton lleva DIRECTO al interruptor de esta app, salvo
+       "todo el tiempo" (ubicacion) y los extras del fabricante, que
+       Android no deja abrir en un solo salto.
        ============================================================ */
     private static final String[] PASOS_PORTAL = {
-            "notificaciones", "pantalla_completa", "no_molestar", "instalar"
+            "notificaciones", "pantalla_completa", "sobre_otras_apps", "no_molestar", "instalar"
     };
+
+    /** Accion del sistema que abre el acceso a No molestar DE ESTA APP. */
+    private static final String ACCION_NOMOLESTAR_APP =
+            "android.settings.NOTIFICATION_POLICY_ACCESS_DETAIL_SETTINGS";
     private boolean pasoPermisoVisible = false;
     private boolean esperandoSistema = false;
     private long proximoChequeoPermiso = 0;
@@ -428,6 +453,12 @@ public class MainActivity extends BridgeActivity {
         return nm != null && nm.canUseFullScreenIntent();
     }
 
+    /** "Mostrar sobre otras apps": deja abrir la alarma con el celular en uso. */
+    private boolean tieneSobreOtrasApps() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true;
+        return android.provider.Settings.canDrawOverlays(this);
+    }
+
     private boolean tieneNoMolestar() {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true;
         android.app.NotificationManager nm =
@@ -444,6 +475,7 @@ public class MainActivity extends BridgeActivity {
         switch (paso) {
             case "notificaciones": return !tieneNotificaciones();
             case "pantalla_completa": return !tienePantallaCompleta();
+            case "sobre_otras_apps": return !tieneSobreOtrasApps();
             case "no_molestar": return !tieneNoMolestar();
             default: return !puedeInstalarApps();
         }
@@ -458,6 +490,8 @@ public class MainActivity extends BridgeActivity {
         for (String p : PASOS_PORTAL) {
             if (p.equals("notificaciones") && android.os.Build.VERSION.SDK_INT < 33) continue;
             if (p.equals("pantalla_completa") && android.os.Build.VERSION.SDK_INT < 34) continue;
+            if (p.equals("sobre_otras_apps")
+                    && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) continue;
             if (p.equals("no_molestar")
                     && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) continue;
             if (p.equals("instalar")
@@ -505,11 +539,20 @@ public class MainActivity extends BridgeActivity {
                         + "Es obligatorio para usar la app. Una vez concedido no se vuelve a pedir.";
                 boton = "Abrir ajustes";
                 break;
+            case "sobre_otras_apps":
+                titulo = "Mostrar sobre otras apps";
+                mensaje = "Para que la alarma te tape la pantalla aunque estés usando el celular "
+                        + "(WhatsApp, cámara, el mapa).\n\n"
+                        + "Al pulsar el botón se abre el interruptor de ESTA app: actívalo y vuelve.\n\n"
+                        + "Es obligatorio para usar la app.";
+                boton = "Abrir interruptor";
+                break;
             case "no_molestar":
                 titulo = "Acceso a No molestar";
                 mensaje = "Para que la sirena suene aunque el equipo esté en silencio total.\n\n"
+                        + "Al pulsar el botón se abre el acceso de ESTA app: actívalo y vuelve.\n\n"
                         + "Es obligatorio para usar la app.";
-                boton = "Abrir ajustes";
+                boton = "Abrir interruptor";
                 break;
             default:
                 titulo = "Instalar actualizaciones";
@@ -532,6 +575,30 @@ public class MainActivity extends BridgeActivity {
                     lanzarPasoPortal(paso);
                 })
                 .show();
+    }
+
+    /**
+     * Abre el acceso a "No molestar" DE ESTA APP. En Android 11+ existe una
+     * pantalla por aplicacion; si el fabricante la quito, se cae en la lista
+     * general (como antes) y, de ultima, en la ficha de la app.
+     */
+    private boolean abrirNoMolestarDeLaApp() {
+        try {
+            Intent detalle = new Intent(ACCION_NOMOLESTAR_APP);
+            detalle.setData(Uri.parse("package:" + getPackageName()));
+            detalle.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+            startActivity(detalle);
+            return true;
+        } catch (Exception e) {
+            android.util.Log.w("MainActivity", "sin pantalla directa de No molestar", e);
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
+            return true;
+        } catch (Exception e) {
+            abrirAjustesApp();
+            return true;
+        }
     }
 
     /** Abre el dialogo del sistema o la pantalla de Ajustes del permiso pedido. */
@@ -567,11 +634,17 @@ public class MainActivity extends BridgeActivity {
                         abierto = true;
                     } catch (Exception e) { abrirAjustesApp(); }
                     break;
-                case "no_molestar":
+                case "sobre_otras_apps":
                     try {
-                        startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
+                        // Pantalla de "Mostrar sobre otras apps" de ESTA app
+                        Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                        i.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(i);
                         abierto = true;
                     } catch (Exception e) { abrirAjustesApp(); }
+                    break;
+                case "no_molestar":
+                    abierto = abrirNoMolestarDeLaApp();
                     break;
                 default:
                     try {

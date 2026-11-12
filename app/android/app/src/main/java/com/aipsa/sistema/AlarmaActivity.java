@@ -75,6 +75,11 @@ public class AlarmaActivity extends Activity {
     private TextToSpeech voz;
     private boolean vozLista = false;
     private String textoParaVoz = "";
+
+    /* Lo que se esta mostrando ahora: se refresca si llega otra alerta. */
+    private String tituloActual = "";
+    private String cuerpoActual = "";
+    private LinearLayout raizActual = null;
     private final Handler manejador = new Handler(Looper.getMainLooper());
             private final Runnable repetirVoz = new Runnable() {
         @Override
@@ -100,8 +105,22 @@ public class AlarmaActivity extends Activity {
                 | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                 | WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
 
-                        String titulo = getIntent().getStringExtra("titulo");
-        String cuerpo = getIntent().getStringExtra("cuerpo");
+        aplicarAlerta(getIntent());
+
+        iniciarSonido();
+        iniciarVibracion();
+        iniciarVoz(tituloActual, cuerpoActual);
+        prepararVolumen();
+    }
+
+    /**
+     * Lee el texto de la alerta y pinta la pantalla. Se usa al abrir la alarma
+     * y otra vez cuando llega una segunda alerta (otra unidad) mientras la
+     * pantalla sigue en el aire: asi no se queda con el nombre viejo.
+     */
+    private void aplicarAlerta(Intent intent) {
+        String titulo = intent.getStringExtra("titulo");
+        String cuerpo = intent.getStringExtra("cuerpo");
         
         // 👇 CREAMOS LA VARIABLE DEL COLOR (por defecto rojo) 👇
         String colorFondo = "#B91C1C"; 
@@ -142,14 +161,35 @@ public class AlarmaActivity extends Activity {
             e.printStackTrace();
         }
 
-        iniciarSonido();
-        iniciarVibracion();
-        iniciarVoz(titulo, cuerpo);
+        tituloActual = titulo;
+        cuerpoActual = cuerpo;
+        raizActual = raiz;
 
-        // Que suene fuerte aunque el equipo este en silencio o con el
-        // audio del sistema bajo
-        prepararVolumen();
+        // El sonido y la voz los arranca onCreate; al llegar otra alerta la
+        // pantalla se repinta y la voz se refresca en onNewIntent.
         revisarNoMolestar(raiz);
+    }
+
+    /**
+     * Segunda alerta con la alarma ya en pantalla (por ejemplo, otra unidad).
+     * singleInstance no crea otra pantalla: aqui se actualiza el texto para que
+     * no se quede mostrando el nombre de la unidad anterior.
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent == null) return;
+
+        setIntent(intent);
+        aplicarAlerta(intent);
+
+        textoParaVoz = limpiarParaVoz(tituloActual + ". " + cuerpoActual);
+        try {
+            // La repeticion de la voz sigue sola; aqui solo cambia el texto.
+            hablar();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
            // 👇 Recibe el parámetro colorFondo 👇

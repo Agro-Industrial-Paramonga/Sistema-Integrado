@@ -86,6 +86,10 @@ public class AlarmaNotificacion {
                 .build();
 
         try {
+            // Se retira la anterior y se emite de nuevo: asi el sistema vuelve a
+            // evaluar la PANTALLA COMPLETA en cada alerta (si solo se actualiza,
+            // la segunda alarma no vuelve a abrirse).
+            nm.cancel(AlarmaActivity.ID_NOTIFICACION);
             nm.notify(AlarmaActivity.ID_NOTIFICACION, notificacion);
         } catch (Exception e) {
             e.printStackTrace();
