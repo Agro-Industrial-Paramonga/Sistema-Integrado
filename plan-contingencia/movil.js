@@ -153,6 +153,56 @@
                 movilSeccionActiva(activa.id.replace('section-', ''));
             }
         });
+
+        // ============================================================
+        // MANEJO DEL BOTÓN "ATRÁS" DEL CELULAR
+        // ============================================================
+        var panelesModal = ['turnos-panel', 'alarmas-panel', 'personas-panel', 'wh-panel'];
+
+        // 1. Vigilar cuando se abre un panel para agregar un paso al historial
+        var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+                if (m.attributeName === 'class') {
+                    var el = m.target;
+                    if (el.classList.contains('abierto') && !el.dataset.historialCreado) {
+                        el.dataset.historialCreado = 'true';
+                        history.pushState({ modal: el.id }, '');
+                    } else if (!el.classList.contains('abierto')) {
+                        delete el.dataset.historialCreado;
+                    }
+                }
+            });
+        });
+
+        // Revisar periódicamente si los paneles ya existen en la pantalla
+        setInterval(function() {
+            panelesModal.forEach(function(id) {
+                var p = document.getElementById(id);
+                if (p && !p.dataset.observando) {
+                    p.dataset.observando = 'true';
+                    observer.observe(p, { attributes: true });
+                }
+            });
+        }, 500);
+
+        // 2. Escuchar cuando el usuario presiona "Atrás"
+        window.addEventListener('popstate', function() {
+            var seCerroAlguno = false;
+            
+            panelesModal.forEach(function(id) {
+                var p = document.getElementById(id);
+                if (p && p.classList.contains('abierto')) {
+                    p.classList.remove('abierto');
+                    delete p.dataset.historialCreado;
+                    seCerroAlguno = true;
+                }
+            });
+
+            // Si cerramos un panel, nos mantenemos en la misma página
+            if (seCerroAlguno) {
+                history.pushState({ app: 'main' }, '');
+            }
+        });
     }
 
     window.movilSeccionActiva = movilSeccionActiva;

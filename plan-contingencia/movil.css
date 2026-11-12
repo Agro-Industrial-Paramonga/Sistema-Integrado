@@ -552,97 +552,112 @@
     body.con-tabbar a[href="licencias.html"] {
         display: none !important;
     }
-}
-/* ============================================================
-   PANELES DE ADMINISTRACIÓN (Alarmas y Personas) EN MÓVIL
-   ============================================================ */
 
-/* Convertir los paneles en "hojas inferiores" para que suban desde abajo */
-body #alarmas-panel,
-body #personas-panel {
-    align-items: flex-end !important;
-    padding: 0 !important;
-}
+    /* ============================================================
+       5. PANELES DE ADMINISTRACIÓN (Alarmas, Personas) Y ARREGLOS
+       ============================================================ */
 
-body #alarmas-panel .al-caja,
-body #personas-panel .pe-caja {
-    max-width: 100% !important;
-    width: 100% !important;
-    max-height: 92dvh !important;
-    border-radius: 20px 20px 0 0 !important;
-    padding: 16px 12px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
-}
+    /* Convertir los paneles en "hojas inferiores" para que suban desde abajo */
+    body #alarmas-panel,
+    body #personas-panel {
+        align-items: flex-end !important;
+        padding: 0 !important;
+        z-index: 9999 !important;
+    }
 
-/* Permitir scroll horizontal por si acaso en pantallas muy pequeñas */
-.al-tabla, .pe-tabla {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-}
+    body #alarmas-panel .al-caja,
+    body #personas-panel .pe-caja {
+        max-width: 100% !important;
+        width: 100% !important;
+        max-height: 92dvh !important;
+        border-radius: 20px 20px 0 0 !important;
+        padding: 16px 12px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+        background-color: #ffffff !important;
+    }
 
-/* --- Ajustes Tabla de ALARMAS --- */
-/* Cambiamos los anchos fijos para que quepan en el celular */
-.al-fila {
-    grid-template-columns: minmax(0, 1fr) 45px 55px 60px 50px !important;
-    gap: 4px !important;
-    padding: 10px 8px !important;
-}
-.al-fila.cabecera span {
-    font-size: 0.5rem !important;
-    letter-spacing: 0 !important;
-}
-.al-nombre {
-    font-size: 0.75rem !important;
-    line-height: 1.15 !important;
-    word-wrap: break-word;
-}
+    /* Evitar que el fondo se vuelva transparente */
+    body .al-fila, 
+    body .pe-fila, 
+    body .turnos-fila {
+        background-color: #ffffff !important;
+    }
+    body .al-fila.cabecera, 
+    body .pe-fila.cabecera {
+        background-color: #f8fafc !important;
+    }
 
-/* Achicar los checkboxes para ganar espacio */
-.al-casilla input,
-.pe-marca {
-    width: 18px !important;
-    height: 18px !important;
-}
+    /* Tablas con scroll interno */
+    .al-tabla, .pe-tabla {
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        max-height: 55vh;
+    }
 
-/* --- Ajustes Tabla de PERSONAS --- */
-.pe-fila {
-    grid-template-columns: minmax(0, 1fr) 55px 45px 65px !important;
-    gap: 4px !important;
-    padding: 10px 8px !important;
-}
-.pe-fila.cabecera span {
-    font-size: 0.5rem !important;
-    letter-spacing: 0 !important;
-}
-.pe-nombre {
-    font-size: 0.75rem !important;
-    line-height: 1.15 !important;
-}
-.pe-meta {
-    font-size: 0.6rem !important;
-    line-height: 1.2 !important;
-    margin-top: 4px !important;
-}
+    /* --- Ajustes Tabla de ALARMAS --- */
+    .al-fila {
+        grid-template-columns: minmax(0, 1fr) 45px 55px 60px 50px !important;
+        gap: 4px !important;
+        padding: 10px 8px !important;
+    }
+    .al-fila.cabecera span {
+        font-size: 0.5rem !important;
+        letter-spacing: 0 !important;
+    }
+    .al-nombre {
+        font-size: 0.75rem !important;
+        line-height: 1.15 !important;
+        word-wrap: break-word;
+    }
 
-/* --- Ajustes de Filtros y Botones (para que se apilen si no caben) --- */
-.al-filtros, .pe-filtros {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 8px !important;
-}
-.al-filtros input[type="text"],
-.al-filtros select,
-.pe-filtros input[type="text"],
-.pe-nuevo {
-    width: 100% !important;
-    flex: none !important;
-    box-sizing: border-box;
-}
-.al-cuenta, .pe-cuenta {
-    margin-left: 0 !important;
-    text-align: right;
-}
+    /* Achicar los checkboxes para ganar espacio */
+    .al-casilla input,
+    .pe-marca {
+        width: 18px !important;
+        height: 18px !important;
+    }
 
-/* El formulario de agregar persona en 1 sola columna */
-.pe-grid {
-    grid-template-columns: 1fr !important;
+    /* --- Ajustes Tabla de PERSONAS --- */
+    .pe-fila {
+        grid-template-columns: minmax(0, 1fr) 55px 45px 65px !important;
+        gap: 4px !important;
+        padding: 10px 8px !important;
+    }
+    .pe-fila.cabecera span {
+        font-size: 0.5rem !important;
+        letter-spacing: 0 !important;
+    }
+    .pe-nombre {
+        font-size: 0.75rem !important;
+        line-height: 1.15 !important;
+    }
+    .pe-meta {
+        font-size: 0.6rem !important;
+        line-height: 1.2 !important;
+        margin-top: 4px !important;
+    }
+
+    /* --- Ajustes de Filtros y Botones (para que se apilen si no caben) --- */
+    .al-filtros, .pe-filtros {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .al-filtros input[type="text"],
+    .al-filtros select,
+    .pe-filtros input[type="text"],
+    .pe-nuevo {
+        width: 100% !important;
+        flex: none !important;
+        box-sizing: border-box;
+    }
+    .al-cuenta, .pe-cuenta {
+        margin-left: 0 !important;
+        text-align: right;
+    }
+
+    /* El formulario de agregar persona en 1 sola columna */
+    .pe-grid {
+        grid-template-columns: 1fr !important;
+    }
 }
