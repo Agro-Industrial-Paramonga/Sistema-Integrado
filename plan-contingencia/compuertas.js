@@ -7,7 +7,9 @@
 const PC_ADMINISTRACIONES = [
     { id: 'Administracion 1', titulo: 'Administración 1', subtitulo: 'Huayto · Upacá' },
     { id: 'Administracion 2', titulo: 'Administración 2', subtitulo: 'Lateral Molle y ramales' },
-    { id: 'Administracion 3', titulo: 'Administración 3', subtitulo: 'Cerro Blanco · Lampay · Paramonga' }
+    { id: 'Administracion 3', titulo: 'Administración 3', subtitulo: 'Cerro Blanco · Lampay · Paramonga' },
+    // AGREGA ESTA LÍNEA:
+    { id: 'Ingenieria Agricola', titulo: 'Ingeniería Agrícola', subtitulo: 'Sectores y canales de ingeniería' } 
 ];
 
 const PC_MENSAJE_TABLA = 'Falta la tabla de responsables en la base. Ejecuta el SQL (sql/compuertas_responsables.sql) y vuelve a intentar.';
