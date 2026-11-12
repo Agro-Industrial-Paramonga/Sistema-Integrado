@@ -85,6 +85,12 @@
 
     <!-- ============ PANTALLA: LOGIN ============ -->
     <section id="screen-login" class="screen active">
+        <!-- ACCESO DIRECTO: INGRESO DE MAQUINARIAS (solo en la pantalla de login) -->
+    <div style="position:fixed;top:14px;left:14px;z-index:12000;">
+        <a href="conductor.html" style="display:flex;align-items:center;gap:10px;padding:12px 18px;text-decoration:none;color:#0f172a;font-size:.88rem;font-weight:600;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.12);transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+            <i class="fas fa-truck-moving" style="color:#16a34a; font-size:1.1rem;"></i> Ingreso de Maquinarias
+        </a>
+    </div>
         <div class="login-bg">
             <div class="login-card">
                 <div class="login-logo">
@@ -838,12 +844,6 @@
        style="position:fixed;bottom:10px;right:12px;z-index:11500;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.55);border:1px solid rgba(148,163,184,.35);color:#94a3b8;font-size:13px;text-decoration:none;opacity:.65;">
         <i class="fas fa-scale-balanced"></i>
     </a>
-    <!-- ACCESO DIRECTO: INGRESO DE MAQUINARIAS (solo en la pantalla de login) -->
-    <div style="position:fixed;top:14px;left:14px;z-index:12000;">
-        <a href="conductor.html" style="display:flex;align-items:center;gap:10px;padding:12px 18px;text-decoration:none;color:#0f172a;font-size:.88rem;font-weight:600;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.12);transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-            <i class="fas fa-truck-moving" style="color:#16a34a; font-size:1.1rem;"></i> Ingreso de Maquinarias
-        </a>
-    </div>
     <script>
     // 1. Se ejecuta antes de ir al mapa: guarda qué pantalla y sección están activas
     function guardarEstadoYIrAlMapa(e) {
