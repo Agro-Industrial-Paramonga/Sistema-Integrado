@@ -8,13 +8,67 @@
     var ROLES = [
         ['jefe_area', 'Jefe de área'],
         ['sup_area', 'Supervisor de área'],
-        ['area', 'Área (administrador de campo)'],
+        ['area', 'Área'],
         ['gerente_general', 'Gerente general'],
         ['gerente_campo', 'Gerente de campo'],
         ['gerente_fabrica', 'Gerente de fábrica'],
         ['gerencial_legal', 'Gerencia legal'],
         ['gdo', 'Gerencia DSRR / GDO']
     ];
+
+    /* Secciones NUEVAS: cada una con la gerencia que le corresponde.
+       Solo estas se validan. Las secciones que ya existían (Administradores
+       de campo, APT, Seguridad Industrial, las de dos áreas con "/", etc.)
+       no están en esta lista y se siguen guardando con cualquier gerencia. */
+    var SECCIONES_NUEVAS = [
+        ['Administración 1', 'GERENCIA DE CAMPO'],
+        ['Administración 2', 'GERENCIA DE CAMPO'],
+        ['Administración Oficina Lima', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Agronomía', 'GERENCIA DE CAMPO'],
+        ['Fitosanidad', 'GERENCIA DE CAMPO'],
+        ['Sembradores y Arrendados', 'GERENCIA DE CAMPO'],
+        ['Ganadería', 'GERENCIA DE CAMPO'],
+        ['Estadística', 'GERENCIA DE CAMPO'],
+        ['Almacén de Producto Terminado', 'GERENCIA GENERAL'],
+        ['Unidad de Almacén General', 'GERENCIA GENERAL'],
+        ['Abastecimiento, Bienes y Servicios', 'GERENCIA GENERAL'],
+        ['Biotecnología', 'GERENCIA GENERAL'],
+        ['Hostelería', 'GERENCIA DSRR ORGANIZ Y SOSTEN'],
+        ['Desarrollo del Talento Humano', 'GERENCIA DSRR ORGANIZ Y SOSTEN'],
+        ['Contabilidad', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Activo Fijo, Seguros y Archivo Central', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Control de Egresos y Facturación', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Administración y Finanzas', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Análisis de Negocio', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Auditoría Interna', 'GERENCIA DE ADM Y FINANZAS'],
+        ['Relaciones Laborales', 'GERENCIA LEGAL Y RELACIONES LABORALES'],
+        ['Asuntos Ambientales', 'GERENCIA LEGAL Y RELACIONES LABORALES'],
+        ['Asesoría Legal', 'GERENCIA LEGAL Y RELACIONES LABORALES'],
+        ['Investigación, Desarrollo e Innovación', 'GERENCIA COMERCIAL']
+    ];
+
+    /* Devuelve la gerencia fija de una sección nueva, o null si la sección
+       no es de las nuevas (o sea, si es de las de siempre). */
+    function gerenciaDeSeccionNueva(seccion) {
+        var k = String(seccion || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ').trim().toLowerCase();
+        for (var i = 0; i < SECCIONES_NUEVAS.length; i++) {
+            var n = SECCIONES_NUEVAS[i][0].normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ').trim().toLowerCase();
+            if (n === k) return SECCIONES_NUEVAS[i][1];
+        }
+        return null;
+    }
+
+    /* '' si está bien; si no, el texto del error. */
+    function revisarSeccionGerencia(seccion, gerencia) {
+        var esperada = gerenciaDeSeccionNueva(seccion);
+        if (!esperada) return '';
+        var a = String(esperada).replace(/\s+/g, ' ').trim().toUpperCase();
+        var b = String(gerencia || '').replace(/\s+/g, ' ').trim().toUpperCase();
+        if (a === b) return '';
+        return 'La sección «' + seccion + '» es de ' + esperada + '. Elige esa gerencia.';
+    }
 
     var CACHE = [];
     var EDITANDO = null;
@@ -350,7 +404,7 @@
             return '<option value="' + r[0] + '"' + sel + '>' + esc(r[1]) + '</option>';
         }).join('');
 
-        var gerencias = {};
+        var gerencias = { 'GERENCIA COMERCIAL': true };
         CACHE.forEach(function (f) { if (f.gerencia_key) gerencias[f.gerencia_key] = true; });
         var gers = Object.keys(gerencias).sort().map(function (g) {
             var sel = (fila && fila.gerencia_key === g) ? ' selected' : '';
@@ -359,6 +413,7 @@
 
         var secciones = {};
         CACHE.forEach(function (f) { if (f.seccion) secciones[f.seccion] = true; });
+        SECCIONES_NUEVAS.forEach(function (s) { secciones[s[0]] = true; });
         var datos = Object.keys(secciones).sort().map(function (s) {
             return '<option value="' + esc(s) + '">';
         }).join('');
@@ -428,6 +483,16 @@
         cMapa.addEventListener('change', sincronizarCompuertas);
         sincronizarCompuertas();
 
+        /* Si elige una sección nueva, la gerencia se pone sola. */
+        var inSeccion = document.getElementById('pe-f-seccion');
+        var selGerencia = document.getElementById('pe-f-gerencia');
+        function ajustarGerencia() {
+            var g = gerenciaDeSeccionNueva(inSeccion.value);
+            if (g) selGerencia.value = g;
+        }
+        inSeccion.addEventListener('change', ajustarGerencia);
+        inSeccion.addEventListener('blur', ajustarGerencia);
+
         document.getElementById('pe-f-cancelar').addEventListener('click', function () {
             form.classList.remove('abierto');
             EDITANDO = null;
@@ -462,6 +527,8 @@
         if (!nombre) { avisoForm('Escribe el nombre.', 'malo'); return; }
         if (!seccion) { avisoForm('Escribe la sección.', 'malo'); return; }
         if (!permisos.length) { avisoForm('Marca al menos qué puede ver.', 'malo'); return; }
+        var malaSeccion = revisarSeccionGerencia(seccion, gerencia);
+        if (malaSeccion) { avisoForm(malaSeccion, 'malo'); return; }
 
         var b = document.getElementById('pe-f-guardar');
         b.disabled = true;
@@ -502,6 +569,10 @@
 
     async function guardar() {
         if (!EDITANDO) return;
+        var seccion = document.getElementById('pe-f-seccion').value.trim();
+        var gerencia = document.getElementById('pe-f-gerencia').value;
+        var malaSeccion = revisarSeccionGerencia(seccion, gerencia);
+        if (malaSeccion) { avisoForm(malaSeccion, 'malo'); return; }
         var b = document.getElementById('pe-f-guardar');
         b.disabled = true;
         b.textContent = 'Guardando...';
@@ -509,9 +580,9 @@
             var r = await rpc('editar_usuario_panel', {
                 p_clave_quien: clavePortal(),
                 p_user_id: EDITANDO.nombre,
-                p_seccion: document.getElementById('pe-f-seccion').value.trim(),
+                p_seccion: seccion,
                 p_rol: document.getElementById('pe-f-rol').value,
-                p_gerencia: document.getElementById('pe-f-gerencia').value,
+                p_gerencia: gerencia,
                 p_password: document.getElementById('pe-f-password').value.trim() || null,
                 p_activo: document.getElementById('pe-f-activo').checked,
                 p_permisos: permisosElegidos()
