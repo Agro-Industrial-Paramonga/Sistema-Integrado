@@ -476,6 +476,11 @@ function pcFormUbicacion(c, caja) {
         const lon = parseFloat(datos.get('lon'));
         
         if (isNaN(lat) || isNaN(lon)) { pcAviso(caja, 'Coordenadas no válidas', true); return; }
+        if (Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+            pcAviso(caja, 'Eso parece UTM (metros). Escribe grados decimales: ' +
+                'latitud entre -90 y 90, longitud entre -180 y 180.', true);
+            return;
+        }
 
         pcCargando = true;
         const { error } = await db.from('compuertas').update({ lat: lat, lon: lon }).eq('id', c.id);

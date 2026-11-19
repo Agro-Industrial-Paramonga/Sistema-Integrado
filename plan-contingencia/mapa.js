@@ -2183,6 +2183,10 @@ function abrirModalCompuertaManual() {
         const lat = parseFloat(latStr);
         const lon = parseFloat(lonStr);
         if (isNaN(lat) || isNaN(lon)) { avisar('Las coordenadas ingresadas no son válidas.', 'warn'); return; }
+        if (!coordenadaEnGrados(lat, lon)) {
+            avisar('Eso parece UTM (metros). Escribe grados decimales: latitud -10.67 y longitud -77.79, por ejemplo.', 'warn');
+            return;
+        }
 
         const btn = capa.querySelector('#btn-guardar-compuerta-manual');
         btn.disabled = true;
@@ -2748,6 +2752,13 @@ function telefonoMapa(valor) {
     return d;
 }
 
+/* Leaflet dibuja en grados decimales. Si lat/lon llegan en UTM (metros, tipo
+   197745 / 8832005) el marcador no se pinta y parece que la compuerta
+   desaparecio, asi que se descarta y se avisa en consola. */
+function coordenadaEnGrados(lat, lon) {
+    return isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+}
+
 /* Encargados (tabla compuertas_contactos) de una compuerta */
 async function contactosDeCompuerta(id) {
     try {
@@ -2868,7 +2879,10 @@ async function cargarCompuertasMapa() {
     capaCompuertasMapa.clearLayers();
 
     compuertasMapa.forEach(c => {
-        if (!isFinite(Number(c.lat)) || !isFinite(Number(c.lon))) return;
+        if (!coordenadaEnGrados(Number(c.lat), Number(c.lon))) {
+            console.warn('Compuerta sin coordenadas validas (se oculta del mapa):', c.nombre, c.lat, c.lon);
+            return;
+        }
 
         /* El círculo dice QUÉ TOCA HACER (el plan), no lo que está pasando.
            Abrir = verde, cerrar = rojo, igual que la tarjeta del panel. */
