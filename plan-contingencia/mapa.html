@@ -338,6 +338,8 @@
         }
         .pc-chip.abierta { background: #16a34a; }
         .pc-chip.cerrada { background: #dc2626; }
+        .pc-chip.plan { font-size: .72rem; font-weight: 900; letter-spacing: .08em; padding: 4px 11px; }
+        .pc-card.solo-lectura { cursor: default; }
         .pc-chip:active { transform: scale(.95); }
         .pc-borrar {
             position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%;
@@ -474,6 +476,15 @@
         .compuerta-mapa-img.cerrada { border: 3px solid #dc2626; box-shadow: 0 0 10px rgba(220, 38, 38, 0.6); }
         .compuerta-mapa-img.abierta { border: 3px solid #16a34a; box-shadow: 0 0 10px rgba(22, 163, 74, 0.6); }
 
+        /* Check del jefe: se ve encima de la compuerta en el mapa */
+        .pin-compuerta { position: relative; width: 100%; height: 100%; display: block; }
+        .compuerta-check {
+            position: absolute; right: -7px; top: -7px; width: 21px; height: 21px;
+            border-radius: 50%; background: #16a34a; color: #fff; border: 2px solid #fff;
+            font-size: 12px; line-height: 17px; text-align: center; font-weight: 900;
+            box-shadow: 0 2px 6px rgba(15,23,42,.45); pointer-events: none;
+        }
+
         /* ===== Panel de ficha / galería de fotos ===== */
         .panel-mapa {
             position: fixed; inset: 0; z-index: 4300; background: rgba(15,23,42,.42);
@@ -505,7 +516,7 @@
             display: block; font-size: .66rem; font-weight: 800; letter-spacing: .06em;
             color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;
         }
-        .panel-campo input, .panel-campo textarea {
+        .panel-campo input, .panel-campo textarea, .panel-campo select {
             width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px;
             padding: 9px 11px; font-size: .86rem; color: #0f172a; font-family: inherit;
         }
@@ -528,6 +539,35 @@
         .panel-subir input { display: none; }
         .foto-opciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
         .foto-opciones .panel-subir { flex: 1 1 30%; min-width: 92px; }
+
+        /* ===== Ficha de compuerta: encargados y quitar del mapa ===== */
+        .ficha-lista { list-style: none; margin: 0; padding: 0; }
+        .ficha-lista li {
+            font-size: .8rem; color: #334155; padding: 7px 0;
+            border-bottom: 1px solid #f1f5f9; line-height: 1.35;
+        }
+        .ficha-lista li:last-child { border-bottom: none; }
+        .ficha-lista a { color: #0284c7; text-decoration: none; font-weight: 700; }
+        .ficha-contacto {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            margin-bottom: 8px; position: relative; padding-right: 26px;
+        }
+        .ficha-contacto input {
+            width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 9px;
+            padding: 8px 9px; font-size: .8rem; color: #0f172a; font-family: inherit;
+        }
+        .ficha-contacto .fc-telefono { grid-column: 1 / -1; }
+        .ficha-contacto-x {
+            position: absolute; top: 2px; right: 0; width: 22px; height: 22px; border-radius: 50%;
+            border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 13px;
+            line-height: 1; cursor: pointer; font-weight: 800;
+        }
+        .ficha-quitar-mapa {
+            width: 100%; margin-top: 14px; padding: 11px; border-radius: 11px; cursor: pointer;
+            border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c;
+            font-weight: 800; font-size: .8rem; font-family: inherit;
+        }
+        .ficha-quitar-mapa:hover { background: #fee2e2; }
 
         /* --- ESTILOS PARA LOS BOTONES DE CAPAS --- */
         .controles-capas-derecha {
@@ -751,8 +791,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
      <script src="assets/turf.min.js?v=1"></script>
-    <script src="mapa.js?v=68"></script>
-    <script src="compuertas.js?v=11"></script>
+    <script src="mapa.js?v=70"></script>
+    <script src="compuertas.js?v=12"></script>
     <script src="semaforo.js?v=12"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

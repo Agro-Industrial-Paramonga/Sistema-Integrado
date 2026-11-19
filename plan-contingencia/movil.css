@@ -619,7 +619,7 @@
 
     /* --- Ajustes Tabla de PERSONAS --- */
     .pe-fila {
-        grid-template-columns: minmax(0, 1fr) 55px 45px 65px !important;
+        grid-template-columns: minmax(0, 1fr) 46px 40px 58px 44px !important;
         gap: 4px !important;
         padding: 10px 8px !important;
     }

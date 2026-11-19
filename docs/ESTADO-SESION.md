@@ -555,6 +555,153 @@ Es compatible con el cliente anterior: la app publicada sigue registrando por se
 El APK carga la web publicada (`capacitor.config.json` → `server.url`), así que toma estos
 cambios al publicar; no hace falta recompilar.
 
+---
+
+## 17. El webhook del iPhone no sonaba (19-nov) — corregido
+
+**Síntoma.** *Probar* sonaba en el iPhone, pero al cambiar el semáforo solo llegaba la
+notificación del navegador, nunca la pantalla completa de NotiAlarm. Le pasaba a
+`OCHOA BACILIO BETZI JAZMIN`; a `VILLAFRANCA ROMERO EDINSON ALEXANDER` sí le llegaba.
+
+**Causa.** La lista de destinatarios, no NotiAlarm. El 12-nov, al reescribir
+`destinatarios_push()` en `sql/permisos_usuario.sql`, se perdió la excepción del iPhone
+que traía `sql/webhook_notialarm.sql` (6-nov). Quedó una sola regla para los jefes:
+*«solo recibe si alguna sesión viva tiene `token_push` = su token»*.
+
+Como `sesiones_panel.token_push` es **una sola columna**, la fila del iPhone (`ios-<md5>`)
+solo entra si su sesión la apunta. Pero al abrir el portal, `registrar_token_persona()`
+guarda ahí el token FCM del navegador y `registrar_webhook_notialarm()` no engancha el
+`ios-…` si la sesión ya trae otro token. Resultado: la fila `ios-` quedaba huérfana y la
+función la descartaba; el paso 2 de la función edge mandaba el FCM y el paso 3 nunca se
+ejecutaba. **El botón *Probar* sí funciona siempre** porque manda el POST directo, sin
+consultar la lista.
+
+**Por qué Edinson sí.** No por diseño: le quedó una sesión de navegador vieja
+(`web-mwck7153-x349ezby`, 11-nov) con `token_push = 'ios-7e9fee…'`. Esa fila hacía pasar
+la regla por accidente. Muñoz y Sánchez tenían el mismo fallo que Betzi.
+
+**Corrección** (`sql/destinatarios_push_ios.sql`, aplicada el 19-nov; también quedó
+incorporada en `sql/permisos_usuario.sql`): se agrega la rama del iPhone sin quitar nada.
+
+```sql
+or (c.token like 'ios-%'
+    and exists (select 1 from sesiones_panel s
+                 where norm_persona(s.user_id) = norm_persona(c.dueno)))
+```
+
+Siguen mandando igual: el switch maestro (`esta_silenciado`), la casilla de la alarma
+(`suscripciones_alarma`) y la regla por `token_push` para Android, navegador y conductores.
+
+**Efectos a tener en cuenta.**
+
+- Quien tenga webhook **y** token FCM recibe las dos cosas (notificación del navegador y
+  pantalla completa). Es lo que ya le pasaba a Edinson.
+- La URL sigue siendo de la persona: sobrevive al cierre de sesión. Pero **sin sesión viva
+  no suena** — es la regla de siempre, no un fallo.
+- Verificación en la base: `destinatarios_push('jefe','semaforo')` ya devuelve las dos
+  filas de Betzi (token FCM + `ios-…` con webhook).
+
+No hizo falta tocar la función edge ni recompilar el APK.
+
+---
+
+## 18. Compuertas del KMZ y edición desde el mapa (19-nov)
+
+**Las compuertas del mapa son ahora las del KMZ «Control Compuertas»** (13 puntos, carpetas
+*Compuertas Pativilca* y *Fortaleza*). Aplicado con `sql/compuertas_control_kmz.sql`.
+
+| Antes en el mapa | Ahora |
+|---|---|
+| Compuerta Molle, Chilcal, Colorada | Se **reaprovecharon sus filas** (id 26, 27, 28): nombre corregido al del KMZ y coordenadas del KMZ. Conservan sus **5 fotos** |
+| Compuerta Toma 3 Compuertas | Eliminada (no está en el KMZ; se fue con su foto) |
+| — | 10 nuevas: Ava Santa María, L1 Julquillas, L1 Caraqueño, San Bernardo, Buitron, Cruce Huaraz, Zanjon, Julquillas, Caballete, Balcon de Judas |
+
+Las 10 nuevas entran con `administracion = 'Administracion 1'` **provisional** y estado
+`cerrada`; se cambian desde el mapa o el panel. Las 21 compuertas que no estaban en el mapa
+siguen intactas, con sus 120 responsables.
+
+**Ficha de compuerta editable** (`mapa.js`, `mapa.html`, `mapa.js?v=69`). Al pulsar una
+compuerta → *Editar* ahora se puede cambiar:
+
+- **Estado** (abierta / cerrada), que es lo que pinta el icono en rojo o verde.
+- **Administración**: Administración 1, 2, 3 e Ingeniería Agrícola. Los ids son los mismos
+  del panel (`compuertas.js`); si no, la compuerta no aparece en ninguna pestaña del panel.
+  Si la fila trae un valor viejo fuera de la lista, se agrega como opción para no perderlo.
+- **Encargados** (`compuertas_contactos`): añadir, cambiar nombre/cargo y quitar. El celular
+  se guarda en 9 dígitos (acepta +51, espacios y guiones). Se aplica al pulsar *Guardar*.
+
+Las fotos siguen en la misma ficha y se pueden subir y borrar como antes. El `<select>` de
+administración de «Agregar compuerta» ya incluye Ingeniería Agrícola (antes solo tenía 1, 2 y 3).
+
+**Borrar desde el mapa.** En el editor, con el modo *borrar* activo, el clic sobre una
+compuerta pregunta y **solo pone `lat`/`lon` en null**: la fila, sus fotos y sus encargados
+siguen en el panel, donde está la eliminación definitiva. Igual que el botón *Quitar del mapa*
+del panel. En la ficha de edición hay además un botón rojo *Quitar del mapa (solo coordenadas)*.
+
+Verificado en navegador headless con una compuerta temporal (luego eliminada): ficha de
+lectura, formulario completo, guardado de estado + administración + encargado, borrado en modo
+editor y clic normal abriendo la ficha, sin errores de consola.
+
+---
+
+## 19. Compuertas: hoja de ABRIR/CERRAR y check del jefe (19-nov, noche)
+
+Pedido del gerente: el que solo ve compuertas **no edita, no abre, no cierra y no ve
+contactos**. Ve una hoja con qué se abre y qué se cierra. El ✓ lo pone solo el jefe y se
+ve **en el mapa**.
+
+### El plan manda, no el estado
+
+`compuertas.plan_rojo` (`abrir` | `cerrar`, por defecto `cerrar`). Es independiente del
+semáforo y del estado: la tarjeta del panel muestra `ABRIR` o `CERRAR`, y quien edita lo
+cambia con un toque en la etiqueta de la tarjeta (con aviso previo).
+
+En el panel, quien **no** edita ya no ve contactos, fotos, estado, ×, ni «Añadir
+compuerta»; la tarjeta no abre nada. El detalle (encargados, fotos, ubicación) quedó solo
+para quien edita.
+
+### El check
+
+`compuertas.check_evento` / `check_por` / `check_en`. Un ✓ por compuerta **y por
+declaración de semáforo**: al declarar un nivel nuevo, `check_evento` deja de coincidir con
+`max(semaforo_eventos.id)` y el ✓ desaparece solo; no hay que limpiar nada.
+
+- Botón **Cumplido** en la ficha de la compuerta, en el mapa. Solo con
+  `puede_editar_compuertas`.
+- Al marcarlo, el estado pasa a lo que pide el plan (`abrir` → abierta, `cerrar` →
+  cerrada), así el ícono del mapa y la base quedan coherentes sin otro formulario.
+- `marcar_compuerta_check(clave, compuerta, valor)` valida el permiso en el servidor y deja
+  rastro en `app_log` (`compuerta_check`). `valor=false` quita el ✓.
+- El ✓ se pinta como globo verde encima del ícono (`.compuerta-check`) y el tooltip dice
+  «✓ Cumplido».
+
+### Quién edita
+
+`usuarios.puede_editar_compuertas`, **por persona**, en el panel «Personas» (casilla «Edita
+compuertas», con su columna en la tabla). No lo decide el rol.
+
+- Migración: quedan con el check los jefes/supervisores/gerentes/Seguridad Industrial
+  (61 personas); los 30 de rol `area` quedan sin marcar.
+- `marcar_editor_compuertas(clave, persona, valor)` es la RPC que lo guarda; el panel la
+  llama después de crear o editar.
+- Si la sesión viene de la versión anterior (sin el campo), el navegador usa el criterio
+  viejo, así nadie pierde la edición hasta volver a entrar.
+
+### Otros arreglos
+
+- La compuerta 30 tenía `administracion` mal codificado («IngenierÃ­a AgrÃ­cola») y no salía
+  en ninguna pestaña. Corregida a `Ingenieria Agricola`.
+- Queda una fila basura: id 31, nombre y administración «Gerente de Desarrollo
+  Organizacional». No sale en ninguna pestaña; hay que borrarla desde el panel o la base.
+- `sql/compuertas_plan_check.sql` es el archivo de esta tanda (idempotente, ya aplicado).
+  `alarmas_personas_lista` y `mi_perfil` se recrearon allí y también quedaron actualizadas
+  en `sql/permisos_usuario.sql`.
+
+Versiones: `mapa.js?v=70`, `compuertas.js?v=12`, `personas_panel.js?v=2`, `script.js?v=73`.
+
+**Sin probar en pantalla** (las pruebas las hace el usuario): la hoja sin contactos, el ✓
+en el mapa, el botón Cumplido y la casilla «Edita compuertas».
+
 
 
 

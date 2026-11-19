@@ -123,7 +123,7 @@
             'font-size:.76rem;font-weight:800;cursor:pointer}',
             '.pe-cuenta{margin-left:auto;font-size:.72rem;color:#64748b;font-weight:700}',
             '.pe-tabla{border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}',
-            '.pe-fila{display:grid;grid-template-columns:1fr 78px 62px 78px;align-items:center;gap:6px;',
+            '.pe-fila{display:grid;grid-template-columns:1fr 70px 52px 74px 52px;align-items:center;gap:6px;',
             'padding:10px 11px;border-bottom:1px solid #f1f5f9;position:relative}',
             '.pe-fila:last-child{border-bottom:none}',
             '.pe-fila.cabecera{background:#f8fafc;font-size:.6rem;letter-spacing:.05em;color:#64748b;',
@@ -306,7 +306,7 @@
         }
 
         var out = ['<div class="pe-fila cabecera"><span>Persona</span><span>Medidas</span>' +
-                   '<span>Mapa</span><span>Compuertas</span></div>'];
+                   '<span>Mapa</span><span>Compuertas</span><span>Edita</span></div>'];
 
         lista.forEach(function (f) {
             var id = esc(f.nombre);
@@ -320,6 +320,7 @@
                 marca(f.puede_medidas) +
                 marca(f.puede_mapa) +
                 marca(f.puede_compuertas) +
+                marca(f.puede_editar_compuertas) +
             '</div>');
         });
 
@@ -421,7 +422,8 @@
         var p = {
             medidas: !!(fila && fila.puede_medidas),
             mapa: !!(fila && fila.puede_mapa),
-            compuertas: !!(fila && fila.puede_compuertas)
+            compuertas: !!(fila && fila.puede_compuertas),
+            edita: !!(fila && fila.puede_editar_compuertas)
         };
 
         form.innerHTML =
@@ -450,6 +452,8 @@
                         '<span>Mapa <small>Mapa completo; incluye las compuertas y el semáforo</small></span></label>' +
                     '<label><input type="checkbox" id="pe-p-compuertas"' + (p.compuertas ? ' checked' : '') + '>' +
                         '<span>Compuertas <small>Solo el panel de compuertas, sin mapa ni semáforo</small></span></label>' +
+                    '<label><input type="checkbox" id="pe-p-edita"' + (p.edita ? ' checked' : '') + '>' +
+                        '<span>Edita compuertas <small>Añadir, borrar, encargados, plan y el ✓ del mapa</small></span></label>' +
                 '</div>' +
                 (esNuevo ? '' : '<div class="pe-cheques"><label><input type="checkbox" id="pe-f-activo"' +
                     (fila.activo ? ' checked' : '') + '> Activo (puede iniciar sesión)</label></div>') +
@@ -555,8 +559,24 @@
                 avisoForm(motivos[(r && r.motivo)] || ('No se pudo crear (' + ((r && r.motivo) || 'error') + ').'), 'malo');
                 return;
             }
-            avisoForm('Creado: ' + r.user_id + ' · contraseña: ' + r.password +
-                      ' · alarmas apagadas (actívalas en «Usuarios y alarmas»)', 'ok');
+            var edita = document.getElementById('pe-p-edita').checked;
+            var falloEdita = false;
+            if (edita) {
+                try {
+                    var perm = await rpc('marcar_editor_compuertas', {
+                        p_clave_quien: clavePortal(),
+                        p_user_id: r.user_id,
+                        p_valor: true
+                    });
+                    if (!perm || perm.ok !== true) falloEdita = true;
+                } catch (e2) {
+                    falloEdita = true;
+                }
+            }
+            avisoForm(falloEdita
+                ? 'Creada: ' + r.user_id + ' · pero no se pudo dar el permiso de editar compuertas.'
+                : 'Creado: ' + r.user_id + ' · contraseña: ' + r.password +
+                  ' · alarmas apagadas (actívalas en «Usuarios y alarmas»)', falloEdita ? 'malo' : 'ok');
             document.getElementById('pe-form').classList.remove('abierto');
             await cargar();
         } catch (e) {
@@ -591,10 +611,24 @@
                 avisoForm('No se pudo guardar (' + ((r && r.motivo) || 'error') + ').', 'malo');
                 return;
             }
+            var falloEdita = false;
+            try {
+                var perm = await rpc('marcar_editor_compuertas', {
+                    p_clave_quien: clavePortal(),
+                    p_user_id: EDITANDO.nombre,
+                    p_valor: document.getElementById('pe-p-edita').checked
+                });
+                if (!perm || perm.ok !== true) falloEdita = true;
+            } catch (e2) {
+                falloEdita = true;
+            }
             document.getElementById('pe-form').classList.remove('abierto');
             EDITANDO = null;
             await cargar();
-            aviso('Cambios guardados. Se aplican la próxima vez que la persona inicie sesión.', 'ok');
+            aviso(falloEdita
+                ? 'Cambios guardados, pero no el permiso de editar compuertas.'
+                : 'Cambios guardados. Se aplican la próxima vez que la persona inicie sesión.',
+                falloEdita ? 'malo' : 'ok');
         } catch (e) {
             avisoForm('No se pudo guardar: ' + e.message, 'malo');
         } finally {

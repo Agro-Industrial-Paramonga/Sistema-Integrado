@@ -28,6 +28,8 @@
 alter table public.usuarios add column if not exists puede_medidas    boolean;
 alter table public.usuarios add column if not exists puede_mapa       boolean;
 alter table public.usuarios add column if not exists puede_compuertas boolean;
+-- puede_editar_compuertas (editar compuertas y poner el check) vive en
+-- sql/compuertas_plan_check.sql, que es donde se crea y se migra.
 
 -- 2. Migración: nadie pierde lo que ya veía --------------------
 --    Se copia el criterio que hoy usa el navegador:
@@ -77,7 +79,8 @@ language sql stable security definer set search_path = public as $$
                'seccion', u.seccion,
                'puede_medidas', u.puede_medidas,
                'puede_mapa', u.puede_mapa,
-               'puede_compuertas', u.puede_compuertas
+               'puede_compuertas', u.puede_compuertas,
+               'puede_editar_compuertas', u.puede_editar_compuertas
            )
       from public.usuarios u
      where upper(btrim(u.area)) = upper(btrim(p_area))
@@ -300,7 +303,8 @@ returns table(
     alarma_off       boolean,
     puede_medidas    boolean,
     puede_mapa       boolean,
-    puede_compuertas boolean
+    puede_compuertas boolean,
+    puede_editar_compuertas boolean
 )
 language plpgsql security definer set search_path = public as $$
 begin
@@ -320,7 +324,8 @@ begin
                public.esta_silenciado(u.area),
                u.puede_medidas,
                u.puede_mapa,
-               u.puede_compuertas
+               u.puede_compuertas,
+               u.puede_editar_compuertas
           from public.usuarios u
           left join public.suscripciones_alarma sa1
                  on sa1.alarma = 'semaforo'
@@ -384,10 +389,20 @@ language sql stable security definer set search_path = public as $$
          where c.dueno is not null
            -- switch maestro: en rojo no llega nada
            and not esta_silenciado(c.dueno)
-           -- un jefe solo recibe si tiene sesión viva con ese equipo
+           -- un jefe recibe si su equipo tiene sesión viva
            and (c.tipo <> 'jefe'
+                -- Android / navegador: el token está enganchado a una sesión
                 or exists (select 1 from sesiones_panel s
-                            where s.token_push = c.token))
+                            where s.token_push = c.token)
+                -- iPhone (NotiAlarm): la fila es de la PERSONA, no del equipo.
+                -- Suena si esa persona tiene sesión viva, aunque su sesión esté
+                -- enganchada al Android o al navegador (token_push es una sola
+                -- columna y no puede ser 'ios-...' y el token FCM a la vez).
+                -- Sin esta rama el webhook nunca se dispara: ver
+                -- sql/destinatarios_push_ios.sql
+                or (c.token like 'ios-%'
+                    and exists (select 1 from sesiones_panel s
+                                 where norm_persona(s.user_id) = norm_persona(c.dueno))))
            -- casilla de esa alarma, mirada en el DUEÑO
            and (
                 p_alarma is null

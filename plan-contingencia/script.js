@@ -1023,7 +1023,8 @@ async function entrarApp() {
                 seccion: data.seccion || u.seccion,
                 puede_medidas: data.puede_medidas === true,
                 puede_mapa: data.puede_mapa === true,
-                puede_compuertas: data.puede_compuertas === true
+                puede_compuertas: data.puede_compuertas === true,
+                puede_editar_compuertas: data.puede_editar_compuertas === true
             };
             guardarSesion(actualizada);
             Object.assign(u, actualizada);
@@ -2645,7 +2646,8 @@ async function sesionDesdeBase() {
                 permisos = {
                     puede_medidas: perfil.puede_medidas === true,
                     puede_mapa: perfil.puede_mapa === true,
-                    puede_compuertas: perfil.puede_compuertas === true
+                    puede_compuertas: perfil.puede_compuertas === true,
+                    puede_editar_compuertas: perfil.puede_editar_compuertas === true
                 };
             }
         } catch (e) {}

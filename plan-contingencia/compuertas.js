@@ -72,22 +72,34 @@ function pcPuedeVer() {
     } catch (e) { return false; }
 }
 
-/* Ver el panel no es lo mismo que administrarlo. Gerencia de Campo consulta
-   estados y responsables; crear, borrar compuertas y editar responsables
-   sigue siendo solo de Seguridad Industrial. */
-function pcPuedeAdministrar() {
+/* Ver el panel NO es lo mismo que editarlo.
+
+   Quien solo ve compuertas tiene delante una hoja: qué se abre y qué se
+   cierra al declararse ROJO. Nada de contactos, ni fotos, ni estado actual.
+
+   Editar (añadir, borrar, encargados, ubicación, plan y el check) lo decide
+   el panel «Personas» con la casilla «Edita compuertas», no el rol. El rol
+   solo se usa mientras la sesión venga de una versión anterior sin ese dato. */
+function pcPuedeEditar() {
     try {
         const u = JSON.parse(localStorage.getItem('pc_user') || 'null');
         if (!u) return false;
-        // Damos permiso de administración al Gerente General y a Melgar Belmont
-        if (u.rol === 'gerente_general' || String(u.nombre || '').toLowerCase().includes('melgar')) return true;
 
+        if (typeof u.puede_editar_compuertas === 'boolean') return u.puede_editar_compuertas;
+
+        /* Sesión vieja: mismo criterio de antes, para no quitarle la edición
+           a los jefes que no han vuelto a entrar. */
+        if (u.rol === 'gerente_general' || String(u.nombre || '').toLowerCase().includes('melgar')) return true;
         const texto = pcNormalizar(String(u.seccion || '') + ' ' + String(u.area || '') + ' ' + String(u.nombre || ''));
         if (texto.includes('seguridad industrial') || texto.includes('chunga')) return true;
-        
-        /* Gerencia de Campo administra completa */
+        if (String(u.rol || '').trim().toLowerCase() === 'area') return false;
         return String(u.gerencia_key || '').trim().toUpperCase() === 'GERENCIA DE CAMPO';
     } catch (e) { return false; }
+}
+
+/* Nombre viejo, misma cosa: se conserva para no tocar cada llamada. */
+function pcPuedeAdministrar() {
+    return pcPuedeEditar();
 }
 
 function pcUsuario() {
@@ -101,14 +113,19 @@ function pcUsuario() {
    Datos
    ------------------------------------------------------------ */
 async function pcCargar() {
+    /* Los responsables solo se piden si la persona puede editarlos: quien
+       únicamente ve la lista no tiene por qué recibirlos. */
+    const puedeEditar = pcPuedeEditar();
     const [resGates, resCont] = await Promise.all([
         db.from('compuertas')
             // CORRECCIÓN AQUÍ: Agregamos lat, lon al select
-            .select('id, administracion, nombre, estado, actualizado_por, actualizado_en, lat, lon')
+            .select('id, administracion, nombre, estado, plan_rojo, check_evento, check_por, check_en, actualizado_por, actualizado_en, lat, lon')
             .order('nombre'),
-        db.from('compuertas_contactos')
-            .select('id, compuerta_id, nombre, cargo, telefono')
-            .order('id')
+        puedeEditar
+            ? db.from('compuertas_contactos')
+                .select('id, compuerta_id, nombre, cargo, telefono')
+                .order('id')
+            : Promise.resolve({ data: [], error: null })
     ]);
 
     if (resGates.error) {
@@ -207,7 +224,7 @@ async function pcPintar() {
     const titulo = document.getElementById('pc-admin');
     const sub = document.getElementById('pc-sub');
     if (titulo) titulo.textContent = admin.titulo;
-    if (sub) sub.textContent = admin.subtitulo;
+    if (sub) sub.textContent = admin.subtitulo + ' · al declararse ROJO';
 
     document.querySelectorAll('.pc-tab').forEach(b => {
         b.classList.toggle('activo', b.dataset.admin === pcAdminActual);
@@ -226,35 +243,47 @@ async function pcPintar() {
     grid.innerHTML = '';
 
     if (!lista.length) {
-        grid.innerHTML = '<div class="pc-vacio">Sin compuertas registradas para esta administración.<br>Añade una con el botón de arriba.</div>';
+        grid.innerHTML = '<div class="pc-vacio">Sin compuertas registradas para esta administración.' +
+            (pcPuedeEditar() ? '<br>Añade una con el botón de arriba.' : '') + '</div>';
         return;
     }
 
+    const puedeEditar = pcPuedeEditar();
+
     lista.forEach(c => {
-        const abierta = (c.estado || 'cerrada') === 'abierta';
+        /* La tarjeta muestra el PLAN, no el estado: qué se hace al
+           declararse ROJO. Es la hoja que pide el gerente. */
+        const abre = (c.plan_rojo || 'cerrar') === 'abrir';
         const cuantos = pcContactosDe(c).length;
 
         const card = document.createElement('div');
-        card.className = 'pc-card ' + (abierta ? 'abierta' : 'cerrada');
-        card.setAttribute('role', 'button');
-        card.tabIndex = 0;
+        card.className = 'pc-card ' + (abre ? 'abierta' : 'cerrada') + (puedeEditar ? '' : ' solo-lectura');
+        if (puedeEditar) {
+            card.setAttribute('role', 'button');
+            card.tabIndex = 0;
+        }
         card.innerHTML =
-            '<button type="button" class="pc-chip ' + (abierta ? 'abierta' : 'cerrada') + '" ' +
-            'title="Cambiar estado">' + (abierta ? 'Abierto' : 'Cerrado') + '</button>' +
-            (pcPuedeAdministrar() ? '<button type="button" class="pc-borrar" title="Eliminar compuerta" ' +
+            (puedeEditar
+                ? '<button type="button" class="pc-chip plan ' + (abre ? 'abierta' : 'cerrada') + '" ' +
+                  'title="Cambiar qué se hace al declararse rojo">' + (abre ? 'ABRIR' : 'CERRAR') + '</button>'
+                : '<span class="pc-chip plan ' + (abre ? 'abierta' : 'cerrada') + '">' +
+                  (abre ? 'ABRIR' : 'CERRAR') + '</span>') +
+            (puedeEditar ? '<button type="button" class="pc-borrar" title="Eliminar compuerta" ' +
                 'aria-label="Eliminar compuerta"><i class="fas fa-xmark"></i></button>' : '') +
             '<div class="pc-gate">' +
-            '<img src="assets/compuertas/gate-' + (abierta ? 'green' : 'red') + '.gif" alt="" loading="lazy">' +
+            '<img src="assets/compuertas/gate-' + (abre ? 'green' : 'red') + '.gif" alt="" loading="lazy">' +
             '</div>' +
             '<div class="pc-nombre">' + pcEscape(c.nombre) + '</div>' +
-            '<div class="pc-hint">' + cuantos + ' responsable' + (cuantos === 1 ? '' : 's') + '</div>';
+            (puedeEditar ? '<div class="pc-hint">' + cuantos + ' responsable' + (cuantos === 1 ? '' : 's') + '</div>' : '');
 
-        /* Arriba a la izquierda: estado. Un toque lo cambia (con aviso previo) */
+        /* Arriba a la izquierda: qué se hace en rojo. Un toque lo cambia (con aviso previo) */
         const chip = card.querySelector('.pc-chip');
-        chip.addEventListener('click', (ev) => {
-            ev.stopPropagation();
-            pcPedirCambioEstado(c);
-        });
+        if (puedeEditar) {
+            chip.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                pcPedirCambioPlan(c);
+            });
+        }
 
         /* Arriba a la derecha: eliminar la compuerta (con aviso previo) */
         const borrar = card.querySelector('.pc-borrar');
@@ -265,11 +294,14 @@ async function pcPintar() {
             });
         }
 
-        /* El resto de la tarjeta abre los responsables */
-        card.addEventListener('click', () => pcDetalle(c));
-        card.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pcDetalle(c); }
-        });
+        /* Solo quien edita entra al detalle (responsables, fotos, ubicación).
+           El que solo ve compuertas no abre nada. */
+        if (puedeEditar) {
+            card.addEventListener('click', () => pcDetalle(c));
+            card.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pcDetalle(c); }
+            });
+        }
 
         grid.appendChild(card);
     });
@@ -290,15 +322,15 @@ function pcDetalle(c) {
     const caja = document.getElementById('pc-detalle');
     if (!caja) return;
 
-    const abierta = (c.estado || 'cerrada') === 'abierta';
+    const abre = (c.plan_rojo || 'cerrar') === 'abrir';
     const contactos = pcContactosDe(c);
 
     let html = '<div class="pc-detalle-caja">';
 
     html += '<div class="pc-detalle-head">' +
-        '<img src="assets/compuertas/gate-' + (abierta ? 'green' : 'red') + '.gif" alt="">' +
+        '<img src="assets/compuertas/gate-' + (abre ? 'green' : 'red') + '.gif" alt="">' +
         '<div><h3>' + pcEscape(c.nombre) + '</h3>' +
-        '<span class="pc-estado ' + (abierta ? 'ok' : 'no') + '">' + (abierta ? 'ABIERTA' : 'CERRADA') + '</span></div>' +
+        '<span class="pc-estado ' + (abre ? 'ok' : 'no') + '">EN ROJO: ' + (abre ? 'SE ABRE' : 'SE CIERRA') + '</span></div>' +
         '</div>';
 
     if (c.actualizado_por) {
@@ -523,30 +555,30 @@ function pcConfirmar(titulo, texto, etiqueta, claseBoton, accion) {
     caja.style.display = 'flex';
 }
 
-function pcPedirCambioEstado(c) {
-    const abierta = (c.estado || 'cerrada') === 'abierta';
-    const nuevo = abierta ? 'cerrada' : 'abierta';
+function pcPedirCambioPlan(c) {
+    const abre = (c.plan_rojo || 'cerrar') === 'abrir';
+    const nuevo = abre ? 'cerrar' : 'abrir';
 
     pcConfirmar(
-        abierta ? 'Cerrar compuerta' : 'Abrir compuerta',
-        '¿Confirmas ' + (abierta ? 'cerrar' : 'abrir') + ' la compuerta "' + c.nombre + '"? ' +
-        'El cambio queda registrado con tu usuario. Asegúrate de que no haya personal ni agua en riesgo.',
-        abierta ? 'Cerrar' : 'Abrir',
-        abierta ? 'rojo' : 'verde',
-        () => pcCambiarEstado(c, nuevo)
+        abre ? 'Al declararse rojo: cerrar' : 'Al declararse rojo: abrir',
+        'La compuerta "' + c.nombre + '" quedará como «' + (nuevo === 'abrir' ? 'se abre' : 'se cierra') +
+        '» cuando el semáforo esté en ROJO. Esta es la lista que ve el personal de campo.',
+        nuevo === 'abrir' ? 'Se abre' : 'Se cierra',
+        nuevo === 'abrir' ? 'verde' : 'rojo',
+        () => pcCambiarPlan(c, nuevo)
     );
 }
 
 /* ------------------------------------------------------------
-   Cambiar estado
+   Cambiar el plan (no el estado de la compuerta)
    ------------------------------------------------------------ */
-async function pcCambiarEstado(c, nuevo) {
+async function pcCambiarPlan(c, nuevo) {
     if (pcCargando) return;
     pcCargando = true;
 
     const { error } = await db.from('compuertas')
         .update({
-            estado: nuevo,
+            plan_rojo: nuevo,
             actualizado_por: pcUsuario(),
             actualizado_en: new Date().toISOString()
         })
@@ -555,12 +587,13 @@ async function pcCambiarEstado(c, nuevo) {
     pcCargando = false;
 
     if (error) {
-        console.warn('cambiar estado', error);
-        alert('No se pudo cambiar el estado: ' + error.message);
+        console.warn('cambiar plan', error);
+        alert('No se pudo cambiar: ' + error.message);
         return;
     }
 
     await pcPintar();
+    if (typeof cargarCompuertasMapa === 'function') cargarCompuertasMapa();
 }
 
 /* ------------------------------------------------------------
@@ -680,6 +713,7 @@ async function pcGuardarCompuerta(nombre, caja, latStr, lonStr) {
         administracion: pcAdminActual,
         nombre: limpio,
         estado: 'cerrada',
+        plan_rojo: 'cerrar',
         lat: lat,
         lon: lon
     });
@@ -710,7 +744,8 @@ async function pcGuardarCompuerta(nombre, caja) {
     const { error } = await db.from('compuertas').insert({
         administracion: pcAdminActual,
         nombre: limpio,
-        estado: 'cerrada'
+        estado: 'cerrada',
+        plan_rojo: 'cerrar'
     });
     pcCargando = false;
 

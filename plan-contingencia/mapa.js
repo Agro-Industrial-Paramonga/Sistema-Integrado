@@ -1143,6 +1143,8 @@ window.addEventListener('sem:nivel', function (ev) {
     const d = (ev && ev.detail) || {};
     semaforoActual = { nivel: d.nivel || 'verde', vigente_desde: d.vigente_desde || null };
     try { revisarEvacuacion(); } catch (e) {}
+    /* Nivel nuevo = declaración nueva: los ✓ del nivel anterior dejan de valer. */
+    try { if (typeof cargarCompuertasMapa === 'function') cargarCompuertasMapa(); } catch (e) {}
 });
 
 /* ================= MAQUINAS DE PUNTOS CRITICOS ================= */
@@ -2143,9 +2145,7 @@ function abrirModalCompuertaManual() {
         <div class="panel-campo">
             <label>Administración *</label>
             <select id="nueva-compuerta-admin" style="width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px; padding: 9px 11px; font-size: .86rem; color: #0f172a; font-family: inherit; background: #fff;">
-                <option value="Administracion 1">Administración 1</option>
-                <option value="Administracion 2">Administración 2</option>
-                <option value="Administracion 3" selected>Administración 3</option>
+                ${opcionesAdminCompuerta('Administracion 3')}
             </select>
         </div>
         <div style="display:flex;gap:10px;">
@@ -2291,9 +2291,7 @@ function abrirModalCompuerta(lat, lon) {
         <div class="panel-campo">
             <label>Administración *</label>
             <select id="nueva-compuerta-admin" style="width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px; padding: 9px 11px; font-size: .86rem; color: #0f172a; font-family: inherit; background: #fff;">
-                <option value="Administracion 1">Administración 1</option>
-                <option value="Administracion 2">Administración 2</option>
-                <option value="Administracion 3" selected>Administración 3</option>
+                ${opcionesAdminCompuerta('Administracion 3')}
             </select>
         </div>
         <div class="panel-campo">
@@ -2717,19 +2715,151 @@ async function cargarZonasCriticas() {
    ============================================================ */
 let compuertasMapa = [];
 
+/* Las administraciones se guardan tal cual en la base: estos ids tienen que
+   ser los mismos del panel de compuertas (compuertas.js, PC_ADMINISTRACIONES),
+   si no la compuerta no aparece en ninguna pestaña del panel. */
+const ADMIN_COMPUERTA = [
+    { id: 'Administracion 1', titulo: 'Administración 1' },
+    { id: 'Administracion 2', titulo: 'Administración 2' },
+    { id: 'Administracion 3', titulo: 'Administración 3' },
+    { id: 'Ingenieria Agricola', titulo: 'Ingeniería Agrícola' }
+];
+
+/* Opciones del <select> de administración. Si la compuerta trae un valor que
+   no está en la lista (datos viejos), se agrega igual para no perderlo. */
+function opcionesAdminCompuerta(actual) {
+    const valor = String(actual || '').trim();
+    let html = ADMIN_COMPUERTA.map(a =>
+        '<option value="' + a.id + '"' +
+        (normalizar(a.id) === normalizar(valor) ? ' selected' : '') + '>' +
+        a.titulo + '</option>'
+    ).join('');
+    if (valor && !ADMIN_COMPUERTA.some(a => normalizar(a.id) === normalizar(valor))) {
+        html += '<option value="' + escaparHtml(valor) + '" selected>' + escaparHtml(valor) + '</option>';
+    }
+    return html;
+}
+
+/* Deja el celular en 9 dígitos (acepta +51, espacios y guiones) */
+function telefonoMapa(valor) {
+    let d = String(valor || '').replace(/\D/g, '');
+    if (d.length === 11 && d.indexOf('51') === 0) d = d.slice(2);
+    if (d.length === 12 && d.indexOf('051') === 0) d = d.slice(3);
+    return d;
+}
+
+/* Encargados (tabla compuertas_contactos) de una compuerta */
+async function contactosDeCompuerta(id) {
+    try {
+        const { data, error } = await db.from('compuertas_contactos')
+            .select('id, nombre, cargo, telefono')
+            .eq('compuerta_id', id)
+            .order('id');
+        if (error) throw error;
+        return data || [];
+    } catch (e) {
+        console.warn('contactos compuerta', e);
+        return [];
+    }
+}
+
+/* Quitar la compuerta del MAPA: solo se borran las coordenadas. La fila, sus
+   fotos y sus encargados siguen en el panel de Compuertas, que es donde se
+   elimina de verdad. */
+async function quitarCompuertaDelMapa(c) {
+    if (!puedeEditarMapa()) {
+        avisar('No tienes permiso para quitar compuertas del mapa.', 'warn');
+        return;
+    }
+    if (!confirm('¿Quitar la compuerta "' + (c.nombre || '') + '" del mapa?\n\n' +
+        'Solo se borran las coordenadas. La compuerta sigue en el panel de ' +
+        'Compuertas, con sus fotos y encargados; ahí tiene su propia eliminación.')) return;
+
+    const u = usuarioPlan();
+    const { error } = await db.from('compuertas').update({
+        lat: null,
+        lon: null,
+        actualizado_por: (u && (u.nombre || u.area)) || null,
+        actualizado_en: new Date().toISOString()
+    }).eq('id', c.id);
+
+    if (error) {
+        avisar('No se pudo quitar del mapa: ' + error.message, 'warn');
+        return;
+    }
+    avisar('Compuerta quitada del mapa. Sigue en el panel de Compuertas.', 'ok');
+    cerrarPanelMapa(false);
+    cargarCompuertasMapa();
+}
+
 function esCompuertaAbierta(c) {
     return String(c && c.estado || '').toLowerCase().indexOf('abiert') === 0;
+}
+
+/* Declaración de semáforo en curso. El check vale para esta declaración:
+   al declarar un nivel nuevo, los ✓ viejos dejan de mostrarse solos. */
+let eventoCompuertas = 0;
+
+function compuertaChequeada(c) {
+    return Number(c && c.check_evento) > 0 && Number(c.check_evento) === Number(eventoCompuertas);
+}
+
+/* Clave de la sesión del portal (la que valida las funciones de la base) */
+function clavePortalMapa() {
+    try { return localStorage.getItem('pc_sesion_clave') || null; } catch (e) { return null; }
+}
+
+/* El check lo pone solo quien edita compuertas (los jefes). */
+function puedeChequearCompuerta() {
+    if (sesionConductor()) return false;
+    const u = usuarioPlan();
+    if (!u) return false;
+    if (typeof u.puede_editar_compuertas === 'boolean') return u.puede_editar_compuertas;
+    return puedeEditarMapa();
+}
+
+/* Editar la ficha de la compuerta (plan, administración, encargados): los
+   jefes que editan compuertas y Seguridad Industrial. */
+function puedeEditarCompuerta() {
+    if (sesionConductor()) return false;
+    if (puedeEditarMapa()) return true;
+    const u = usuarioPlan();
+    return !!u && u.puede_editar_compuertas === true;
+}
+
+async function marcarCheckCompuerta(c, valor) {
+    const { data, error } = await db.rpc('marcar_compuerta_check', {
+        p_clave: clavePortalMapa(),
+        p_compuerta: c.id,
+        p_valor: !!valor
+    });
+    if (error) {
+        avisar('No se pudo guardar el check: ' + error.message, 'warn');
+        return;
+    }
+    if (!data || data.ok !== true) {
+        avisar(data && data.motivo === 'sin_permiso'
+            ? 'Solo los jefes pueden poner el check.'
+            : 'No se pudo guardar el check.', 'warn');
+        return;
+    }
+    avisar(valor ? 'Check puesto' : 'Check quitado', 'ok');
+    cerrarPanelMapa(false);
+    cargarCompuertasMapa();
 }
 
 async function cargarCompuertasMapa() {
     if (!capaCompuertasMapa) return;
     try {
-        const { data, error } = await db
-            .from('compuertas')
-            .select('id, administracion, nombre, estado, lat, lon')
-            .not('lat', 'is', null);
-        if (error) throw error;
-        compuertasMapa = data || [];
+        const [resGates, resEvento] = await Promise.all([
+            db.from('compuertas')
+                .select('id, administracion, nombre, estado, plan_rojo, check_evento, check_por, lat, lon')
+                .not('lat', 'is', null),
+            db.from('semaforo_eventos').select('id').order('id', { ascending: false }).limit(1)
+        ]);
+        if (resGates.error) throw resGates.error;
+        compuertasMapa = resGates.data || [];
+        eventoCompuertas = (resEvento && resEvento.data && resEvento.data[0] && Number(resEvento.data[0].id)) || 0;
     } catch (e) {
         console.warn('compuertas mapa', e);
         return;
@@ -2740,11 +2870,15 @@ async function cargarCompuertasMapa() {
     compuertasMapa.forEach(c => {
         if (!isFinite(Number(c.lat)) || !isFinite(Number(c.lon))) return;
         const abierta = esCompuertaAbierta(c);
+        const chequeada = compuertaChequeada(c);
 
         const marca = L.marker([Number(c.lat), Number(c.lon)], {
             icon: L.divIcon({
                 className: '',
-                html: '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abierta ? 'abierta' : 'cerrada') + '">',
+                html: '<span class="pin-compuerta">' +
+                    '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abierta ? 'abierta' : 'cerrada') + '">' +
+                    (chequeada ? '<b class="compuerta-check" title="Cumplido">&#10003;</b>' : '') +
+                    '</span>',
                 iconSize: [40, 40],
                 iconAnchor: [20, 20]
             })
@@ -2752,12 +2886,18 @@ async function cargarCompuertasMapa() {
 
         marca.bindTooltip(
             '<b>' + (c.nombre || 'Compuerta') + '</b><br>' +
-            '<span style="opacity:.8">' + (abierta ? 'Abierta' : 'Cerrada') + ' · ' + (c.administracion || '') + '</span>',
+            '<span style="opacity:.8">' + (abierta ? 'Abierta' : 'Cerrada') + ' · ' + (c.administracion || '') + '</span>' +
+            (chequeada ? '<br><span style="color:#86efac;font-weight:700">&#10003; Cumplido</span>' : ''),
             { direction: 'top', className: 'tip-compuerta', opacity: 1 }
         );
 
         marca.on('click', () => {
-            // CORRECCIÓN: Siempre abre en modo visualización/lectura
+            // En el editor, el modo borrar quita la compuerta del mapa.
+            // Fuera del editor, siempre abre la ficha en modo lectura.
+            if (editorActivo && modoEditor === 'borrar') {
+                quitarCompuertaDelMapa(c);
+                return;
+            }
             abrirFichaCompuerta(c, false);
         });
     });
@@ -3157,38 +3297,249 @@ function abrirFichaPunto(p, esEdicion = false) {
     });
 }
 
-async function abrirFichaCompuerta(c, esEdicion = false) {
-    const editar = esEdicion; 
-    panelFichaEnEdicion = editar;
-    const abierta = esCompuertaAbierta(c);
-    
-    const cuerpo = '<p class="panel-mapa-nota">Estado actual: <b>' + (abierta ? 'abierta' : 'cerrada') +
-        '</b> · ' + escaparHtml(c.administracion || '') + '</p>' +
-        '<p class="panel-mapa-nota">El estado se declara en el panel de Compuertas. Aquí solo se agregan las fotos.</p>' +
-        '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div>';
+/* ---- Ficha de compuerta: lectura y edición ------------------------------- */
+let compuertaContactosEdit = [];   /* copia de trabajo de los encargados */
+let compuertaEnEdicion = null;     /* compuerta abierta en la ficha */
 
-    let botones = '';
-    if (editar) {
-        botones = '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
+function filaContactoHtml(k, i) {
+    return '<div class="ficha-contacto" data-idx="' + i + '">' +
+        '<input class="fc-nombre" type="text" placeholder="Nombre y apellidos" ' +
+            'value="' + escaparHtml(k.nombre || '') + '">' +
+        '<input class="fc-cargo" type="text" placeholder="Cargo" ' +
+            'value="' + escaparHtml(k.cargo || '') + '">' +
+        '<input class="fc-telefono" type="tel" inputmode="numeric" placeholder="Celular (9 dígitos)" ' +
+            'value="' + escaparHtml(k.telefono || '') + '">' +
+        '<button type="button" class="ficha-contacto-x" title="Quitar encargado" ' +
+            'aria-label="Quitar encargado">&times;</button>' +
+        '</div>';
+}
+
+function pintarContactosEdit(capa) {
+    const caja = capa.querySelector('#ficha-contactos');
+    if (!caja) return;
+    caja.innerHTML = compuertaContactosEdit.length
+        ? compuertaContactosEdit.map(filaContactoHtml).join('')
+        : '<p class="panel-mapa-vacio">Todavía no hay encargados.</p>';
+}
+
+/* Pasa lo que hay escrito en el formulario al arreglo de trabajo */
+function leerContactosEdit(capa) {
+    const filas = capa.querySelectorAll('.ficha-contacto');
+    compuertaContactosEdit = Array.prototype.map.call(filas, (f, i) => ({
+        id: (compuertaContactosEdit[i] && compuertaContactosEdit[i].id) || null,
+        nombre: f.querySelector('.fc-nombre').value.trim(),
+        cargo: f.querySelector('.fc-cargo').value.trim(),
+        telefono: f.querySelector('.fc-telefono').value.trim()
+    }));
+}
+
+/* Guarda el plan, la administración y los encargados en una sola operación.
+   El estado (abierta/cerrada) ya no se edita a mano: lo pone el check. */
+async function guardarFichaCompuerta(c, capa) {
+    if (!puedeEditarCompuerta()) {
+        avisar('No tienes permiso para editar compuertas.', 'warn');
+        return;
+    }
+
+    const plan = capa.querySelector('#ficha-plan').value;
+    const admin  = capa.querySelector('#ficha-admin').value;
+
+    leerContactosEdit(capa);
+    const conDatos = compuertaContactosEdit.filter(k => k.nombre || k.cargo || k.telefono);
+
+    for (const k of conDatos) {
+        if (!k.nombre) { avisar('Cada encargado necesita un nombre.', 'warn'); return; }
+        k.telefono = telefonoMapa(k.telefono);
+        if (k.telefono.length !== 9) {
+            avisar('El celular de ' + k.nombre + ' debe tener 9 dígitos.', 'warn');
+            return;
+        }
+    }
+
+    const btn = capa.querySelector('#ficha-guardar');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando…';
+
+    const u = usuarioPlan();
+    const { error } = await db.from('compuertas').update({
+        plan_rojo: plan,
+        administracion: admin,
+        actualizado_por: (u && (u.nombre || u.area)) || null,
+        actualizado_en: new Date().toISOString()
+    }).eq('id', c.id);
+
+    if (error) {
+        btn.disabled = false;
+        btn.textContent = 'Guardar';
+        avisar('No se pudo guardar la compuerta: ' + error.message, 'warn');
+        return;
+    }
+
+    /* Encargados: se borran los que quitaste, se actualizan los que cambiaron
+       y se insertan los nuevos. */
+    const actuales = conDatos.filter(k => k.id).map(k => k.id);
+    const originales = (c.contactos || []).map(k => k.id);
+    const aBorrar = originales.filter(id => actuales.indexOf(id) === -1);
+
+    let fallo = '';
+    if (aBorrar.length) {
+        const { error: e } = await db.from('compuertas_contactos').delete().in('id', aBorrar);
+        if (e) fallo = e.message;
+    }
+    for (const k of conDatos) {
+        if (fallo) break;
+        if (k.id) {
+            const { error: e } = await db.from('compuertas_contactos')
+                .update({ nombre: k.nombre, cargo: k.cargo || null, telefono: k.telefono })
+                .eq('id', k.id);
+            if (e) fallo = e.message;
+        } else {
+            const { error: e } = await db.from('compuertas_contactos')
+                .insert({ compuerta_id: c.id, nombre: k.nombre, cargo: k.cargo || null, telefono: k.telefono });
+            if (e) fallo = e.message;
+        }
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+
+    if (fallo) {
+        avisar('Se guardó el plan, pero fallaron los encargados: ' + fallo, 'warn');
     } else {
-        botones = (puedeEditarMapa() ? '<button type="button" class="panel-btn principal" id="ficha-editar"><i class="fas fa-pen"></i> Editar</button>' : '') +
-                  '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
+        avisar('Compuerta guardada', 'ok');
+    }
+    cerrarPanelMapa(false);
+    cargarCompuertasMapa();
+}
+
+async function abrirFichaCompuerta(c, esEdicion = false) {
+    const editar = !!esEdicion;
+    compuertaEnEdicion = c;
+
+    const abierta = esCompuertaAbierta(c);
+    const abre = (c.plan_rojo || 'cerrar') === 'abrir';   /* qué toca hacer en rojo */
+    const chequeada = compuertaChequeada(c);
+    const contactos = await contactosDeCompuerta(c.id);
+    c.contactos = contactos;
+    compuertaContactosEdit = contactos.map(k => Object.assign({}, k));
+
+    let cuerpo;
+    let botones;
+
+    if (editar) {
+        cuerpo =
+            '<div class="panel-campo">' +
+                '<label>Al declararse ROJO *</label>' +
+                '<select id="ficha-plan">' +
+                    '<option value="abrir"' + (abre ? ' selected' : '') + '>Se abre</option>' +
+                    '<option value="cerrar"' + (abre ? '' : ' selected') + '>Se cierra</option>' +
+                '</select>' +
+                '<p class="panel-mapa-nota" style="margin:6px 0 0">Es la lista que ve el personal de campo.</p>' +
+            '</div>' +
+            '<div class="panel-campo">' +
+                '<label>Administración *</label>' +
+                '<select id="ficha-admin">' + opcionesAdminCompuerta(c.administracion) + '</select>' +
+            '</div>' +
+            '<div class="panel-campo">' +
+                '<label>Encargados</label>' +
+                '<div id="ficha-contactos"></div>' +
+                '<button type="button" class="panel-subir" id="ficha-add-contacto" style="width:100%">' +
+                    '<i class="fas fa-user-plus"></i> Añadir encargado</button>' +
+            '</div>' +
+            '<div class="panel-campo">' +
+                '<label>Fotos</label>' +
+                '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div>' +
+            '</div>' +
+            (puedeEditarMapa()
+                ? '<button type="button" class="ficha-quitar-mapa" id="ficha-quitar-mapa">' +
+                    '<i class="fas fa-trash"></i> Quitar del mapa (solo coordenadas)</button>'
+                : '');
+        botones =
+            '<button type="button" class="panel-btn" id="ficha-cancelar">Cancelar</button>' +
+            '<button type="button" class="panel-btn principal" id="ficha-guardar">' +
+                '<i class="fas fa-floppy-disk"></i> Guardar</button>';
+    } else {
+        const lista = contactos.length
+            ? '<ul class="ficha-lista">' + contactos.map(k =>
+                '<li><b>' + escaparHtml(k.nombre) + '</b>' +
+                (k.cargo ? ' · ' + escaparHtml(k.cargo) : '') +
+                (k.telefono ? '<br><a href="tel:' + escaparHtml(k.telefono) + '">' +
+                    escaparHtml(k.telefono) + '</a>' : '') +
+                '</li>').join('') + '</ul>'
+            : '<p class="panel-mapa-vacio">Sin encargados. Entra en Editar para agregarlos.</p>';
+
+        cuerpo =
+            '<p class="panel-mapa-nota">Al declararse ROJO: <b>' + (abre ? 'SE ABRE' : 'SE CIERRA') + '</b><br>' +
+                'Ahora: ' + (abierta ? 'abierta' : 'cerrada') + ' · ' +
+                escaparHtml(c.administracion || 'sin administración') + '</p>' +
+            '<p class="panel-mapa-nota" style="font-weight:700;color:' + (chequeada ? '#15803d' : '#b45309') + '">' +
+                (chequeada
+                    ? '&#10003; Cumplido' + (c.check_por ? ' · ' + escaparHtml(c.check_por) : '')
+                    : 'Sin confirmar') +
+            '</p>' +
+            '<div class="panel-campo"><label>Encargados</label>' + lista + '</div>' +
+            '<div class="panel-campo"><label>Fotos</label>' +
+                '<div id="ficha-fotos"><p class="panel-mapa-vacio">Cargando fotos…</p></div></div>';
+        botones =
+            (puedeChequearCompuerta()
+                ? '<button type="button" class="panel-btn' + (chequeada ? '' : ' principal') + '" id="ficha-check">' +
+                    (chequeada
+                        ? '<i class="fas fa-xmark"></i> Quitar check'
+                        : '<i class="fas fa-check"></i> Cumplido') + '</button>'
+                : '') +
+            (puedeEditarCompuerta()
+                ? '<button type="button" class="panel-btn" id="ficha-editar">' +
+                    '<i class="fas fa-pen"></i> Editar</button>'
+                : '') +
+            '<button type="button" class="panel-btn" id="ficha-cerrar">Cerrar</button>';
     }
 
     const capa = panelMapa(c.nombre || 'Compuerta', cuerpo, botones);
-    capa.querySelector('#ficha-cerrar').addEventListener('click', () => cerrarPanelMapa(false));
+    panelFichaEnEdicion = editar;
 
-    const btnEditar = capa.querySelector('#ficha-editar');
-    if (btnEditar) {
-        btnEditar.addEventListener('click', () => {
-            cerrarPanelMapa(false);
-            abrirFichaCompuerta(c, true); 
+    if (editar) {
+        pintarContactosEdit(capa);
+
+        capa.querySelector('#ficha-cancelar').addEventListener('click', () => cerrarPanelMapa(false));
+        capa.querySelector('#ficha-guardar').addEventListener('click', () => guardarFichaCompuerta(c, capa));
+
+        capa.querySelector('#ficha-add-contacto').addEventListener('click', () => {
+            leerContactosEdit(capa);
+            compuertaContactosEdit.push({ id: null, nombre: '', cargo: '', telefono: '' });
+            pintarContactosEdit(capa);
+            const filas = capa.querySelectorAll('.ficha-contacto');
+            const ultima = filas[filas.length - 1];
+            if (ultima) ultima.querySelector('.fc-nombre').focus();
         });
+
+        capa.addEventListener('click', (ev) => {
+            const x = ev.target && ev.target.closest ? ev.target.closest('.ficha-contacto-x') : null;
+            if (!x) return;
+            const fila = x.closest('.ficha-contacto');
+            leerContactosEdit(capa);
+            compuertaContactosEdit.splice(Number(fila.dataset.idx), 1);
+            pintarContactosEdit(capa);
+        });
+
+        const quitarMapa = capa.querySelector('#ficha-quitar-mapa');
+        if (quitarMapa) quitarMapa.addEventListener('click', () => quitarCompuertaDelMapa(c));
+    } else {
+        capa.querySelector('#ficha-cerrar').addEventListener('click', () => cerrarPanelMapa(false));
+
+        const btnCheck = capa.querySelector('#ficha-check');
+        if (btnCheck) btnCheck.addEventListener('click', () => marcarCheckCompuerta(c, !chequeada));
+
+        const btnEditar = capa.querySelector('#ficha-editar');
+        if (btnEditar) {
+            btnEditar.addEventListener('click', () => {
+                cerrarPanelMapa(false);
+                abrirFichaCompuerta(c, true);
+            });
+        }
     }
 
     const fotos = await fotosDe({ tipo: 'compuerta', id: c.id });
     const caja = capa.querySelector('#ficha-fotos');
-    // CORRECCIÓN AQUÍ: Aseguramos pasar 'editar' como cuarto parámetro si es necesario
     if (caja) caja.innerHTML = htmlGaleria(fotos, editar, { tipo: 'compuerta', id: c.id }, editar);
 }
 
