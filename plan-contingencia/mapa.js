@@ -2869,6 +2869,10 @@ async function cargarCompuertasMapa() {
 
     compuertasMapa.forEach(c => {
         if (!isFinite(Number(c.lat)) || !isFinite(Number(c.lon))) return;
+
+        /* El círculo dice QUÉ TOCA HACER (el plan), no lo que está pasando.
+           Abrir = verde, cerrar = rojo, igual que la tarjeta del panel. */
+        const abre = (c.plan_rojo || 'cerrar') === 'abrir';
         const abierta = esCompuertaAbierta(c);
         const chequeada = compuertaChequeada(c);
 
@@ -2876,7 +2880,7 @@ async function cargarCompuertasMapa() {
             icon: L.divIcon({
                 className: '',
                 html: '<span class="pin-compuerta">' +
-                    '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abierta ? 'abierta' : 'cerrada') + '">' +
+                    '<img src="assets/compuerta.png" class="compuerta-mapa-img ' + (abre ? 'abierta' : 'cerrada') + '">' +
                     (chequeada ? '<b class="compuerta-check" title="Cumplido">&#10003;</b>' : '') +
                     '</span>',
                 iconSize: [40, 40],
@@ -2886,7 +2890,10 @@ async function cargarCompuertasMapa() {
 
         marca.bindTooltip(
             '<b>' + (c.nombre || 'Compuerta') + '</b><br>' +
-            '<span style="opacity:.8">' + (abierta ? 'Abierta' : 'Cerrada') + ' · ' + (c.administracion || '') + '</span>' +
+            '<span style="font-weight:800;color:' + (abre ? '#86efac' : '#fca5a5') + '">' +
+                'En rojo: ' + (abre ? 'SE ABRE' : 'SE CIERRA') + '</span><br>' +
+            '<span style="opacity:.8">Ahora: ' + (abierta ? 'abierta' : 'cerrada') + ' · ' +
+                (c.administracion || '') + '</span>' +
             (chequeada ? '<br><span style="color:#86efac;font-weight:700">&#10003; Cumplido</span>' : ''),
             { direction: 'top', className: 'tip-compuerta', opacity: 1 }
         );
